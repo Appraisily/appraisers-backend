@@ -4,7 +4,14 @@ const { google } = require('googleapis');
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 
 const app = express();
-app.use(cors());
+
+// Configuración de CORS
+const corsOptions = {
+  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // URL de tu frontend
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 const client = new SecretManagerServiceClient();
