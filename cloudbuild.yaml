@@ -1,47 +1,36 @@
 # cloudbuild.yaml
 
 steps:
-  # Step 1: Build the Docker image
+  # Paso 1: Construir la imagen Docker
   - name: 'gcr.io/cloud-builders/docker'
-    id: Build Backend
+    id: 'Build Backend'
     args:
       - build
       - '-t'
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
       - '.'
 
-  # Step 2: Push the Docker image to Artifact Registry
+  # Paso 2: Empujar la imagen Docker al Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    id: Push Backend
+    id: 'Push Backend'
     args:
       - push
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
 
-  # Step 3: Deploy the image to Cloud Run
+  # Paso 3: Desplegar la imagen a Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
-    id: Deploy Backend
+    id: 'Deploy Backend'
     args:
       - 'run'
       - 'deploy'
-      - 'appraisers-backend' # Cloud Run service name for backend
+      - 'appraisers-backend' # Nombre del servicio en Cloud Run
       - '--image'
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
       - '--region'
-      - 'us-central1'  # Replace with your desired region if different
+      - 'us-central1' # Reemplaza con tu región si es diferente
       - '--platform'
       - 'managed'
-      - '--allow-unauthenticated' # Adjust authentication as needed
-
-  # Step 4: Debug Step - Verify Backend Nginx Configuration (Optional)
-  # Since the backend is an Express app, this step may not be necessary unless you have Nginx in backend
-  # If your backend uses Nginx, uncomment and adjust accordingly
-  # - name: 'gcr.io/cloud-builders/docker'
-  #   id: Debug Backend Nginx
-  #   entrypoint: 'sh'
-  #   args:
-  #     - '-c'
-  #     - |
-  #       docker run --rm -e PORT=8080 us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA cat /etc/nginx/conf.d/default.conf
+      - '--allow-unauthenticated' # Ajusta según tus necesidades de autenticación
 
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
