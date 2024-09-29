@@ -1,20 +1,20 @@
-# Use Node.js LTS version
+# Usar la versión LTS de Node.js
 FROM node:16-alpine
 
-# Create and set the working directory
+# Crear y establecer el directorio de trabajo
 WORKDIR /app
 
-# Copy package.json and package-lock.json
+# Copiar package.json y package-lock.json
 COPY package*.json ./
 
-# Install dependencies
+# Instalar dependencias
 RUN npm install --production
 
-# Copy the rest of the application code
+# Copiar el resto del código de la aplicación
 COPY . .
 
-# Expose the port (Cloud Run expects port 8080)
+# Exponer el puerto (Cloud Run espera el puerto 8080)
 EXPOSE 8080
 
-# Start the server
-CMD ["node", "index.js"]  # Replace 'index.js' with your main file if different
+# Iniciar el servidor
+CMD ["node", "index.js"]
