@@ -60,12 +60,17 @@ app.post('/api/authenticate', async (req, res) => {
 
   try {
     // Verify ID Token with Google
-    const oauth2Client = new google.auth.OAuth2();
-    const ticket = await oauth2Client.verifyIdToken({
+    const client = new google.auth.OAuth2();
+    const ticket = await client.verifyIdToken({
       idToken,
       audience: '856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com', // Your OAuth 2.0 Client ID
     });
     const payload = ticket.getPayload();
+
+    // Check if the user is authorized
+    if (!authorizedUsers.includes(payload.email)) {
+      return res.status(403).json({ success: false, message: 'Access forbidden: User is not authorized.' });
+    }
 
     // Generate a JWT for your application
     const token = jwt.sign(
@@ -82,7 +87,7 @@ app.post('/api/authenticate', async (req, res) => {
     res.cookie('jwtToken', token, {
       httpOnly: true,
       secure: true, // Ensure your app uses HTTPS
-      sameSite: 'Strict',
+      sameSite: 'None', // Allow cross-origin
       maxAge: 60 * 60 * 1000 // 1 hour
     });
 
