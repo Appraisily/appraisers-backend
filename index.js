@@ -22,7 +22,7 @@ app.use(express.json());
 const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com'); // Tu Client ID
 
 // Configurar la clave secreta para JWT (debe ser almacenada de forma segura)
-const JWT_SECRET = process.env.JWT_SECRET || 'tu_clave_secreta_aqui'; // Reemplaza con una clave segura generada anteriormente
+const JWT_SECRET = process.env.JWT_SECRET || '161d8ea114e5e8445eed60565a574d8715d637f6b1adf806bbcccede7cb088735330ee9261ee100a41444fd61b1b1e45546c44354b5a734279036bdbc86329b3'; // Reemplaza con una clave segura generada anteriormente
 
 const client = new SecretManagerServiceClient();
 
