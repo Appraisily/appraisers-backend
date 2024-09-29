@@ -110,6 +110,19 @@ async function startServer() {
       }
     });
 
+    // **Ruta de Prueba Temporal para Verificar Conexión con Google Sheets**
+    app.get('/api/test-sheets', async (req, res) => {
+      try {
+        const response = await sheets.spreadsheets.get({
+          spreadsheetId: SPREADSHEET_ID,
+        });
+        res.send('Conexión exitosa con Google Sheets API');
+      } catch (error) {
+        console.error('Error al conectar con Google Sheets API:', error);
+        res.status(500).send('Error al conectar con Google Sheets API');
+      }
+    });
+
     // **Iniciar el Servidor**
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, () => {
