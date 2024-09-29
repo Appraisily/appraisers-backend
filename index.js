@@ -6,21 +6,23 @@ const { google } = require('googleapis');
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
-const cookieParser = require('cookie-parser');
-const authorizedUsers = require('./authorizedUsers'); // Lista de usuarios autorizados
+// Elimina cookie-parser ya que no se usará
+// const cookieParser = require('cookie-parser');
+const authorizedUsers = require('./authorizedUsers'); // Asegúrate de tener este archivo
 
 const app = express();
 
 // Configuración de CORS
 const corsOptions = {
   origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // Reemplaza con la URL de tu frontend
-  credentials: true, // Permitir el envío de cookies
+  credentials: true, // Permitir el envío de cookies si decides usarlas en el futuro
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
 
 app.use(express.json());
-app.use(cookieParser());
+// Elimina cookie-parser
+// app.use(cookieParser());
 
 // Configurar el cliente de OAuth2 con tu Client ID
 const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com'); // Tu Client ID
@@ -63,9 +65,10 @@ async function verifyIdToken(idToken) {
   return payload;
 }
 
-// Middleware de Autenticación y Autorización usando JWT desde la cookie
+// Middleware de Autenticación y Autorización usando JWT desde el encabezado Authorization
 async function authenticate(req, res, next) {
-  const token = req.cookies.jwtToken;
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Formato: "Bearer <token>"
 
   if (!token) {
     return res.status(401).json({ success: false, message: 'No autorizado. Token no proporcionado.' });
@@ -110,15 +113,8 @@ app.post('/api/authenticate', async (req, res) => {
       { expiresIn: '1h' } // Token válido por 1 hora
     );
 
-    // Enviar el JWT como una cookie httpOnly
-    res.cookie('jwtToken', token, {
-      httpOnly: true,
-      secure: true, // Asegúrate de que tu aplicación use HTTPS
-      sameSite: 'Strict', // Ajusta según tus necesidades
-      maxAge: 60 * 60 * 1000 // 1 hora
-    });
-
-    res.json({ success: true });
+    // Enviar el JWT en la respuesta
+    res.json({ success: true, token });
   } catch (error) {
     console.error('Error al verificar el ID Token:', error);
     res.status(401).json({ success: false, message: 'Autenticación fallida.' });
@@ -127,11 +123,7 @@ app.post('/api/authenticate', async (req, res) => {
 
 // Ruta para cerrar sesión
 app.post('/api/logout', (req, res) => {
-  res.clearCookie('jwtToken', {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'Strict'
-  });
+  // No hay cookies que limpiar; el frontend se encargará de eliminar el JWT de localStorage
   res.json({ success: true, message: 'Sesión cerrada exitosamente.' });
 });
 
@@ -158,7 +150,7 @@ async function initializeSheets() {
 
 // Función para acceder al secreto de servicio de cuenta
 async function getServiceAccount() {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || 'civil-forge-403609';
   if (!projectId) {
     throw new Error('GOOGLE_CLOUD_PROJECT no está definido.');
   }
@@ -188,18 +180,16 @@ async function startServer() {
       try {
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A2:F`, // Ajusta el rango para obtener solo las columnas necesarias
+          range: `${SHEET_NAME}!A2:F`, // Solo las columnas A, B, C y F
         });
 
         const rows = response.data.values || [];
         const appraisals = rows.map((row, index) => ({
           id: index + 2, // Número de fila en la hoja
-          identifier: row[0] || '', // Columna A
-          date: row[1] || '', // Columna B
-          appraisalType: row[2] || '', // Columna C
-          // Puedes agregar más campos si lo necesitas
+          date: row[0] || '',
+          appraisalType: row[1] || '',
+          identifier: row[2] || '',
           status: row[5] || '', // Columna F
-          iaDescription: row[7] || '' // Columna H (puede requerir ajustar el rango)
         }));
 
         res.json(appraisals);
@@ -209,52 +199,49 @@ async function startServer() {
       }
     });
 
-    // **Endpoint: Obtener Detalles de una Evaluación Específica**
+    // **Endpoint: Obtener Detalles de una Evaluación**
     app.get('/api/appraisals/:id', authenticate, async (req, res) => {
       const { id } = req.params; // Número de fila
 
       try {
-        // Obtener los datos de la evaluación específica
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A${id}:H${id}`, // Obtener hasta la columna H para la IA descripción
+          range: `${SHEET_NAME}!A${id}:H${id}`, // Columnas A a H
         });
 
-        const row = response.data.values ? response.data.values[0] : null;
-
+        const row = response.data.values && response.data.values[0];
         if (!row) {
           return res.status(404).json({ success: false, message: 'Evaluación no encontrada.' });
         }
 
         const appraisal = {
           id: id,
-          identifier: row[0] || '', // Columna A
-          date: row[1] || '', // Columna B
-          appraisalType: row[2] || '', // Columna C
-          status: row[5] || '', // Columna F
-          iaDescription: row[7] || '' // Columna H
+          date: row[0] || '',
+          appraisalType: row[1] || '',
+          identifier: row[2] || '',
+          status: row[5] || '',
+          iaDescription: row[7] || '', // Columna H
         };
 
         res.json(appraisal);
       } catch (error) {
-        console.error('Error al obtener detalles de la evaluación:', error);
-        res.status(500).send('Error al obtener detalles de la evaluación');
+        console.error('Error al obtener detalles de evaluación:', error);
+        res.status(500).send('Error al obtener detalles de evaluación');
       }
     });
 
-    // **Endpoint: Completar Evaluación**
-    app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
+    // **Endpoint: Actualizar Evaluación**
+    app.post('/api/appraisals/:id', authenticate, async (req, res) => {
       const { id } = req.params; // Número de fila
-      const { numericField, textField } = req.body;
+      const { numericalField, textField } = req.body;
 
-      if (numericField === undefined || textField === undefined) {
+      if (numericalField === undefined || !textField) {
         return res.status(400).json({ success: false, message: 'Campos numéricos y de texto son requeridos.' });
       }
 
       try {
-        // Actualizar las columnas I y J con los datos proporcionados
         const updateRange = `${SHEET_NAME}!I${id}:J${id}`;
-        const values = [[numericField, textField]];
+        const values = [[numericalField, textField]];
 
         await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID,
@@ -265,23 +252,10 @@ async function startServer() {
           },
         });
 
-        // Opcional: Actualizar el estatus de la evaluación a "Completada" (Columna F)
-        const statusUpdateRange = `${SHEET_NAME}!F${id}:F${id}`;
-        const statusValues = [['Completada']];
-
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: SPREADSHEET_ID,
-          range: statusUpdateRange,
-          valueInputOption: 'RAW',
-          resource: {
-            values: statusValues,
-          },
-        });
-
-        res.json({ success: true, message: 'Evaluación completada exitosamente.' });
+        res.json({ success: true, message: 'Evaluación actualizada exitosamente.' });
       } catch (error) {
-        console.error('Error al completar la evaluación:', error);
-        res.status(500).send('Error al completar la evaluación');
+        console.error('Error al actualizar evaluación:', error);
+        res.status(500).send('Error al actualizar evaluación');
       }
     });
 
