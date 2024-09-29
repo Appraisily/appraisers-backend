@@ -54,7 +54,7 @@ async function initializeSheets() {
   }
 }
 
-// Función para configurar y iniciar el servidor
+// Función para configurar y iniciar el servidor.
 async function startServer() {
   try {
     const sheets = await initializeSheets();
