@@ -19,6 +19,10 @@ const client = new SecretManagerServiceClient();
 // Función para acceder al secreto en Secret Manager
 async function getServiceAccount() {
   const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
+  if (!projectId) {
+    throw new Error('GOOGLE_CLOUD_PROJECT no está definido.');
+  }
+
   const secretName = `projects/${projectId}/secrets/service-account-json/versions/latest`;
 
   const [version] = await client.accessSecretVersion({
@@ -49,7 +53,6 @@ async function initializeSheets() {
     throw error; // Propagar el error para evitar iniciar el servidor
   }
 }
-
 
 // Función para configurar y iniciar el servidor
 async function startServer() {
@@ -127,9 +130,9 @@ async function startServer() {
       }
     });
 
-    // **Iniciar el Servidor**
+    // **Iniciar el Servidor en Todas las Interfaces**
     const PORT = process.env.PORT || 8080;
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`Servidor backend está corriendo en el puerto ${PORT}`);
     });
   } catch (error) {
