@@ -1,4 +1,4 @@
-// index.js .
+// index.js
 
 const express = require('express');
 const cors = require('cors');
@@ -6,8 +6,8 @@ const { google } = require('googleapis');
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
-const cookieParser = require('cookie-parser'); // Importar cookie-parser
-const authorizedUsers = require('./authorizedUsers'); // Importar la lista de usuarios autorizados
+const cookieParser = require('cookie-parser');
+const authorizedUsers = require('./authorizedUsers'); // Lista de usuarios autorizados
 
 const app = express();
 
@@ -20,7 +20,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 app.use(express.json());
-app.use(cookieParser()); // Usar cookie-parser
+app.use(cookieParser());
 
 // Configurar el cliente de OAuth2 con tu Client ID
 const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com'); // Tu Client ID
@@ -188,21 +188,18 @@ async function startServer() {
       try {
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A2:I`,
+          range: `${SHEET_NAME}!A2:F`, // Ajusta el rango para obtener solo las columnas necesarias
         });
 
         const rows = response.data.values || [];
         const appraisals = rows.map((row, index) => ({
           id: index + 2, // Número de fila en la hoja
-          date: row[0] || '',
-          appraisalType: row[1] || '',
-          identifier: row[2] || '',
-          email: row[3] || '',
-          category: row[4] || '',
-          status: row[5] || '',
-          url: row[6] || '',
-          currentDescription: row[7] || '',
-          humanDescription: row[8] || '',
+          identifier: row[0] || '', // Columna A
+          date: row[1] || '', // Columna B
+          appraisalType: row[2] || '', // Columna C
+          // Puedes agregar más campos si lo necesitas
+          status: row[5] || '', // Columna F
+          iaDescription: row[7] || '' // Columna H (puede requerir ajustar el rango)
         }));
 
         res.json(appraisals);
@@ -212,15 +209,52 @@ async function startServer() {
       }
     });
 
-    // **Endpoint: Actualizar Evaluación**
-    app.post('/api/appraisals/:id', authenticate, async (req, res) => {
-      // Solo usuarios autenticados y autorizados pueden actualizar evaluaciones
+    // **Endpoint: Obtener Detalles de una Evaluación Específica**
+    app.get('/api/appraisals/:id', authenticate, async (req, res) => {
       const { id } = req.params; // Número de fila
-      const { appraisalValue, humanDescription } = req.body;
 
       try {
+        // Obtener los datos de la evaluación específica
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${SHEET_NAME}!A${id}:H${id}`, // Obtener hasta la columna H para la IA descripción
+        });
+
+        const row = response.data.values ? response.data.values[0] : null;
+
+        if (!row) {
+          return res.status(404).json({ success: false, message: 'Evaluación no encontrada.' });
+        }
+
+        const appraisal = {
+          id: id,
+          identifier: row[0] || '', // Columna A
+          date: row[1] || '', // Columna B
+          appraisalType: row[2] || '', // Columna C
+          status: row[5] || '', // Columna F
+          iaDescription: row[7] || '' // Columna H
+        };
+
+        res.json(appraisal);
+      } catch (error) {
+        console.error('Error al obtener detalles de la evaluación:', error);
+        res.status(500).send('Error al obtener detalles de la evaluación');
+      }
+    });
+
+    // **Endpoint: Completar Evaluación**
+    app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
+      const { id } = req.params; // Número de fila
+      const { numericField, textField } = req.body;
+
+      if (numericField === undefined || textField === undefined) {
+        return res.status(400).json({ success: false, message: 'Campos numéricos y de texto son requeridos.' });
+      }
+
+      try {
+        // Actualizar las columnas I y J con los datos proporcionados
         const updateRange = `${SHEET_NAME}!I${id}:J${id}`;
-        const values = [[humanDescription, appraisalValue]];
+        const values = [[numericField, textField]];
 
         await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID,
@@ -231,23 +265,23 @@ async function startServer() {
           },
         });
 
-        res.send('Evaluación actualizada exitosamente');
-      } catch (error) {
-        console.error('Error al actualizar evaluación:', error);
-        res.status(500).send('Error al actualizar evaluación');
-      }
-    });
+        // Opcional: Actualizar el estatus de la evaluación a "Completada" (Columna F)
+        const statusUpdateRange = `${SHEET_NAME}!F${id}:F${id}`;
+        const statusValues = [['Completada']];
 
-    // **Ruta de Prueba Temporal para Verificar Conexión con Google Sheets**
-    app.get('/api/test-sheets', async (req, res) => {
-      try {
-        const response = await sheets.spreadsheets.get({
+        await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID,
+          range: statusUpdateRange,
+          valueInputOption: 'RAW',
+          resource: {
+            values: statusValues,
+          },
         });
-        res.send('Conexión exitosa con Google Sheets API');
+
+        res.json({ success: true, message: 'Evaluación completada exitosamente.' });
       } catch (error) {
-        console.error('Error al conectar con Google Sheets API:', error);
-        res.status(500).send('Error al conectar con Google Sheets API');
+        console.error('Error al completar la evaluación:', error);
+        res.status(500).send('Error al completar la evaluación');
       }
     });
 
