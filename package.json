@@ -12,6 +12,6 @@
     "google-auth-library": "^8.7.0",
     "googleapis": "^105.0.0",
     "@google-cloud/secret-manager": "^4.4.0",
-    "jsonwebtoken": "^9.0.0" // Asegúrate de que esta línea esté presente
+    "jsonwebtoken": "^9.0.0"
   }
 }
