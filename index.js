@@ -1,40 +1,71 @@
 const express = require('express');
 const cors = require('cors');
 const { google } = require('googleapis');
-const path = require('path');
+const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 
 const app = express();
-app.use(cors());
+
+// Configuración de CORS
+const corsOptions = {
+  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // URL de tu frontend
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
-// Load service account credentials
-const SERVICE_ACCOUNT_FILE = path.join(__dirname, 'service-account.json');
-const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
+// Inicializar el cliente de Secret Manager
+const client = new SecretManagerServiceClient();
 
-// Authenticate with Google Sheets API
-const auth = new google.auth.GoogleAuth({
-  keyFile: SERVICE_ACCOUNT_FILE,
-  scopes: SCOPES,
-});
+// Función para acceder al secreto
+async function getServiceAccount() {
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
+  const secretName = `projects/${projectId}/secrets/service-account-json/versions/latest`;
 
-const sheets = google.sheets({ version: 'v4', auth });
+  const [version] = await client.accessSecretVersion({
+    name: secretName,
+  });
 
-// Replace with your Google Sheet ID
+  const payload = version.payload.data.toString('utf8');
+  return JSON.parse(payload);
+}
+
+// Autenticación con Google Sheets API
+let sheets;
+
+async function initializeSheets() {
+  try {
+    const serviceAccount = await getServiceAccount();
+    const auth = new google.auth.GoogleAuth({
+      credentials: serviceAccount,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    sheets = google.sheets({ version: 'v4', auth });
+    console.log('Autenticado con la API de Google Sheets');
+  } catch (error) {
+    console.error('Error al autenticar con la API de Google Sheets:', error);
+  }
+}
+
+initializeSheets();
+
+// Reemplaza con tu ID de Google Sheet
 const SPREADSHEET_ID = '1PDdt-tEV78uMGW-813UTcVxC9uzrRXQSmNLCI1rR-xc';
 const SHEET_NAME = 'Pending Appraisals';
 
-// **Endpoint: Get Pending Appraisals**
+// **Endpoint: Obtener Evaluaciones Pendientes**
 app.get('/api/appraisals', async (req, res) => {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A2:I`, // Assuming row 1 has headers
+      range: `${SHEET_NAME}!A2:I`, // Asumiendo que la fila 1 son los encabezados
     });
 
     const rows = response.data.values || [];
-    // Map rows to objects
+    // Mapear filas a objetos
     const appraisals = rows.map((row, index) => ({
-      id: index + 2, // Row number in the sheet
+      id: index + 2, // Número de fila en la hoja
       date: row[0] || '',
       appraisalType: row[1] || '',
       identifier: row[2] || '',
@@ -48,18 +79,18 @@ app.get('/api/appraisals', async (req, res) => {
 
     res.json(appraisals);
   } catch (error) {
-    console.error('Error fetching appraisals:', error);
-    res.status(500).send('Error fetching appraisals');
+    console.error('Error al obtener evaluaciones:', error);
+    res.status(500).send('Error al obtener evaluaciones');
   }
 });
 
-// **Endpoint: Update Appraisal**
+// **Endpoint: Actualizar Evaluación**
 app.post('/api/appraisals/:id', async (req, res) => {
-  const { id } = req.params; // Row number
+  const { id } = req.params; // Número de fila
   const { appraisalValue, humanDescription } = req.body;
 
   try {
-    // Update columns I (Human Description) and J (Appraisal Value)
+    // Actualizar columnas I (Descripción Humana) y J (Valor de Evaluación)
     const updateRange = `${SHEET_NAME}!I${id}:J${id}`;
     const values = [[humanDescription, appraisalValue]];
 
@@ -72,15 +103,15 @@ app.post('/api/appraisals/:id', async (req, res) => {
       },
     });
 
-    res.send('Appraisal updated successfully');
+    res.send('Evaluación actualizada exitosamente');
   } catch (error) {
-    console.error('Error updating appraisal:', error);
-    res.status(500).send('Error updating appraisal');
+    console.error('Error al actualizar evaluación:', error);
+    res.status(500).send('Error al actualizar evaluación');
   }
 });
 
-// **Start the Server**
+// **Iniciar el Servidor**
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`Backend server is running on port ${PORT}`);
+  console.log(`Servidor backend está corriendo en el puerto ${PORT}`);
 });
