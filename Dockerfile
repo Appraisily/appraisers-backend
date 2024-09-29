@@ -4,7 +4,7 @@ FROM node:16-alpine
 # Crear y establecer el directorio de trabajo
 WORKDIR /app
 
-# Copiar package.json y package-lock.json
+# Copiar package.json y package-lock.json (si existe)
 COPY package*.json ./
 
 # Instalar dependencias
