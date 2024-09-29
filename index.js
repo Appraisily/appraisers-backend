@@ -6,6 +6,9 @@ const { google } = require('googleapis');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+const authorizedUsers = require('./authorizedUsers'); // Adjust the path if necessary
+
+
 
 // Initialize Express App
 const app = express();
@@ -40,7 +43,10 @@ async function authenticate(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded; // Store user info in req.user
 
-    // TODO: Add authorization logic if needed
+    // Authorization: Check if the user is authorized
+    if (!authorizedUsers.includes(decoded.email)) {
+      return res.status(403).json({ success: false, message: 'Forbidden. You do not have access to this resource.' });
+    }
 
     next();
   } catch (error) {
@@ -48,6 +54,7 @@ async function authenticate(req, res, next) {
     res.status(401).json({ success: false, message: 'Invalid token.' });
   }
 }
+
 
 // Route for authentication
 app.post('/api/authenticate', async (req, res) => {
