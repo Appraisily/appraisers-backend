@@ -32,7 +32,10 @@ async function getServiceAccount() {
 // Función para inicializar la API de Google Sheets
 async function initializeSheets() {
   try {
+    console.log('Accediendo al secreto de la cuenta de servicio...');
     const serviceAccount = await getServiceAccount();
+    console.log('Secreto accedido correctamente.');
+
     const auth = new google.auth.GoogleAuth({
       credentials: serviceAccount,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -46,6 +49,7 @@ async function initializeSheets() {
     throw error; // Propagar el error para evitar iniciar el servidor
   }
 }
+
 
 // Función para configurar y iniciar el servidor
 async function startServer() {
