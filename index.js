@@ -22,7 +22,7 @@ app.use(express.json());
 const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com'); // Tu Client ID
 
 // Configurar la clave secreta para JWT (debe ser almacenada de forma segura)
-const JWT_SECRET = process.env.JWT_SECRET || 'tu_clave_secreta_aqui'; // Reemplaza con una clave segura
+const JWT_SECRET = process.env.JWT_SECRET || 'tu_clave_secreta_aqui'; // Reemplaza con una clave segura generada anteriormente
 
 const client = new SecretManagerServiceClient();
 
@@ -76,7 +76,7 @@ async function verifyIdToken(idToken) {
 }
 
 // Middleware de Autenticación usando JWT
-async function authenticate(req, res, next) {
+function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -123,7 +123,7 @@ app.post('/api/authenticate', async (req, res) => {
     console.error('Error al verificar el ID Token:', error);
     res.status(401).json({ success: false, message: 'Autenticación fallida.' });
   }
-}
+});
 
 // Función para configurar y iniciar el servidor
 async function startServer() {
