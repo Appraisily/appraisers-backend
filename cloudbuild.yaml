@@ -31,6 +31,8 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated' # Ajusta según tus necesidades de autenticación
+      - '--set-env-vars'
+      - 'GOOGLE_CLOUD_PROJECT=civil-forge-403609' # Establecer el ID del Proyecto
 
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
