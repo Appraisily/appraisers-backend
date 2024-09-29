@@ -1,18 +1,28 @@
+// index.js
+
 const express = require('express');
 const cors = require('cors');
 const { google } = require('googleapis');
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+const { OAuth2Client } = require('google-auth-library');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 
 // Configuración de CORS
 const corsOptions = {
-  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // URL de tu frontend
+  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // Reemplaza con la URL de tu frontend
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
 
 app.use(express.json());
+
+// Configurar el cliente de OAuth2 con tu Client ID
+const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com'); // Tu Client ID
+
+// Configurar la clave secreta para JWT (debe ser almacenada de forma segura)
+const JWT_SECRET = process.env.JWT_SECRET || 'tu_clave_secreta_aqui'; // Reemplaza con una clave segura
 
 const client = new SecretManagerServiceClient();
 
@@ -54,7 +64,68 @@ async function initializeSheets() {
   }
 }
 
-// Función para configurar y iniciar el servidor.
+// Función para verificar el ID token
+async function verifyIdToken(idToken) {
+  const ticket = await oauthClient.verifyIdToken({
+    idToken: idToken,
+    audience: '856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com', // Tu Client ID
+  });
+
+  const payload = ticket.getPayload();
+  return payload;
+}
+
+// Middleware de Autenticación usando JWT
+async function authenticate(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'No autorizado.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // Almacenar información del usuario en req.user
+    next();
+  } catch (error) {
+    console.error('Error al verificar el JWT:', error);
+    res.status(401).json({ success: false, message: 'Token inválido.' });
+  }
+}
+
+// Ruta de autenticación
+app.post('/api/authenticate', async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ success: false, message: 'ID Token es requerido.' });
+  }
+
+  try {
+    const payload = await verifyIdToken(idToken);
+    console.log('Usuario autenticado:', payload.email);
+
+    // Generar un JWT propio
+    const token = jwt.sign(
+      {
+        email: payload.email,
+        name: payload.name,
+        picture: payload.picture
+      },
+      JWT_SECRET,
+      { expiresIn: '1h' } // Token válido por 1 hora
+    );
+
+    res.json({ success: true, token });
+  } catch (error) {
+    console.error('Error al verificar el ID Token:', error);
+    res.status(401).json({ success: false, message: 'Autenticación fallida.' });
+  }
+}
+
+// Función para configurar y iniciar el servidor
 async function startServer() {
   try {
     const sheets = await initializeSheets();
@@ -64,7 +135,8 @@ async function startServer() {
     const SHEET_NAME = 'Pending Appraisals';
 
     // **Endpoint: Obtener Evaluaciones Pendientes**
-    app.get('/api/appraisals', async (req, res) => {
+    app.get('/api/appraisals', authenticate, async (req, res) => {
+      // Ahora, solo los usuarios autenticados pueden acceder a esta ruta
       try {
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId: SPREADSHEET_ID,
@@ -93,7 +165,8 @@ async function startServer() {
     });
 
     // **Endpoint: Actualizar Evaluación**
-    app.post('/api/appraisals/:id', async (req, res) => {
+    app.post('/api/appraisals/:id', authenticate, async (req, res) => {
+      // Solo usuarios autenticados pueden actualizar evaluaciones
       const { id } = req.params; // Número de fila
       const { appraisalValue, humanDescription } = req.body;
 
