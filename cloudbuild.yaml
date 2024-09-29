@@ -17,7 +17,7 @@ steps:
       - push
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
 
-  # Paso 3: Desplegar la imagen a Cloud Run
+  # Paso 3: Desplegar la imagen a Cloud Run con la variable de entorno GOOGLE_CLOUD_PROJECT
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'Deploy Backend'
     args:
