@@ -6,32 +6,27 @@ const { google } = require('googleapis');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
-const authorizedUsers = require('./authorizedUsers'); // Adjust the path if necessary
+const authorizedUsers = require('./authorizedUsers'); // Import authorized users
 
-
-
-// Initialize Express App
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-// Initialize Secret Manager Client
 const client = new SecretManagerServiceClient();
 
-// Define the JWT secret key (from Secret Manager)
 let JWT_SECRET;
 
 // Function to get secrets from Secret Manager
 async function getSecret(secretName) {
-  const projectId = 'civil-forge-403609'; // Use your correct project ID
+  const projectId = 'civil-forge-403609'; // Correct project ID
   const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
   const [version] = await client.accessSecretVersion({ name });
   const payload = version.payload.data.toString('utf8');
   return payload;
 }
 
-// Middleware to authenticate using JWT
+// Middleware to authenticate and authorize users
 async function authenticate(req, res, next) {
   const token = req.cookies.jwtToken;
 
@@ -55,7 +50,6 @@ async function authenticate(req, res, next) {
   }
 }
 
-
 // Route for authentication
 app.post('/api/authenticate', async (req, res) => {
   const { idToken } = req.body;
@@ -66,8 +60,8 @@ app.post('/api/authenticate', async (req, res) => {
 
   try {
     // Verify ID Token with Google
-    const client = new google.auth.OAuth2();
-    const ticket = await client.verifyIdToken({
+    const oauth2Client = new google.auth.OAuth2();
+    const ticket = await oauth2Client.verifyIdToken({
       idToken,
       audience: '856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com', // Your OAuth 2.0 Client ID
     });
@@ -109,7 +103,7 @@ app.post('/api/logout', (req, res) => {
   res.json({ success: true, message: 'Logged out successfully.' });
 });
 
-// Route to get all appraisals (simplified)
+// Route to get all appraisals
 app.get('/api/appraisals', authenticate, async (req, res) => {
   try {
     // TODO: Fetch appraisals from Google Sheets or your data source
