@@ -10,14 +10,23 @@ steps:
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
       - '.'
 
-  # Paso 2: Empujar la imagen Docker al Artifact Registry
+  # Paso 2: Depurar - Listar archivos en /app
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'List Files'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        docker run --rm us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA ls -l /app
+
+  # Paso 3: Empujar la imagen Docker al Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push Backend'
     args:
       - push
       - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
 
-  # Paso 3: Desplegar la imagen a Cloud Run
+  # Paso 4: Desplegar la imagen a Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'Deploy Backend'
     args:
