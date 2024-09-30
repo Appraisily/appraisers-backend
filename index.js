@@ -8,6 +8,7 @@ const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const authorizedUsers = require('./authorizedUsers'); // Lista de usuarios autorizados
+
 // Importar módulos necesarios
 const url = require('url');
 const fetch = require('node-fetch'); // Si no lo has importado ya
@@ -29,30 +30,27 @@ const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1
 
 const client = new SecretManagerServiceClient();
 
-// Función para acceder al secreto en Secret Manager
-async function getJwtSecret() {
-  const secretName = `projects/civil-forge-403609/secrets/jwt-secret/versions/latest`;
+// Función genérica para obtener un secreto
+async function getSecret(secretName) {
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
+  if (!projectId) {
+    throw new Error('GOOGLE_CLOUD_PROJECT no está definido.');
+  }
+
+  const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
 
   const [version] = await client.accessSecretVersion({
-    name: secretName,
+    name: name,
   });
 
   const payload = version.payload.data.toString('utf8');
   return payload;
 }
 
-// Configurar la clave secreta para JWT desde Secret Manager
+// Configurar variables para los secretos
 let JWT_SECRET;
-
-(async () => {
-  try {
-    JWT_SECRET = await getJwtSecret();
-    console.log('JWT_SECRET obtenido correctamente.');
-  } catch (error) {
-    console.error('Error al obtener JWT_SECRET:', error);
-    process.exit(1); // Salir si no se puede obtener el secreto
-  }
-})();
+let wpUsername;
+let wpAppPassword;
 
 // Función para verificar el ID token
 async function verifyIdToken(idToken) {
@@ -66,7 +64,7 @@ async function verifyIdToken(idToken) {
 }
 
 // Middleware de Autenticación y Autorización usando JWT desde la cookie
-async function authenticate(req, res, next) {
+function authenticate(req, res, next) {
   const token = req.cookies.jwtToken;
 
   if (!token) {
@@ -146,11 +144,11 @@ app.post('/api/logout', (req, res) => {
 async function initializeSheets() {
   try {
     console.log('Accediendo al secreto de la cuenta de servicio...');
-    const serviceAccount = await getServiceAccount();
+    const serviceAccount = await getSecret('service-account-json');
     console.log('Secreto accedido correctamente.');
 
     const auth = new google.auth.GoogleAuth({
-      credentials: serviceAccount,
+      credentials: JSON.parse(serviceAccount),
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
@@ -163,26 +161,19 @@ async function initializeSheets() {
   }
 }
 
-// Función para acceder al secreto de servicio de cuenta
-async function getServiceAccount() {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
-  if (!projectId) {
-    throw new Error('GOOGLE_CLOUD_PROJECT no está definido.');
-  }
-
-  const secretName = `projects/${projectId}/secrets/service-account-json/versions/latest`;
-
-  const [version] = await client.accessSecretVersion({
-    name: secretName,
-  });
-
-  const payload = version.payload.data.toString('utf8');
-  return JSON.parse(payload);
-}
-
 // Función para configurar y iniciar el servidor
 async function startServer() {
   try {
+    // Obtener los secretos antes de iniciar el servidor
+    JWT_SECRET = await getSecret('jwt-secret');
+    console.log('JWT_SECRET obtenido correctamente.');
+
+    wpUsername = await getSecret('wp_username');
+    console.log('wpUsername obtenido correctamente.');
+
+    wpAppPassword = await getSecret('wp_app_password');
+    console.log('wpAppPassword obtenido correctamente.');
+
     const sheets = await initializeSheets();
 
     // ID de tu Google Sheet
@@ -208,8 +199,8 @@ async function startServer() {
           identifier: row[2] || '', // Columna C: Appraisal Number
           // Column D and E are skipped as per the user's initial requirement
           status: row[5] || '', // Columna F: Status
-          iaDescription: row[7] || '', // Columna H: IA Description
-          wordpressUrl: row[6] || '' // Columna G: WordPress URL
+          wordpressUrl: row[6] || '', // Columna G: WordPress URL
+          iaDescription: row[7] || '' // Columna H: IA Description
         }));
 
         console.log(`Total de evaluaciones mapeadas: ${appraisals.length}`);
@@ -221,90 +212,111 @@ async function startServer() {
     });
 
     // **Endpoint: Obtener Detalles de una Evaluación Específica**
-   app.get('/api/appraisals/:id', authenticate, async (req, res) => {
-  const { id } = req.params; // Número de fila
+    app.get('/api/appraisals/:id', authenticate, async (req, res) => {
+      const { id } = req.params; // Número de fila
 
-  try {
-    // Obtener datos de la evaluación desde Google Sheets (como ya lo haces)
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:H${id}`, // Ajusta el rango según tus necesidades
-    });
+      try {
+        // Obtener datos de la evaluación desde Google Sheets
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${SHEET_NAME}!A${id}:H${id}`, // Ajusta el rango según tus necesidades
+        });
 
-    const row = response.data.values ? response.data.values[0] : null;
+        const row = response.data.values ? response.data.values[0] : null;
 
-    if (!row) {
-      return res.status(404).json({ success: false, message: 'Evaluación no encontrada.' });
-    }
+        if (!row) {
+          return res.status(404).json({ success: false, message: 'Evaluación no encontrada.' });
+        }
 
-    const appraisal = {
-      id: id,
-      date: row[0] || '',
-      appraisalType: row[1] || '',
-      identifier: row[2] || '',
-      status: row[5] || '',
-      wordpressUrl: row[6] || '',
-      iaDescription: row[7] || ''
-    };
+        const appraisal = {
+          id: id,
+          date: row[0] || '',
+          appraisalType: row[1] || '',
+          identifier: row[2] || '',
+          status: row[5] || '',
+          wordpressUrl: row[6] || '',
+          iaDescription: row[7] || ''
+        };
 
-    // **Extraer el ID del post de WordPress**
-    const wordpressUrl = appraisal.wordpressUrl;
-    const parsedUrl = new URL(wordpressUrl);
-    const postId = parsedUrl.searchParams.get('post');
+        // **Extraer el ID del post de WordPress**
+        const wordpressUrl = appraisal.wordpressUrl;
+        const parsedUrl = new URL(wordpressUrl);
+        const postId = parsedUrl.searchParams.get('post');
 
-    if (!postId) {
-      return res.status(400).json({ success: false, message: 'No se pudo extraer el ID del post de WordPress.' });
-    }
+        if (!postId) {
+          return res.status(400).json({ success: false, message: 'No se pudo extraer el ID del post de WordPress.' });
+        }
 
-    // **Configurar la autenticación para la API de WordPress**
-    const wpUsername = process.env.WP_USERNAME; // Asegúrate de configurar esta variable de entorno
-    const wpApplicationPassword = process.env.WP_APPLICATION_PASSWORD; // Asegúrate de configurar esta variable de entorno
+        // **Configurar la autenticación para la API de WordPress**
+        const authString = Buffer.from(`${wpUsername}:${wpAppPassword}`).toString('base64');
 
-    const authString = Buffer.from(`${wpUsername}:${wpApplicationPassword}`).toString('base64');
+        // **Hacer la solicitud a la API REST de WordPress**
+        const wpResponse = await fetch(`https://www.appraisily.com/wp-json/wp/v2/posts/${postId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${authString}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-    // **Hacer la solicitud a la API REST de WordPress**
-    const wpResponse = await fetch(`https://www.appraisily.com/wp-json/wp/v2/posts/${postId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Basic ${authString}`,
-        'Content-Type': 'application/json'
+        if (!wpResponse.ok) {
+          console.error('Error al obtener el post de WordPress:', await wpResponse.text());
+          return res.status(500).json({ success: false, message: 'Error al obtener datos de WordPress.' });
+        }
+
+        const wpData = await wpResponse.json();
+
+        // **Extraer las URLs de las imágenes de los campos ACF**
+        const acfFields = wpData.acf || {};
+
+        // Función para obtener la URL de la imagen
+        const getImageUrl = (imageField) => {
+          if (!imageField) return null;
+          if (typeof imageField === 'string') return imageField; // Si es una URL
+          if (typeof imageField === 'object' && imageField.url) return imageField.url; // Si es un objeto con una propiedad 'url'
+          return null;
+        };
+
+        const images = {
+          main: getImageUrl(acfFields.main),
+          age: getImageUrl(acfFields.age),
+          signature: getImageUrl(acfFields.signature)
+        };
+
+        // **Agregar las imágenes a la respuesta**
+        appraisal.images = images;
+
+        res.json(appraisal);
+      } catch (error) {
+        console.error('Error al obtener detalles de la evaluación:', error);
+        res.status(500).json({ success: false, message: 'Error al obtener detalles de la evaluación.' });
       }
     });
 
-    if (!wpResponse.ok) {
-      console.error('Error al obtener el post de WordPress:', await wpResponse.text());
-      return res.status(500).json({ success: false, message: 'Error al obtener datos de WordPress.' });
-    }
+    // **Endpoint: Completar Evaluación**
+    app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
+      const { id } = req.params; // Número de fila
+      const { appraisalValue, description } = req.body;
 
-    const wpData = await wpResponse.json();
+      if (appraisalValue === undefined || description === undefined) {
+        return res.status(400).json({ success: false, message: 'Appraisal value and description are required.' });
+      }
 
-    // **Extraer las URLs de las imágenes de los campos ACF**
-    const acfFields = wpData.acf || {};
+      try {
+        // Actualizar las columnas I y J con los datos proporcionados
+        const updateRange = `${SHEET_NAME}!I${id}:J${id}`;
+        const values = [[appraisalValue, description]];
 
-    // Función para obtener la URL de la imagen
-    const getImageUrl = (imageField) => {
-      if (!imageField) return null;
-      if (typeof imageField === 'string') return imageField; // Si es una URL
-      if (typeof imageField === 'object' && imageField.url) return imageField.url; // Si es un objeto con una propiedad 'url'
-      return null;
-    };
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID,
+          range: updateRange,
+          valueInputOption: 'RAW',
+          resource: {
+            values: values,
+          },
+        });
 
-    const images = {
-      main: getImageUrl(acfFields.main),
-      age: getImageUrl(acfFields.age),
-      signature: getImageUrl(acfFields.signature)
-    };
-
-    // **Agregar las imágenes a la respuesta**
-    appraisal.images = images;
-
-    res.json(appraisal);
-  } catch (error) {
-    console.error('Error al obtener detalles de la evaluación:', error);
-    res.status(500).json({ success: false, message: 'Error al obtener detalles de la evaluación.' });
-  }
-});
-        // Opcional: Actualizar el estatus de la evaluación a "Completada" (Columna F)
+        // Actualizar el estatus de la evaluación a "Completada" (Columna F)
         const statusUpdateRange = `${SHEET_NAME}!F${id}:F${id}`;
         const statusValues = [['Completada']];
 
