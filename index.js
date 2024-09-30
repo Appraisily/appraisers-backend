@@ -207,14 +207,14 @@ async function startServer() {
     });
 
     // **Endpoint: Obtener Detalles de una Evaluación Específica**
- app.get('/api/appraisals/:id', authenticate, async (req, res) => {
+app.get('/api/appraisals/:id', authenticate, async (req, res) => {
   const { id } = req.params; // Número de fila
 
   try {
-    // Obtener datos de la evaluación desde Google Sheets
+    // Actualizar el rango para incluir la columna I
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:H${id}`,
+      range: `${SHEET_NAME}!A${id}:I${id}`, // Ahora incluye hasta la columna I
     });
 
     const row = response.data.values ? response.data.values[0] : null;
@@ -223,6 +223,7 @@ async function startServer() {
       return res.status(404).json({ success: false, message: 'Evaluación no encontrada.' });
     }
 
+    // Incluir la descripción del cliente (columna I)
     const appraisal = {
       id: id,
       date: row[0] || '',
@@ -230,10 +231,11 @@ async function startServer() {
       identifier: row[2] || '',
       status: row[5] || '',
       wordpressUrl: row[6] || '',
-      iaDescription: row[7] || ''
+      iaDescription: row[7] || '',
+      customerDescription: row[8] || '' // Nueva propiedad
     };
 
-    // Extraer el ID del post de WordPress
+    // Resto del código para obtener el ID del post de WordPress
     const wordpressUrl = appraisal.wordpressUrl;
     const parsedUrl = new URL(wordpressUrl);
     const postId = parsedUrl.searchParams.get('post');
@@ -270,6 +272,18 @@ async function startServer() {
       age: await getImageUrl(acfFields.age),
       signature: await getImageUrl(acfFields.signature)
     };
+
+    // Agregar las imágenes a la respuesta
+    appraisal.images = images;
+
+    // Enviar la respuesta con la descripción del cliente incluida
+    res.json(appraisal);
+  } catch (error) {
+    console.error('Error al obtener detalles de la evaluación:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener detalles de la evaluación.' });
+  }
+});
+
 
     // Agregar las imágenes a la respuesta
     appraisal.images = images;
