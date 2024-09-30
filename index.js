@@ -199,8 +199,9 @@ async function startServer() {
     const sheets = await initializeSheets();
 
     // Recuperar credenciales de WordPress desde Secret Manager
-    const WORDPRESS_USERNAME = await getSecret('wp_username');
-    const WORDPRESS_APP_PASSWORD = await getSecret('wp_app_password');
+    
+const WORDPRESS_USERNAME = (await getSecret('wp_username')).trim();
+const WORDPRESS_APP_PASSWORD = (await getSecret('wp_app_password')).trim();
 
     // Almacenar las credenciales en variables de entorno
     process.env.WORDPRESS_USERNAME = WORDPRESS_USERNAME;
@@ -386,21 +387,29 @@ async function startServer() {
         const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
 
         // Preparar los datos para actualizar el campo ACF
-        const updateData = {
-          acf: {
-            value: appraisalValue // Asegúrate de que 'value' es el nombre correcto del campo ACF
-          }
-        };
+const updateData = {
+  acf: {
+    value: appraisalValue // Asegúrate de que 'value' es el nombre correcto del campo ACF
+  }
+};
 
-        // Realizar la solicitud de actualización a WordPress
-        const wpUpdateResponse = await fetch(updateWpEndpoint, {
-          method: 'POST', // Puedes usar 'PUT' si prefieres
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Basic ' + Buffer.from(`${process.env.WORDPRESS_USERNAME}:${process.env.WORDPRESS_APP_PASSWORD}`).toString('base64')
-          },
-          body: JSON.stringify(updateData)
-        });
+// Codificar correctamente el nombre de usuario y la contraseña
+const username = encodeURIComponent(process.env.WORDPRESS_USERNAME);
+const password = encodeURIComponent(process.env.WORDPRESS_APP_PASSWORD);
+const credentials = `${username}:${password}`;
+const base64Credentials = Buffer.from(credentials).toString('base64');
+const authHeader = 'Basic ' + base64Credentials;
+
+// Realizar la solicitud de actualización a WordPress
+const wpUpdateResponse = await fetch(updateWpEndpoint, {
+  method: 'POST', // Puedes usar 'PUT' si prefieres
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': authHeader
+  },
+  body: JSON.stringify(updateData)
+});
+        
 
         if (!wpUpdateResponse.ok) {
           const errorText = await wpUpdateResponse.text();
