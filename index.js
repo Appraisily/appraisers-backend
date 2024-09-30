@@ -7,16 +7,16 @@ const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-const authorizedUsers = require('./authorizedUsers'); // Lista de usuarios autorizados
+const authorizedUsers = require('./authorizedUsers'); // List of authorized users
 
 const url = require('url');
 const fetch = require('node-fetch');
 const app = express();
 
-// Configuración de CORS
+// CORS Configuration
 const corsOptions = {
-  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // URL de tu frontend
-  credentials: true, // Permitir el envío de cookies
+  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // Your frontend URL
+  credentials: true, // Allow credentials (cookies)
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
@@ -24,16 +24,16 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
-// Configurar el cliente de OAuth2 con tu Client ID
-const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com'); // Tu Client ID
+// Configure OAuth2 client with your Client ID
+const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com'); // Your Client ID
 
 const client = new SecretManagerServiceClient();
 
-// Función genérica para obtener un secreto
+// Generic function to get a secret
 async function getSecret(secretName) {
   const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
   if (!projectId) {
-    throw new Error('GOOGLE_CLOUD_PROJECT no está definido.');
+    throw new Error('GOOGLE_CLOUD_PROJECT is not defined.');
   }
 
   const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
@@ -46,103 +46,103 @@ async function getSecret(secretName) {
   return payload;
 }
 
-// Configurar variables para los secretos
+// Configure variables for secrets
 let JWT_SECRET;
 
-// Función para verificar el ID token
+// Function to verify the ID token
 async function verifyIdToken(idToken) {
   const ticket = await oauthClient.verifyIdToken({
     idToken: idToken,
-    audience: '856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com', // Tu Client ID
+    audience: '856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com', // Your Client ID
   });
 
   const payload = ticket.getPayload();
   return payload;
 }
 
-// Middleware de Autenticación y Autorización usando JWT desde la cookie
+// Authentication and Authorization Middleware using JWT from the cookie
 function authenticate(req, res, next) {
   const token = req.cookies.jwtToken;
 
   if (!token) {
-    return res.status(401).json({ success: false, message: 'No autorizado. Token no proporcionado.' });
+    return res.status(401).json({ success: false, message: 'Unauthorized. Token not provided.' });
   }
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // Almacenar información del usuario en req.user
+    req.user = decoded; // Store user information in req.user
 
-    // Verificar si el usuario está en la lista de autorizados
+    // Check if the user is in the authorized users list
     if (!authorizedUsers.includes(decoded.email)) {
-      return res.status(403).json({ success: false, message: 'Acceso prohibido. No tienes permisos para acceder a este recurso.' });
+      return res.status(403).json({ success: false, message: 'Forbidden. You do not have access to this resource.' });
     }
 
     next();
   } catch (error) {
-    console.error('Error al verificar el JWT:', error);
-    res.status(401).json({ success: false, message: 'Token inválido.' });
+    console.error('Error verifying JWT:', error);
+    res.status(401).json({ success: false, message: 'Invalid token.' });
   }
 }
 
-// Ruta de autenticación
+// Authentication Route
 app.post('/api/authenticate', async (req, res) => {
   const { idToken } = req.body;
 
   if (!idToken) {
-    return res.status(400).json({ success: false, message: 'ID Token es requerido.' });
+    return res.status(400).json({ success: false, message: 'ID Token is required.' });
   }
 
   try {
     const payload = await verifyIdToken(idToken);
-    console.log('Usuario autenticado:', payload.email);
+    console.log('Authenticated user:', payload.email);
 
-    // Verificar si el usuario está en la lista de autorizados
+    // Check if the user is in the authorized users list
     if (!authorizedUsers.includes(payload.email)) {
-      return res.status(403).json({ success: false, message: 'Acceso prohibido: Usuario no autorizado.' });
+      return res.status(403).json({ success: false, message: 'Access denied: User not authorized.' });
     }
 
-    // Generar un JWT propio
+    // Generate your own JWT
     const token = jwt.sign(
       {
         email: payload.email,
         name: payload.name
       },
       JWT_SECRET,
-      { expiresIn: '1h' } // Token válido por 1 hora
+      { expiresIn: '1h' } // Token valid for 1 hour
     );
 
-    // Enviar el JWT como una cookie httpOnly
+    // Send the JWT as an httpOnly cookie
     res.cookie('jwtToken', token, {
       httpOnly: true,
-      secure: true, // Asegúrate de que tu aplicación use HTTPS
-      sameSite: 'None', // 'None' para permitir cookies cross-site
-      maxAge: 60 * 60 * 1000 // 1 hora
+      secure: true, // Ensure your app uses HTTPS
+      sameSite: 'None', // 'None' to allow cross-site cookies
+      maxAge: 60 * 60 * 1000 // 1 hour
     });
 
-    // Enviar el nombre del usuario en la respuesta
+    // Send the user's name in the response
     res.json({ success: true, name: payload.name });
   } catch (error) {
-    console.error('Error al verificar el ID Token:', error);
-    res.status(401).json({ success: false, message: 'Autenticación fallida.' });
+    console.error('Error verifying ID Token:', error);
+    res.status(401).json({ success: false, message: 'Authentication failed.' });
   }
 });
 
-// Ruta para cerrar sesión
+// Logout Route
 app.post('/api/logout', (req, res) => {
   res.clearCookie('jwtToken', {
     httpOnly: true,
     secure: true,
     sameSite: 'None'
   });
-  res.json({ success: true, message: 'Sesión cerrada exitosamente.' });
+  res.json({ success: true, message: 'Successfully logged out.' });
 });
 
-// Función para inicializar la API de Google Sheets
+// Function to initialize the Google Sheets API
 async function initializeSheets() {
   try {
-    console.log('Accediendo al secreto de la cuenta de servicio...');
+    console.log('Accessing service account secret...');
     const serviceAccount = await getSecret('service-account-json');
-    console.log('Secreto accedido correctamente.');
+    console.log('Service account secret accessed successfully.');
 
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(serviceAccount),
@@ -150,74 +150,74 @@ async function initializeSheets() {
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    console.log('Autenticado con la API de Google Sheets');
+    console.log('Authenticated with Google Sheets API');
     return sheets;
   } catch (error) {
-    console.error('Error al autenticar con la API de Google Sheets:', error);
-    throw error; // Propagar el error para evitar iniciar el servidor
+    console.error('Error authenticating with Google Sheets API:', error);
+    throw error; // Propagate the error to prevent server start
   }
 }
 
-// Función para configurar y iniciar el servidor
+// Function to start the server
 async function startServer() {
   try {
-    // Obtener los secretos antes de iniciar el servidor
+    // Get secrets before starting the server
     JWT_SECRET = await getSecret('jwt-secret');
-    console.log('JWT_SECRET obtenido correctamente.');
+    console.log('JWT_SECRET obtained successfully.');
 
     const sheets = await initializeSheets();
 
-    // ID de tu Google Sheet
+    // Your Google Sheet ID
     const SPREADSHEET_ID = '1PDdt-tEV78uMGW-813UTcVxC9uzrRXQSmNLCI1rR-xc';
     const SHEET_NAME = 'Pending Appraisals';
 
-    // **Endpoint: Obtener Evaluaciones Pendientes**
+    // **Endpoint: Get Pending Appraisals**
     app.get('/api/appraisals', authenticate, async (req, res) => {
       try {
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A2:H`, // Ajusta el rango para incluir la columna H
+          range: `${SHEET_NAME}!A2:H`, // Adjust the range to include column H
         });
 
         const rows = response.data.values || [];
-        console.log(`Total de filas obtenidas: ${rows.length}`);
+        console.log(`Total rows obtained: ${rows.length}`);
 
         const appraisals = rows.map((row, index) => ({
-          id: index + 2, // Número de fila en la hoja (A2 corresponde a id=2)
-          date: row[0] || '', // Columna A: Date
-          appraisalType: row[1] || '', // Columna B: Appraisal Type
-          identifier: row[2] || '', // Columna C: Appraisal Number
-          status: row[5] || '', // Columna F: Status
-          wordpressUrl: row[6] || '', // Columna G: WordPress URL
-          iaDescription: row[7] || '' // Columna H: IA Description
+          id: index + 2, // Row number in the sheet (A2 corresponds to id=2)
+          date: row[0] || '', // Column A: Date
+          appraisalType: row[1] || '', // Column B: Appraisal Type
+          identifier: row[2] || '', // Column C: Appraisal Number
+          status: row[5] || '', // Column F: Status
+          wordpressUrl: row[6] || '', // Column G: WordPress URL
+          iaDescription: row[7] || '' // Column H: AI Description
         }));
 
-        console.log(`Total de evaluaciones mapeadas: ${appraisals.length}`);
+        console.log(`Total appraisals mapped: ${appraisals.length}`);
         res.json(appraisals);
       } catch (error) {
-        console.error('Error al obtener evaluaciones:', error);
-        res.status(500).json({ success: false, message: 'Error al obtener evaluaciones.' });
+        console.error('Error fetching appraisals:', error);
+        res.status(500).json({ success: false, message: 'Error fetching appraisals.' });
       }
     });
 
-    // **Endpoint: Obtener Detalles de una Evaluación Específica**
+    // **Endpoint: Get Details of a Specific Appraisal**
     app.get('/api/appraisals/:id', authenticate, async (req, res) => {
-      const { id } = req.params; // Número de fila
+      const { id } = req.params; // Row number
 
       try {
-        // Actualizar el rango para incluir la columna I
+        // Update the range to include column I
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A${id}:I${id}`, // Ahora incluye hasta la columna I
+          range: `${SHEET_NAME}!A${id}:I${id}`, // Now includes up to column I
         });
 
         const row = response.data.values ? response.data.values[0] : null;
 
         if (!row) {
-          return res.status(404).json({ success: false, message: 'Evaluación no encontrada.' });
+          return res.status(404).json({ success: false, message: 'Appraisal not found.' });
         }
 
-        // Incluir la descripción del cliente (columna I)
+        // Include customer description (column I)
         const appraisal = {
           id: id,
           date: row[0] || '',
@@ -226,22 +226,22 @@ async function startServer() {
           status: row[5] || '',
           wordpressUrl: row[6] || '',
           iaDescription: row[7] || '',
-          customerDescription: row[8] || '' // Nueva propiedad
+          customerDescription: row[8] || '' // New property
         };
 
-        // Resto del código para obtener el ID del post de WordPress
+        // Extract the post ID from the WordPress URL
         const wordpressUrl = appraisal.wordpressUrl;
         const parsedUrl = new URL(wordpressUrl);
         const postId = parsedUrl.searchParams.get('post');
 
         if (!postId) {
-          return res.status(400).json({ success: false, message: 'No se pudo extraer el ID del post de WordPress.' });
+          return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
         }
 
-        // Construir el endpoint para obtener el post
+        // Build the endpoint to fetch the post
         const wpEndpoint = `https://www.appraisily.com/wp-json/wp/v2/appraisals/${postId}`;
 
-        // Hacer la solicitud a la API REST de WordPress
+        // Make the request to the WordPress REST API
         const wpResponse = await fetch(wpEndpoint, {
           method: 'GET',
           headers: {
@@ -251,38 +251,38 @@ async function startServer() {
 
         if (!wpResponse.ok) {
           const errorText = await wpResponse.text();
-          console.error('Error al obtener el post de WordPress:', errorText);
-          return res.status(500).json({ success: false, message: 'Error al obtener datos de WordPress.' });
+          console.error('Error fetching WordPress post:', errorText);
+          return res.status(500).json({ success: false, message: 'Error fetching data from WordPress.' });
         }
 
         const wpData = await wpResponse.json();
 
-        // Obtener los campos ACF
+        // Get ACF fields
         const acfFields = wpData.acf || {};
 
-        // Obtener las URLs de las imágenes
+        // Get image URLs
         const images = {
           main: await getImageUrl(acfFields.main),
           age: await getImageUrl(acfFields.age),
           signature: await getImageUrl(acfFields.signature)
         };
 
-        // Agregar las imágenes a la respuesta
+        // Add images to the response
         appraisal.images = images;
 
-        // Enviar la respuesta con la descripción del cliente incluida
+        // Send the response with customer description included
         res.json(appraisal);
       } catch (error) {
-        console.error('Error al obtener detalles de la evaluación:', error);
-        res.status(500).json({ success: false, message: 'Error al obtener detalles de la evaluación.' });
+        console.error('Error fetching appraisal details:', error);
+        res.status(500).json({ success: false, message: 'Error fetching appraisal details.' });
       }
     });
 
-    // Función asíncrona para obtener la URL de la imagen
+    // Asynchronous function to get the image URL
     const getImageUrl = async (imageField) => {
       if (!imageField) return null;
 
-      // Si es un número o un string que representa un número (ID de imagen)
+      // If it's a number or a string representing a number (image ID)
       if (typeof imageField === 'number' || (typeof imageField === 'string' && /^\d+$/.test(imageField))) {
         const mediaId = imageField;
         try {
@@ -293,23 +293,23 @@ async function startServer() {
             }
           });
           if (!mediaResponse.ok) {
-            console.error(`Error al obtener la imagen con ID ${mediaId}:`, await mediaResponse.text());
+            console.error(`Error fetching image with ID ${mediaId}:`, await mediaResponse.text());
             return null;
           }
           const mediaData = await mediaResponse.json();
           return mediaData.source_url || null;
         } catch (error) {
-          console.error(`Error al obtener la imagen con ID ${mediaId}:`, error);
+          console.error(`Error fetching image with ID ${mediaId}:`, error);
           return null;
         }
       }
 
-      // Si es una URL directa
+      // If it's a direct URL
       if (typeof imageField === 'string' && imageField.startsWith('http')) {
         return imageField;
       }
 
-      // Si es un objeto con la propiedad 'url'
+      // If it's an object with a 'url' property
       if (typeof imageField === 'object' && imageField.url) {
         return imageField.url;
       }
@@ -317,9 +317,9 @@ async function startServer() {
       return null;
     };
 
-    // **Endpoint: Completar Evaluación**
+    // **Endpoint: Complete Appraisal**
     app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
-      const { id } = req.params; // Número de fila
+      const { id } = req.params; // Row number
       const { appraisalValue, description } = req.body;
 
       if (appraisalValue === undefined || description === undefined) {
@@ -327,8 +327,8 @@ async function startServer() {
       }
 
       try {
-        // Actualizar las columnas I y J con los datos proporcionados
-        const updateRange = `${SHEET_NAME}!I${id}:J${id}`;
+        // Update columns J and K with the provided data
+        const updateRange = `${SHEET_NAME}!J${id}:K${id}`;
         const values = [[appraisalValue, description]];
 
         await sheets.spreadsheets.values.update({
@@ -340,9 +340,9 @@ async function startServer() {
           },
         });
 
-        // Actualizar el estatus de la evaluación a "Completada" (Columna F)
+        // Update the appraisal status to "Completed" in column F
         const statusUpdateRange = `${SHEET_NAME}!F${id}:F${id}`;
-        const statusValues = [['Completada']];
+        const statusValues = [['Completed']];
 
         await sheets.spreadsheets.values.update({
           spreadsheetId: SPREADSHEET_ID,
@@ -353,21 +353,21 @@ async function startServer() {
           },
         });
 
-        res.json({ success: true, message: 'Evaluación completada exitosamente.' });
+        res.json({ success: true, message: 'Appraisal completed successfully.' });
       } catch (error) {
-        console.error('Error al completar la evaluación:', error);
-        res.status(500).json({ success: false, message: 'Error al completar la evaluación.' });
+        console.error('Error completing appraisal:', error);
+        res.status(500).json({ success: false, message: 'Error completing appraisal.' });
       }
     });
 
-    // Iniciar el Servidor en Todas las Interfaces
+    // Start the Server on All Interfaces
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Servidor backend está corriendo en el puerto ${PORT}`);
+      console.log(`Backend server is running on port ${PORT}`);
     });
   } catch (error) {
-    console.error('Error al iniciar el servidor:', error);
-    process.exit(1); // Salir si hay un error en la inicialización
+    console.error('Error starting the server:', error);
+    process.exit(1); // Exit if there's an initialization error
   }
 }
 
