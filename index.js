@@ -49,8 +49,7 @@ async function getSecret(secretName) {
 
 // Configurar variables para los secretos
 let JWT_SECRET;
-let wpUsername;
-let wpAppPassword;
+// Ya no necesitamos wpUsername ni wpAppPassword, ya que no usaremos autenticación
 
 // Función para verificar el ID token
 async function verifyIdToken(idToken) {
@@ -168,11 +167,7 @@ async function startServer() {
     JWT_SECRET = await getSecret('jwt-secret');
     console.log('JWT_SECRET obtenido correctamente.');
 
-    wpUsername = await getSecret('wp_username');
-    console.log('wpUsername obtenido correctamente.');
-
-    wpAppPassword = await getSecret('wp_app_password');
-    console.log('wpAppPassword obtenido correctamente.');
+    // No necesitamos obtener wpUsername ni wpAppPassword
 
     const sheets = await initializeSheets();
 
@@ -247,20 +242,16 @@ async function startServer() {
           return res.status(400).json({ success: false, message: 'No se pudo extraer el ID del post de WordPress.' });
         }
 
-        // **Eliminar espacios de la contraseña de aplicación**
-  //      const wpAppPasswordNoSpaces = wpAppPassword.replace(/\s+/g, '');
+        // **Construir el endpoint para obtener el post por ID**
+        const wpEndpoint = `https://www.appraisily.com/wp-json/wp/v2/appraisals/${postId}`;
 
-        // **Configurar la autenticación para la API de WordPress**
-const authString = Buffer.from(`${wpUsername}:${wpAppPassword}`).toString('base64');
-
- // **Hacer la solicitud a la API REST de WordPress**
-const wpResponse = await fetch(`https://www.appraisily.com/wp-json/wp/v2/appraisals/${postId}`, {
-  method: 'GET',
-  headers: {
-    'Authorization': `Basic ${authString}`,
-    'Content-Type': 'application/json'
-  }
-});
+        // **Hacer la solicitud a la API REST de WordPress sin autenticación**
+        const wpResponse = await fetch(wpEndpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
 
         if (!wpResponse.ok) {
           const errorText = await wpResponse.text();
