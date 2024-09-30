@@ -248,10 +248,10 @@ async function startServer() {
         }
 
         // **Eliminar espacios de la contraseña de aplicación**
-        const wpAppPasswordNoSpaces = wpAppPassword.replace(/\s+/g, '');
+  //      const wpAppPasswordNoSpaces = wpAppPassword.replace(/\s+/g, '');
 
         // **Configurar la autenticación para la API de WordPress**
-        const authString = Buffer.from(`${wpUsername}:${wpAppPasswordNoSpaces}`).toString('base64');
+const authString = Buffer.from(`${wpUsername}:${wpAppPassword}`).toString('base64');
 
         // **Hacer la solicitud a la API REST de WordPress**
         const wpResponse = await fetch(`https://www.appraisily.com/wp-json/wp/v2/posts/${postId}`, {
