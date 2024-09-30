@@ -253,14 +253,14 @@ async function startServer() {
         // **Configurar la autenticación para la API de WordPress**
 const authString = Buffer.from(`${wpUsername}:${wpAppPassword}`).toString('base64');
 
-        // **Hacer la solicitud a la API REST de WordPress**
-        const wpResponse = await fetch(`https://www.appraisily.com/wp-json/wp/v2/posts/${postId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Basic ${authString}`,
-            'Content-Type': 'application/json'
-          }
-        });
+ // **Hacer la solicitud a la API REST de WordPress**
+const wpResponse = await fetch(`https://www.appraisily.com/wp-json/wp/v2/appraisals/${postId}`, {
+  method: 'GET',
+  headers: {
+    'Authorization': `Basic ${authString}`,
+    'Content-Type': 'application/json'
+  }
+});
 
         if (!wpResponse.ok) {
           const errorText = await wpResponse.text();
