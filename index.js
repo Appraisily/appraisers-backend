@@ -30,17 +30,10 @@ const client = new SecretManagerServiceClient();
 
 // Función genérica para obtener un secreto
 async function getSecret(secretName) {
-  const projectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT;
-  if (!projectId) {
-    throw new Error('GOOGLE_CLOUD_PROJECT no está definido.');
-  }
-
+  const projectId = await client.getProjectId();
   const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
 
-  const [version] = await client.accessSecretVersion({
-    name: name,
-  });
-
+  const [version] = await client.accessSecretVersion({ name });
   const payload = version.payload.data.toString('utf8');
   return payload;
 }
