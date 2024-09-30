@@ -122,7 +122,8 @@ app.post('/api/authenticate', async (req, res) => {
       maxAge: 60 * 60 * 1000 // 1 hora
     });
 
-    res.json({ success: true });
+    // **Modificar la respuesta para incluir el nombre del usuario**
+    res.json({ success: true, name: payload.name });
   } catch (error) {
     console.error('Error al verificar el ID Token:', error);
     res.status(401).json({ success: false, message: 'Autenticación fallida.' });
