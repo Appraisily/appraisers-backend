@@ -393,16 +393,16 @@ const updateData = {
   }
 };
 
-// Codificar correctamente el nombre de usuario y la contraseña
-const username = encodeURIComponent(process.env.WORDPRESS_USERNAME);
-const password = encodeURIComponent(process.env.WORDPRESS_APP_PASSWORD);
+// Al construir las credenciales para el header de autorización
+const username = encodeURIComponent(WORDPRESS_USERNAME);
+const password = WORDPRESS_APP_PASSWORD; // No elimines espacios internos
 const credentials = `${username}:${password}`;
 const base64Credentials = Buffer.from(credentials).toString('base64');
 const authHeader = 'Basic ' + base64Credentials;
 
-// Realizar la solicitud de actualización a WordPress
+// Usar el authHeader en la solicitud fetch
 const wpUpdateResponse = await fetch(updateWpEndpoint, {
-  method: 'POST', // Puedes usar 'PUT' si prefieres
+  method: 'POST',
   headers: {
     'Content-Type': 'application/json',
     'Authorization': authHeader
