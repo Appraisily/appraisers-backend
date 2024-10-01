@@ -428,7 +428,256 @@ const wpUpdateResponse = await fetch(updateWpEndpoint, {
       }
     });
 
-    // Iniciar el Servidor en Todas las Interfaces
+    // index.js (Backend)
+
+// Importaciones y configuraciones existentes...
+
+// **Endpoint: Merge Descriptions with OpenAI**
+app.post('/api/appraisals/:id/merge-descriptions', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { appraiserDescription } = req.body;
+
+  if (!appraiserDescription) {
+    return res.status(400).json({ success: false, message: 'Appraiser description is required.' });
+  }
+
+  try {
+    // Obtener las descripciones existentes desde la hoja de cálculo o WordPress
+    // Supongamos que ya tienes acceso a customerDescription y iaDescription
+
+    // Realizar llamada a OpenAI GPT-4-mini
+    const openAIResponse = await fetch('https://api.openai.com/v1/engines/gpt-4-mini/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer YOUR_OPENAI_API_KEY` // Reemplaza con tu clave de API
+      },
+      body: JSON.stringify({
+        prompt: `Merge the following customer description and appraiser's description into a cohesive paragraph:\n\nCustomer Description: ${customerDescription}\n\nAppraiser Description: ${appraiserDescription}`,
+        max_tokens: 150
+      })
+    });
+
+    const openAIData = await openAIResponse.json();
+
+    if (!openAIData.choices || !openAIData.choices[0].text) {
+      throw new Error('Invalid response from OpenAI.');
+    }
+
+    const blendedDescription = openAIData.choices[0].text.trim();
+
+    res.json({ success: true, blendedDescription });
+  } catch (error) {
+    console.error('Error merging descriptions with OpenAI:', error);
+    res.status(500).json({ success: false, message: 'Error merging descriptions with OpenAI.' });
+  }
+});
+
+// **Endpoint: Update Post Title in WordPress**
+app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { newTitle } = req.body;
+
+  if (!newTitle) {
+    return res.status(400).json({ success: false, message: 'New title is required.' });
+  }
+
+  try {
+    // Obtener detalles de la apreciación para obtener la URL de WordPress
+    const appraisalResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${id}:I${id}`,
+    });
+
+    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+
+    if (!appraisalRow) {
+      return res.status(404).json({ success: false, message: 'Appraisal not found for updating in WordPress.' });
+    }
+
+    const appraisalWordpressUrl = appraisalRow[6] || ''; // Columna G: WordPress URL
+
+    if (!appraisalWordpressUrl) {
+      return res.status(400).json({ success: false, message: 'WordPress URL not provided.' });
+    }
+
+    const parsedWpUrl = new URL(appraisalWordpressUrl);
+    const wpPostId = parsedWpUrl.searchParams.get('post');
+
+    if (!wpPostId) {
+      return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
+    }
+
+    // **Actualizar el Título del Post en WordPress**
+    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+
+    const updateData = {
+      title: newTitle
+    };
+
+    const username = encodeURIComponent(process.env.WORDPRESS_USERNAME);
+    const password = process.env.WORDPRESS_APP_PASSWORD; // Asegúrate de que no haya espacios adicionales
+    const credentials = `${username}:${password}`;
+    const base64Credentials = Buffer.from(credentials).toString('base64');
+    const authHeader = 'Basic ' + base64Credentials;
+
+    const wpUpdateResponse = await fetch(updateWpEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      },
+      body: JSON.stringify(updateData)
+    });
+
+    if (!wpUpdateResponse.ok) {
+      const errorText = await wpUpdateResponse.text();
+      console.error('Error updating WordPress:', errorText);
+      throw new Error('Error updating WordPress post title.');
+    }
+
+    res.json({ success: true, message: 'WordPress post title updated successfully.' });
+  } catch (error) {
+    console.error('Error updating post title in WordPress:', error);
+    res.status(500).json({ success: false, message: 'Error updating post title in WordPress.' });
+  }
+});
+
+// **Endpoint: Insert WordPress Template**
+app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { templateId } = req.body;
+
+  if (!templateId) {
+    return res.status(400).json({ success: false, message: 'Template ID is required.' });
+  }
+
+  try {
+    // Obtener detalles de la apreciación para obtener la URL de WordPress
+    const appraisalResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${id}:I${id}`,
+    });
+
+    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+
+    if (!appraisalRow) {
+      return res.status(404).json({ success: false, message: 'Appraisal not found for inserting template in WordPress.' });
+    }
+
+    const appraisalWordpressUrl = appraisalRow[6] || ''; // Columna G: WordPress URL
+
+    if (!appraisalWordpressUrl) {
+      return res.status(400).json({ success: false, message: 'WordPress URL not provided.' });
+    }
+
+    const parsedWpUrl = new URL(appraisalWordpressUrl);
+    const wpPostId = parsedWpUrl.searchParams.get('post');
+
+    if (!wpPostId) {
+      return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
+    }
+
+    // **Insertar la Plantilla en el Post de WordPress**
+    const insertTemplateEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}/blocks`;
+
+    const insertData = {
+      block: {
+        name: 'your-plugin/your-block', // Reemplaza con el nombre de tu bloque
+        attributes: {
+          templateId: templateId
+        }
+      }
+    };
+
+    const username = encodeURIComponent(process.env.WORDPRESS_USERNAME);
+    const password = process.env.WORDPRESS_APP_PASSWORD; // Asegúrate de que no haya espacios adicionales
+    const credentials = `${username}:${password}`;
+    const base64Credentials = Buffer.from(credentials).toString('base64');
+    const authHeader = 'Basic ' + base64Credentials;
+
+    const wpInsertResponse = await fetch(insertTemplateEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      },
+      body: JSON.stringify(insertData)
+    });
+
+    if (!wpInsertResponse.ok) {
+      const errorText = await wpInsertResponse.text();
+      console.error('Error inserting template in WordPress:', errorText);
+      throw new Error('Error inserting WordPress template.');
+    }
+
+    res.json({ success: true, message: 'WordPress template inserted successfully.' });
+  } catch (error) {
+    console.error('Error inserting template in WordPress:', error);
+    res.status(500).json({ success: false, message: 'Error inserting template in WordPress.' });
+  }
+});
+
+// **Endpoint: Send Email to Customer**
+app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Obtener detalles de la apreciación
+    const appraisalResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${id}:I${id}`,
+    });
+
+    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+
+    if (!appraisalRow) {
+      return res.status(404).json({ success: false, message: 'Appraisal not found for sending email.' });
+    }
+
+    const customerEmail = appraisalRow[4] || ''; // Supongamos que la columna E contiene el correo electrónico del cliente
+
+    if (!customerEmail) {
+      return res.status(400).json({ success: false, message: 'Customer email not provided.' });
+    }
+
+    // **Enviar Email usando SendGrid**
+    const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`
+      },
+      body: JSON.stringify({
+        personalizations: [{
+          to: [{ email: customerEmail }],
+          subject: 'Your Appraisal is Complete'
+        }],
+        from: { email: 'no-reply@appraisily.com', name: 'Appraisily' },
+        content: [{
+          type: 'text/plain',
+          value: 'Dear Customer,\n\nYour appraisal has been completed. Please check your account for more details.\n\nBest regards,\nAppraisily Team'
+        }]
+      })
+    });
+
+    if (!sendGridResponse.ok) {
+      const errorText = await sendGridResponse.text();
+      console.error('Error sending email via SendGrid:', errorText);
+      throw new Error('Error sending email to customer.');
+    }
+
+    res.json({ success: true, message: 'Email sent to customer successfully.' });
+  } catch (error) {
+    console.error('Error sending email to customer:', error);
+    res.status(500).json({ success: false, message: 'Error sending email to customer.' });
+  }
+});
+
+// Iniciar el Servidor en Todas las Interfaces (ya existente)
+
+
+    
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Servidor backend corriendo en el puerto ${PORT}`);
