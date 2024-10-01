@@ -613,35 +613,86 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
       return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
     }
 
-    // **Insertar la Plantilla en el Post de WordPress**
-    const insertTemplateEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}/blocks`;
+    // **Obtener las Credenciales de WordPress desde Secret Manager**
+    const wpUsername = await getSecret('wp_username'); // Nombre del secreto para el username
+    const wpAppPassword = await getSecret('wp_app_password'); // Nombre del secreto para el app password
 
-    const insertData = {
-      block: {
-        name: 'your-plugin/your-block', // Reemplaza con el nombre de tu bloque
-        attributes: {
-          templateId: templateId
-        }
-      }
-    };
+    if (!wpUsername || !wpAppPassword) {
+      console.error('WordPress credentials are missing.');
+      return res.status(500).json({ success: false, message: 'Server configuration error. Please contact support.' });
+    }
 
-    const username = encodeURIComponent(process.env.WORDPRESS_USERNAME);
-    const password = process.env.WORDPRESS_APP_PASSWORD; // Asegúrate de que no haya espacios adicionales
+    // **Obtener la Plantilla desde WordPress**
+    const getTemplateEndpoint = `${process.env.WORDPRESS_API_URL}/patterns/${templateId}`; // Ajusta el endpoint según tu estructura de WordPress
+
+    // Configurar la autenticación básica
+    const username = encodeURIComponent(wpUsername);
+    const password = wpAppPassword.trim(); // Asegúrate de que no haya espacios adicionales
     const credentials = `${username}:${password}`;
     const base64Credentials = Buffer.from(credentials).toString('base64');
     const authHeader = 'Basic ' + base64Credentials;
 
-    const wpInsertResponse = await fetch(insertTemplateEndpoint, {
-      method: 'POST',
+    // Obtener la plantilla desde WordPress
+    const templateResponse = await fetch(getTemplateEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+
+    if (!templateResponse.ok) {
+      const errorText = await templateResponse.text();
+      console.error('Error fetching template from WordPress:', errorText);
+      throw new Error('Error fetching template from WordPress.');
+    }
+
+    const templateData = await templateResponse.json();
+
+    // Validar la estructura de la respuesta
+    if (!templateData.content || !templateData.content.rendered) {
+      throw new Error('Invalid template structure received from WordPress.');
+    }
+
+    const templateContent = templateData.content.rendered;
+
+    // **Insertar la Plantilla en el Post de WordPress**
+    const insertTemplateEndpoint = `${process.env.WORDPRESS_API_URL}/posts/${wpPostId}`;
+
+    // Obtener el contenido actual del post
+    const currentPostResponse = await fetch(insertTemplateEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+
+    if (!currentPostResponse.ok) {
+      const errorText = await currentPostResponse.text();
+      console.error('Error fetching current post from WordPress:', errorText);
+      throw new Error('Error fetching current post from WordPress.');
+    }
+
+    const currentPostData = await currentPostResponse.json();
+
+    // Combinar el contenido actual con la plantilla
+    const updatedContent = currentPostData.content.rendered + '\n' + templateContent;
+
+    // Actualizar el post con la nueva plantilla
+    const updatePostResponse = await fetch(insertTemplateEndpoint, {
+      method: 'PUT', // Puedes cambiar a 'PATCH' si prefieres actualizar parcialmente
       headers: {
         'Content-Type': 'application/json',
         'Authorization': authHeader
       },
-      body: JSON.stringify(insertData)
+      body: JSON.stringify({
+        content: updatedContent
+      })
     });
 
-    if (!wpInsertResponse.ok) {
-      const errorText = await wpInsertResponse.text();
+    if (!updatePostResponse.ok) {
+      const errorText = await updatePostResponse.text();
       console.error('Error inserting template in WordPress:', errorText);
       throw new Error('Error inserting WordPress template.');
     }
