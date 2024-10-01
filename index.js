@@ -432,34 +432,17 @@ const wpUpdateResponse = await fetch(updateWpEndpoint, {
 
 // Importaciones y configuraciones existentes...
 
-/// **Endpoint: Merge Descriptions with OpenAI**
+ // **Endpoint: Merge Descriptions with OpenAI**
     app.post('/api/appraisals/:id/merge-descriptions', authenticate, async (req, res) => {
       const { id } = req.params;
-      const { appraiserDescription } = req.body;
+      const { appraiserDescription, iaDescription } = req.body;
 
-      if (!appraiserDescription) {
-        return res.status(400).json({ success: false, message: 'Appraiser description is required.' });
+      // Validación de las descripciones recibidas
+      if (!appraiserDescription || !iaDescription) {
+        return res.status(400).json({ success: false, message: 'Appraiser description and IA description are required.' });
       }
 
       try {
-        // Obtener detalles de la apreciación
-        const appraisalResponse = await sheets.spreadsheets.values.get({
-          spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A${id}:I${id}`,
-        });
-
-        const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
-
-        if (!appraisalRow) {
-          return res.status(404).json({ success: false, message: 'Apreciación no encontrada.' });
-        }
-
-        const customerDescription = appraisalRow[8] || ''; // Columna I: Descripción del cliente
-
-        if (!customerDescription) {
-          return res.status(400).json({ success: false, message: 'Customer description is required.' });
-        }
-
         // Preparar la solicitud a OpenAI GPT-4 Chat API
         const openAIEndpoint = 'https://api.openai.com/v1/chat/completions';
 
@@ -468,11 +451,11 @@ const wpUpdateResponse = await fetch(updateWpEndpoint, {
           messages: [
             {
               role: 'system',
-              content: 'You are an assistant that merges customer and appraiser descriptions into a cohesive paragraph.'
+              content: 'You are an assistant that merges appraiser and AI descriptions into a cohesive paragraph.'
             },
             {
               role: 'user',
-              content: `Customer Description: ${customerDescription}\nAppraiser Description: ${appraiserDescription}\n\nPlease merge the above descriptions into a cohesive paragraph.`
+              content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a cohesive paragraph.`
             }
           ],
           max_tokens: 150,
@@ -489,6 +472,7 @@ const wpUpdateResponse = await fetch(updateWpEndpoint, {
           body: JSON.stringify(openAIRequestBody)
         });
 
+        // Manejo de errores de la respuesta de OpenAI
         if (!openAIResponse.ok) {
           const errorDetails = await openAIResponse.text();
           console.error('Error response from OpenAI:', errorDetails);
@@ -497,6 +481,7 @@ const wpUpdateResponse = await fetch(updateWpEndpoint, {
 
         const openAIData = await openAIResponse.json();
 
+        // Validar la estructura de la respuesta de OpenAI
         if (!openAIData.choices || !openAIData.choices[0].message || !openAIData.choices[0].message.content) {
           throw new Error('Invalid response structure from OpenAI.');
         }
@@ -505,6 +490,7 @@ const wpUpdateResponse = await fetch(updateWpEndpoint, {
 
         console.log('Blended Description:', blendedDescription);
 
+        // Responder al frontend con la descripción unificada
         res.json({ success: true, blendedDescription });
       } catch (error) {
         console.error('Error merging descriptions with OpenAI:', error);
