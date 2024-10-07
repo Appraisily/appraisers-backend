@@ -597,8 +597,8 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
 
     const wpPostId = appraisalRow[9] || ''; // Columna J: Post ID
 
-    if (!wpPostId || isNaN(wpPostId)) {
-      return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
+    if (!wpPostId) {
+      return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado.' });
     }
 
     // **Obtener las Credenciales de WordPress desde Secret Manager**
@@ -614,7 +614,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     const shortcodes = '[pdf_download]\n[artRegular post_id="114984" post_type="wp_block"]';
 
     // **Construir el Endpoint de Actualización del Post**
-    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`; // Usar 'appraisals' en lugar de 'posts'
+    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`; // Correcto
 
     // **Configurar la Autenticación Básica**
     const credentials = `${encodeURIComponent(wpUsername)}:${wpAppPassword.trim()}`; // Asegúrate de que no haya espacios adicionales
