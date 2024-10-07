@@ -583,10 +583,10 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
   const { id } = req.params;
 
   try {
-    // Obtener detalles de la apreciación para obtener la URL de WordPress
+    // Obtener detalles de la apreciación para obtener la URL de WordPress y el Post ID
     const appraisalResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:I${id}`,
+      range: `${SHEET_NAME}!A${id}:J${id}`, // Asegúrate de que la columna J contiene el Post ID
     });
 
     const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
@@ -595,17 +595,10 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
       return res.status(404).json({ success: false, message: 'Apreciación no encontrada para insertar shortcodes en WordPress.' });
     }
 
-    const appraisalWordpressUrl = appraisalRow[6] || ''; // Columna G: WordPress URL
+    const wpPostId = appraisalRow[9] || ''; // Columna J: Post ID
 
-    if (!appraisalWordpressUrl) {
-      return res.status(400).json({ success: false, message: 'URL de WordPress no proporcionada.' });
-    }
-
-    const parsedWpUrl = new URL(appraisalWordpressUrl);
-    const wpPostId = parsedWpUrl.searchParams.get('post');
-
-    if (!wpPostId) {
-      return res.status(400).json({ success: false, message: 'No se pudo extraer el ID del post de WordPress.' });
+    if (!wpPostId || isNaN(wpPostId)) {
+      return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
     }
 
     // **Obtener las Credenciales de WordPress desde Secret Manager**
@@ -621,7 +614,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     const shortcodes = '[pdf_download]\n[artRegular post_id="114984" post_type="wp_block"]';
 
     // **Construir el Endpoint de Actualización del Post**
-    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/posts/${wpPostId}`;
+    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`; // Usar 'appraisals' en lugar de 'posts'
 
     // **Configurar la Autenticación Básica**
     const credentials = `${encodeURIComponent(wpUsername)}:${wpAppPassword.trim()}`; // Asegúrate de que no haya espacios adicionales
@@ -639,7 +632,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
 
     if (!currentPostResponse.ok) {
       const errorText = await currentPostResponse.text();
-      console.error('Error obteniendo el post actual de WordPress:', errorText);
+      console.error(`Error obteniendo el post actual de WordPress: ${errorText}`);
       throw new Error('Error obteniendo el post actual de WordPress.');
     }
 
@@ -662,7 +655,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
 
     if (!updatePostResponse.ok) {
       const errorText = await updatePostResponse.text();
-      console.error('Error insertando shortcodes en WordPress:', errorText);
+      console.error(`Error insertando shortcodes en WordPress: ${errorText}`);
       throw new Error('Error insertando shortcodes en WordPress.');
     }
 
@@ -672,6 +665,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     res.status(500).json({ success: false, message: 'Error insertando shortcodes en WordPress.' });
   }
 });
+
 
 
 // **Endpoint: Send Email to Customer**
