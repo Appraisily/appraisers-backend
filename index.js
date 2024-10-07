@@ -582,6 +582,8 @@ app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
 app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
   const { id } = req.params;
 
+  console.log(`\n[insert-template] Iniciando proceso para la apreciación ID: ${id}`);
+
   try {
     // Obtener detalles de la apreciación para obtener la URL de WordPress y el Post ID
     const appraisalResponse = await sheets.spreadsheets.values.get({
@@ -589,16 +591,21 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
       range: `${SHEET_NAME}!A${id}:J${id}`, // Asegúrate de que la columna J contiene el Post ID
     });
 
+    console.log(`[insert-template] Respuesta de Google Sheets:`, appraisalResponse.data.values);
+
     const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
 
     if (!appraisalRow) {
+      console.error(`[insert-template] Apreciación ID ${id} no encontrada en Google Sheets.`);
       return res.status(404).json({ success: false, message: 'Apreciación no encontrada para insertar shortcodes en WordPress.' });
     }
 
     const wpPostId = appraisalRow[9] || ''; // Columna J: Post ID
+    console.log(`[insert-template] Post ID extraído: ${wpPostId}`);
 
-    if (!wpPostId) {
-      return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado.' });
+    if (!wpPostId || isNaN(wpPostId)) {
+      console.error(`[insert-template] Post ID de WordPress no proporcionado o inválido.`);
+      return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
     }
 
     // **Obtener las Credenciales de WordPress desde Secret Manager**
@@ -610,11 +617,15 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
       return res.status(500).json({ success: false, message: 'Error de configuración del servidor. Por favor, contacta con soporte.' });
     }
 
+    console.log(`[insert-template] Credenciales de WordPress obtenidas correctamente.`);
+
     // **Definir los Shortcodes a Insertar**
     const shortcodes = '[pdf_download]\n[artRegular post_id="114984" post_type="wp_block"]';
+    console.log(`[insert-template] Shortcodes definidos: ${shortcodes}`);
 
     // **Construir el Endpoint de Actualización del Post**
-    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`; // Correcto
+    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+    console.log(`[insert-template] Endpoint de actualización construido: ${updateWpEndpoint}`);
 
     // **Configurar la Autenticación Básica**
     const credentials = `${encodeURIComponent(wpUsername)}:${wpAppPassword.trim()}`; // Asegúrate de que no haya espacios adicionales
@@ -622,6 +633,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     const authHeader = 'Basic ' + base64Credentials;
 
     // **Obtener el Contenido Actual del Post**
+    console.log(`[insert-template] Realizando solicitud GET al endpoint de WordPress para obtener el contenido actual.`);
     const currentPostResponse = await fetch(updateWpEndpoint, {
       method: 'GET',
       headers: {
@@ -632,16 +644,19 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
 
     if (!currentPostResponse.ok) {
       const errorText = await currentPostResponse.text();
-      console.error(`Error obteniendo el post actual de WordPress: ${errorText}`);
+      console.error(`[insert-template] Error obteniendo el post actual de WordPress: ${errorText}`);
       throw new Error('Error obteniendo el post actual de WordPress.');
     }
 
     const currentPostData = await currentPostResponse.json();
+    console.log(`[insert-template] Contenido actual del post obtenido:`, currentPostData);
 
     // **Combinar el Contenido Actual con los Shortcodes**
     const updatedContent = currentPostData.content.rendered + '\n' + shortcodes;
+    console.log(`[insert-template] Contenido actualizado del post:`, updatedContent);
 
     // **Actualizar el Post con los Shortcodes**
+    console.log(`[insert-template] Realizando solicitud PUT al endpoint de WordPress para actualizar el contenido.`);
     const updatePostResponse = await fetch(updateWpEndpoint, {
       method: 'PUT', // Puedes cambiar a 'PATCH' si prefieres actualizar parcialmente
       headers: {
@@ -655,16 +670,18 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
 
     if (!updatePostResponse.ok) {
       const errorText = await updatePostResponse.text();
-      console.error(`Error insertando shortcodes en WordPress: ${errorText}`);
+      console.error(`[insert-template] Error insertando shortcodes en WordPress: ${errorText}`);
       throw new Error('Error insertando shortcodes en WordPress.');
     }
 
+    console.log(`[insert-template] Shortcodes insertados exitosamente en el post de WordPress.`);
     res.json({ success: true, message: 'Shortcodes insertados exitosamente en el post de WordPress.' });
   } catch (error) {
     console.error('Error insertando shortcodes en WordPress:', error);
     res.status(500).json({ success: false, message: 'Error insertando shortcodes en WordPress.' });
   }
 });
+
 
 
 
