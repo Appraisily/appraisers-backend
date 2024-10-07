@@ -623,7 +623,84 @@ async function startServer() {
       }
     });
 
-// ... (El resto de tus endpoints y código)
+// **Endpoint: Update Post Title in WordPress**
+app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { newTitle } = req.body;
+
+  if (!newTitle) {
+    return res.status(400).json({ success: false, message: 'New title is required.' });
+  }
+
+  try {
+    // Obtener detalles de la apreciación para obtener la URL de WordPress
+    const appraisalResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${id}:I${id}`,
+    });
+
+    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+
+    if (!appraisalRow) {
+      return res.status(404).json({ success: false, message: 'Appraisal not found for updating in WordPress.' });
+    }
+
+    const appraisalWordpressUrl = appraisalRow[6] || ''; // Columna G: WordPress URL
+
+    if (!appraisalWordpressUrl) {
+      return res.status(400).json({ success: false, message: 'WordPress URL not provided.' });
+    }
+
+    const parsedWpUrl = new URL(appraisalWordpressUrl);
+    const wpPostId = parsedWpUrl.searchParams.get('post');
+
+    if (!wpPostId) {
+      return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
+    }
+
+    console.log(`[api/appraisals/${id}/update-title] Post ID extraído: ${wpPostId}`);
+
+    // **Actualizar el Título del Post en WordPress**
+    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+    console.log(`[api/appraisals/${id}/update-title] Endpoint de actualización de WordPress: ${updateWpEndpoint}`);
+
+    const updateData = {
+      title: newTitle
+    };
+
+    // Construir el encabezado de autenticación
+    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+    const base64Credentials = Buffer.from(credentialsString).toString('base64');
+    const authHeader = 'Basic ' + base64Credentials;
+
+    console.log(`[api/appraisals/${id}/update-title] Autenticación configurada: ${authHeader ? 'Yes' : 'No'}`);
+
+    // Realizar la solicitud PUT a WordPress
+    console.log(`[api/appraisals/${id}/update-title] Realizando solicitud PUT al endpoint de WordPress: ${updateWpEndpoint}`);
+    const wpUpdateResponse = await fetch(updateWpEndpoint, {
+      method: 'PUT', // Método correcto para actualizar
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      },
+      body: JSON.stringify(updateData)
+    });
+
+    if (!wpUpdateResponse.ok) {
+      const errorText = await wpUpdateResponse.text();
+      console.error(`[api/appraisals/${id}/update-title] Error actualizando WordPress: ${errorText}`);
+      throw new Error('Error updating WordPress post title.');
+    }
+
+    const wpUpdateData = await wpUpdateResponse.json();
+    console.log(`[api/appraisals/${id}/update-title] WordPress actualizado exitosamente:`, wpUpdateData);
+
+    res.json({ success: true, message: 'WordPress post title updated successfully.' });
+  } catch (error) {
+    console.error('Error updating post title in WordPress:', error);
+    res.status(500).json({ success: false, message: 'Error updating post title in WordPress.' });
+  }
+});
 
     // **Endpoint: Send Email to Customer**
     app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
