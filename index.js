@@ -30,12 +30,17 @@ const client = new SecretManagerServiceClient();
 
 // Función genérica para obtener un secreto
 async function getSecret(secretName) {
-  const projectId = await client.getProjectId();
-  const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
+  try {
+    const projectId = await client.getProjectId();
+    const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
 
-  const [version] = await client.accessSecretVersion({ name });
-  const payload = version.payload.data.toString('utf8');
-  return payload;
+    const [version] = await client.accessSecretVersion({ name });
+    const payload = version.payload.data.toString('utf8');
+    return payload;
+  } catch (error) {
+    console.error(`Error obteniendo el secreto ${secretName}:`, error);
+    throw new Error(`No se pudo obtener el secreto ${secretName}`);
+  }
 }
 
 // Configurar variables para secretos
@@ -199,13 +204,18 @@ async function startServer() {
     const sheets = await initializeSheets();
 
     // Recuperar credenciales de WordPress desde Secret Manager
-    
-const WORDPRESS_USERNAME = (await getSecret('wp_username')).trim();
-const WORDPRESS_APP_PASSWORD = (await getSecret('wp_app_password')).trim();
+    const WORDPRESS_USERNAME = (await getSecret('wp_username')).trim();
+    const WORDPRESS_APP_PASSWORD = (await getSecret('wp_app_password')).trim();
+    const WORDPRESS_API_URL = (await getSecret('WORDPRESS_API_URL')).trim();
 
-    // Almacenar las credenciales en variables de entorno
+    // Asignar las credenciales y URL a variables de entorno
     process.env.WORDPRESS_USERNAME = WORDPRESS_USERNAME;
     process.env.WORDPRESS_APP_PASSWORD = WORDPRESS_APP_PASSWORD;
+    process.env.WORDPRESS_API_URL = WORDPRESS_API_URL;
+
+    console.log('WORDPRESS_USERNAME:', process.env.WORDPRESS_USERNAME);
+    console.log('WORDPRESS_APP_PASSWORD:', process.env.WORDPRESS_APP_PASSWORD ? 'Loaded' : 'Not Loaded');
+    console.log('WORDPRESS_API_URL cargado correctamente:', process.env.WORDPRESS_API_URL);
 
     // Tu ID de Google Sheet
     const SPREADSHEET_ID = '1PDdt-tEV78uMGW-813UTcVxC9uzrRXQSmNLCI1rR-xc';
@@ -278,24 +288,29 @@ const WORDPRESS_APP_PASSWORD = (await getSecret('wp_app_password')).trim();
           return res.status(400).json({ success: false, message: 'No se pudo extraer el ID del post de WordPress.' });
         }
 
+        console.log(`[api/appraisals/${id}] Post ID extraído: ${postId}`);
+
         // Construir el endpoint para obtener el post
-        const wpEndpoint = `https://www.appraisily.com/wp-json/wp/v2/appraisals/${postId}`;
+        const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+        console.log(`[api/appraisals/${id}] Endpoint de WordPress: ${wpEndpoint}`);
 
         // Realizar la solicitud a la API REST de WordPress
         const wpResponse = await fetch(wpEndpoint, {
           method: 'GET',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`
           }
         });
 
         if (!wpResponse.ok) {
           const errorText = await wpResponse.text();
-          console.error('Error obteniendo post de WordPress:', errorText);
+          console.error(`[api/appraisals/${id}] Error obteniendo post de WordPress: ${errorText}`);
           return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
         }
 
         const wpData = await wpResponse.json();
+        console.log(`[api/appraisals/${id}] Datos de WordPress obtenidos:`, wpData);
 
         // Obtener los campos ACF
         const acfFields = wpData.acf || {};
@@ -381,44 +396,45 @@ const WORDPRESS_APP_PASSWORD = (await getSecret('wp_app_password')).trim();
           return res.status(400).json({ success: false, message: 'No se pudo extraer el ID del post de WordPress.' });
         }
 
+        console.log(`[api/appraisals/${id}/complete] Post ID extraído: ${wpPostId}`);
+
         // **Actualizar el Campo ACF 'value' en WordPress**
 
         // Construir el endpoint de actualización
         const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+        console.log(`[api/appraisals/${id}/complete] Endpoint de actualización de WordPress: ${updateWpEndpoint}`);
 
         // Preparar los datos para actualizar el campo ACF
-const updateData = {
-  acf: {
-    value: appraisalValue // Asegúrate de que 'value' es el nombre correcto del campo ACF
-  }
-};
+        const updateData = {
+          acf: {
+            value: appraisalValue // Asegúrate de que 'value' es el nombre correcto del campo ACF
+          }
+        };
 
-// Al construir las credenciales para el header de autorización
-const username = encodeURIComponent(WORDPRESS_USERNAME);
-const password = WORDPRESS_APP_PASSWORD; // No elimines espacios internos
-const credentials = `${username}:${password}`;
-const base64Credentials = Buffer.from(credentials).toString('base64');
-const authHeader = 'Basic ' + base64Credentials;
+        // Construir el encabezado de autenticación
+        const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`; // Asegúrate de que no haya espacios adicionales
+        const base64Credentials = Buffer.from(credentialsString).toString('base64');
+        const authHeader = 'Basic ' + base64Credentials;
+        console.log(`[api/appraisals/${id}/complete] Autenticación configurada.`);
 
-// Usar el authHeader en la solicitud fetch
-const wpUpdateResponse = await fetch(updateWpEndpoint, {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'Authorization': authHeader
-  },
-  body: JSON.stringify(updateData)
-});
-        
+        // Realizar la solicitud de actualización a WordPress
+        const wpUpdateResponse = await fetch(updateWpEndpoint, {
+          method: 'PUT', // Puedes cambiar a 'PATCH' si prefieres actualizar parcialmente
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader
+          },
+          body: JSON.stringify(updateData)
+        });
 
         if (!wpUpdateResponse.ok) {
           const errorText = await wpUpdateResponse.text();
-          console.error('Error actualizando WordPress:', errorText);
+          console.error(`[api/appraisals/${id}/complete] Error actualizando WordPress: ${errorText}`);
           return res.status(500).json({ success: false, message: 'Error actualizando WordPress.' });
         }
 
         const wpUpdateData = await wpUpdateResponse.json();
-        console.log('WordPress actualizado exitosamente:', wpUpdateData);
+        console.log(`[api/appraisals/${id}/complete] WordPress actualizado exitosamente:`, wpUpdateData);
 
         // Responder al frontend
         res.json({ success: true, message: 'Apreciación completada exitosamente y actualizada en WordPress.' });
@@ -428,323 +444,245 @@ const wpUpdateResponse = await fetch(updateWpEndpoint, {
       }
     });
 
-    // index.js (Backend)
+    // **Endpoint: Merge Descriptions with OpenAI**
+    app.post('/api/appraisals/:id/merge-descriptions', authenticate, async (req, res) => {
+      const { id } = req.params;
+      const { appraiserDescription, iaDescription } = req.body;
 
-// Importaciones y configuraciones existentes...
+      // Validación de las descripciones recibidas
+      if (!appraiserDescription || !iaDescription) {
+        return res.status(400).json({ success: false, message: 'Appraiser description and IA description are required.' });
+      }
 
-// **Endpoint: Merge Descriptions with OpenAI**
-app.post('/api/appraisals/:id/merge-descriptions', authenticate, async (req, res) => {
-  const { id } = req.params;
-  const { appraiserDescription, iaDescription } = req.body;
+      // Obtener la clave de OpenAI desde las variables de entorno
+      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-  // Validación de las descripciones recibidas
-  if (!appraiserDescription || !iaDescription) {
-    return res.status(400).json({ success: false, message: 'Appraiser description and IA description are required.' });
-  }
+      if (!OPENAI_API_KEY) {
+        console.error('OPENAI_API_KEY is not defined in environment variables.');
+        return res.status(500).json({ success: false, message: 'Server configuration error. Please contact support.' });
+      }
 
-  // Obtener la clave de OpenAI desde las variables de entorno
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+      try {
+        // Preparar la solicitud a OpenAI GPT-4 Chat API
+        const openAIEndpoint = 'https://api.openai.com/v1/chat/completions';
 
-  if (!OPENAI_API_KEY) {
-    console.error('OPENAI_API_KEY is not defined in environment variables.');
-    return res.status(500).json({ success: false, message: 'Server configuration error. Please contact support.' });
-  }
+        const openAIRequestBody = {
+          model: 'gpt-4', // Utiliza el modelo de chat GPT-4
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an assistant that merges appraiser and AI descriptions into a cohesive paragraph.'
+            },
+            {
+              role: 'user',
+              content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a cohesive paragraph.`
+            }
+          ],
+          max_tokens: 150,
+          temperature: 0.7
+        };
 
-  try {
-    // Preparar la solicitud a OpenAI GPT-4 Chat API
-    const openAIEndpoint = 'https://api.openai.com/v1/chat/completions';
+        // Realizar llamada a OpenAI GPT-4 Chat API
+        const openAIResponse = await fetch(openAIEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${OPENAI_API_KEY}` // Usar la clave de OpenAI desde las variables de entorno
+          },
+          body: JSON.stringify(openAIRequestBody)
+        });
 
-    const openAIRequestBody = {
-      model: 'gpt-4', // Utiliza el modelo de chat GPT-4
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an assistant that merges appraiser and AI descriptions into a cohesive paragraph.'
-        },
-        {
-          role: 'user',
-          content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a cohesive paragraph.`
+        // Manejo de errores de la respuesta de OpenAI
+        if (!openAIResponse.ok) {
+          const errorDetails = await openAIResponse.text();
+          console.error('Error response from OpenAI:', errorDetails);
+          throw new Error('Error merging descriptions with OpenAI.');
         }
-      ],
-      max_tokens: 150,
-      temperature: 0.7
-    };
 
-    // Realizar llamada a OpenAI GPT-4 Chat API
-    const openAIResponse = await fetch(openAIEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}` // Usar la clave de OpenAI desde las variables de entorno
-      },
-      body: JSON.stringify(openAIRequestBody)
-    });
+        const openAIData = await openAIResponse.json();
 
-    // Manejo de errores de la respuesta de OpenAI
-    if (!openAIResponse.ok) {
-      const errorDetails = await openAIResponse.text();
-      console.error('Error response from OpenAI:', errorDetails);
-      throw new Error('Error merging descriptions with OpenAI.');
-    }
+        // Validar la estructura de la respuesta de OpenAI
+        if (!openAIData.choices || !openAIData.choices[0].message || !openAIData.choices[0].message.content) {
+          throw new Error('Invalid response structure from OpenAI.');
+        }
 
-    const openAIData = await openAIResponse.json();
+        const blendedDescription = openAIData.choices[0].message.content.trim();
 
-    // Validar la estructura de la respuesta de OpenAI
-    if (!openAIData.choices || !openAIData.choices[0].message || !openAIData.choices[0].message.content) {
-      throw new Error('Invalid response structure from OpenAI.');
-    }
+        console.log('Blended Description:', blendedDescription);
 
-    const blendedDescription = openAIData.choices[0].message.content.trim();
-
-    console.log('Blended Description:', blendedDescription);
-
-    // Responder al frontend con la descripción unificada
-    res.json({ success: true, blendedDescription });
-  } catch (error) {
-    console.error('Error merging descriptions with OpenAI:', error);
-    res.status(500).json({ success: false, message: 'Error merging descriptions with OpenAI.' });
-  }
-});
-
-
-
-// **Endpoint: Update Post Title in WordPress**
-app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
-  const { id } = req.params;
-  const { newTitle } = req.body;
-
-  if (!newTitle) {
-    return res.status(400).json({ success: false, message: 'New title is required.' });
-  }
-
-  try {
-    // Obtener detalles de la apreciación para obtener la URL de WordPress
-    const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:I${id}`,
-    });
-
-    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
-
-    if (!appraisalRow) {
-      return res.status(404).json({ success: false, message: 'Appraisal not found for updating in WordPress.' });
-    }
-
-    const appraisalWordpressUrl = appraisalRow[6] || ''; // Columna G: WordPress URL
-
-    if (!appraisalWordpressUrl) {
-      return res.status(400).json({ success: false, message: 'WordPress URL not provided.' });
-    }
-
-    const parsedWpUrl = new URL(appraisalWordpressUrl);
-    const wpPostId = parsedWpUrl.searchParams.get('post');
-
-    if (!wpPostId) {
-      return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
-    }
-
-    // **Actualizar el Título del Post en WordPress**
-    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
-
-    const updateData = {
-      title: newTitle
-    };
-
-    const username = encodeURIComponent(process.env.WORDPRESS_USERNAME);
-    const password = process.env.WORDPRESS_APP_PASSWORD; // Asegúrate de que no haya espacios adicionales
-    const credentials = `${username}:${password}`;
-    const base64Credentials = Buffer.from(credentials).toString('base64');
-    const authHeader = 'Basic ' + base64Credentials;
-
-    const wpUpdateResponse = await fetch(updateWpEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      },
-      body: JSON.stringify(updateData)
-    });
-
-    if (!wpUpdateResponse.ok) {
-      const errorText = await wpUpdateResponse.text();
-      console.error('Error updating WordPress:', errorText);
-      throw new Error('Error updating WordPress post title.');
-    }
-
-    res.json({ success: true, message: 'WordPress post title updated successfully.' });
-  } catch (error) {
-    console.error('Error updating post title in WordPress:', error);
-    res.status(500).json({ success: false, message: 'Error updating post title in WordPress.' });
-  }
-});
-
-// **Endpoint: Insert Shortcodes in WordPress Post**
-app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
-  const { id } = req.params;
-
-  console.log(`\n[insert-template] Iniciando proceso para la apreciación ID: ${id}`);
-
-  try {
-    // Obtener detalles de la apreciación para obtener la URL de WordPress y el Post ID
-    const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:J${id}`, // Asegúrate de que la columna J contiene el Post ID
-    });
-
-    console.log(`[insert-template] Respuesta de Google Sheets:`, appraisalResponse.data.values);
-
-    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
-
-    if (!appraisalRow) {
-      console.error(`[insert-template] Apreciación ID ${id} no encontrada en Google Sheets.`);
-      return res.status(404).json({ success: false, message: 'Apreciación no encontrada para insertar shortcodes en WordPress.' });
-    }
-
-    const wpPostId = appraisalRow[9] || ''; // Columna J: Post ID
-    console.log(`[insert-template] Post ID extraído: ${wpPostId}`);
-
-    if (!wpPostId || isNaN(wpPostId)) {
-      console.error(`[insert-template] Post ID de WordPress no proporcionado o inválido.`);
-      return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
-    }
-
-    // **Obtener las Credenciales de WordPress desde Secret Manager**
-    const wpUsername = await getSecret('wp_username'); // Nombre del secreto para el username
-    const wpAppPassword = await getSecret('wp_app_password'); // Nombre del secreto para el app password
-
-    if (!wpUsername || !wpAppPassword) {
-      console.error('Credenciales de WordPress faltantes.');
-      return res.status(500).json({ success: false, message: 'Error de configuración del servidor. Por favor, contacta con soporte.' });
-    }
-
-    console.log(`[insert-template] Credenciales de WordPress obtenidas correctamente.`);
-
-    // **Definir los Shortcodes a Insertar**
-    const shortcodes = '[pdf_download]\n[artRegular post_id="114984" post_type="wp_block"]';
-    console.log(`[insert-template] Shortcodes definidos: ${shortcodes}`);
-
-    // **Construir el Endpoint de Actualización del Post**
-    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
-    console.log(`[insert-template] Endpoint de actualización construido: ${updateWpEndpoint}`);
-
-    // **Configurar la Autenticación Básica**
-    const credentials = `${encodeURIComponent(wpUsername)}:${wpAppPassword.trim()}`; // Asegúrate de que no haya espacios adicionales
-    const base64Credentials = Buffer.from(credentials).toString('base64');
-    const authHeader = 'Basic ' + base64Credentials;
-
-    // **Obtener el Contenido Actual del Post**
-    console.log(`[insert-template] Realizando solicitud GET al endpoint de WordPress para obtener el contenido actual.`);
-    const currentPostResponse = await fetch(updateWpEndpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
+        // Responder al frontend con la descripción unificada
+        res.json({ success: true, blendedDescription });
+      } catch (error) {
+        console.error('Error merging descriptions with OpenAI:', error);
+        res.status(500).json({ success: false, message: 'Error merging descriptions with OpenAI.' });
       }
     });
 
-    if (!currentPostResponse.ok) {
-      const errorText = await currentPostResponse.text();
-      console.error(`[insert-template] Error obteniendo el post actual de WordPress: ${errorText}`);
-      throw new Error('Error obteniendo el post actual de WordPress.');
-    }
+    // **Endpoint: Insert Shortcodes in WordPress Post**
+    app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
+      const { id } = req.params;
 
-    const currentPostData = await currentPostResponse.json();
-    console.log(`[insert-template] Contenido actual del post obtenido:`, currentPostData);
+      console.log(`\n[insert-template] Iniciando proceso para la apreciación ID: ${id}`);
 
-    // **Combinar el Contenido Actual con los Shortcodes**
-    const updatedContent = currentPostData.content.rendered + '\n' + shortcodes;
-    console.log(`[insert-template] Contenido actualizado del post:`, updatedContent);
+      try {
+        // Obtener detalles de la apreciación para obtener la URL de WordPress y el Post ID
+        const appraisalResponse = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${SHEET_NAME}!A${id}:J${id}`, // Asegúrate de que la columna J contiene el Post ID
+        });
 
-    // **Actualizar el Post con los Shortcodes**
-    console.log(`[insert-template] Realizando solicitud PUT al endpoint de WordPress para actualizar el contenido.`);
-    const updatePostResponse = await fetch(updateWpEndpoint, {
-      method: 'PUT', // Puedes cambiar a 'PATCH' si prefieres actualizar parcialmente
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      },
-      body: JSON.stringify({
-        content: updatedContent
-      })
+        console.log(`[insert-template] Respuesta de Google Sheets:`, appraisalResponse.data.values);
+
+        const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+
+        if (!appraisalRow) {
+          console.error(`[insert-template] Apreciación ID ${id} no encontrada en Google Sheets.`);
+          return res.status(404).json({ success: false, message: 'Apreciación no encontrada para insertar shortcodes en WordPress.' });
+        }
+
+        const wpPostId = appraisalRow[9] || ''; // Columna J: Post ID
+        console.log(`[insert-template] Post ID extraído: ${wpPostId}`);
+
+        if (!wpPostId || isNaN(wpPostId)) {
+          console.error(`[insert-template] Post ID de WordPress no proporcionado o inválido.`);
+          return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
+        }
+
+        // **Obtener las Credenciales de WordPress desde Secret Manager**
+        const wpUsername = process.env.WORDPRESS_USERNAME;
+        const wpAppPassword = process.env.WORDPRESS_APP_PASSWORD;
+
+        console.log(`[insert-template] Credenciales de WordPress obtenidas: Username=${wpUsername ? 'Loaded' : 'Not Loaded'}, App Password=${wpAppPassword ? 'Loaded' : 'Not Loaded'}`);
+
+        if (!wpUsername || !wpAppPassword) {
+          console.error('Credenciales de WordPress faltantes.');
+          return res.status(500).json({ success: false, message: 'Error de configuración del servidor. Por favor, contacta con soporte.' });
+        }
+
+        // **Definir los Shortcodes a Insertar**
+        const shortcodes = '[pdf_download]\n[artRegular post_id="114984" post_type="wp_block"]';
+        console.log(`[insert-template] Shortcodes definidos: ${shortcodes}`);
+
+        // **Construir el Endpoint de Actualización del Post**
+        const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+        console.log(`[insert-template] Endpoint de actualización construido: ${updateWpEndpoint}`);
+
+        // **Configurar la Autenticación Básica**
+        const credentialsString = `${encodeURIComponent(wpUsername)}:${wpAppPassword.trim()}`; // Asegúrate de que no haya espacios adicionales
+        const base64Credentials = Buffer.from(credentialsString).toString('base64');
+        const authHeader = 'Basic ' + base64Credentials;
+        console.log(`[insert-template] Autenticación configurada.`);
+
+        // **Obtener el Contenido Actual del Post**
+        console.log(`[insert-template] Realizando solicitud GET al endpoint de WordPress para obtener el contenido actual.`);
+        const currentPostResponse = await fetch(updateWpEndpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader
+          }
+        });
+
+        if (!currentPostResponse.ok) {
+          const errorText = await currentPostResponse.text();
+          console.error(`[insert-template] Error obteniendo el post actual de WordPress: ${errorText}`);
+          throw new Error('Error obteniendo el post actual de WordPress.');
+        }
+
+        const currentPostData = await currentPostResponse.json();
+        console.log(`[insert-template] Contenido actual del post obtenido:`, currentPostData);
+
+        // **Combinar el Contenido Actual con los Shortcodes**
+        const updatedContent = currentPostData.content.rendered + '\n' + shortcodes;
+        console.log(`[insert-template] Contenido actualizado del post:`, updatedContent);
+
+        // **Actualizar el Post con los Shortcodes**
+        console.log(`[insert-template] Realizando solicitud PUT al endpoint de WordPress para actualizar el contenido.`);
+        const updatePostResponse = await fetch(updateWpEndpoint, {
+          method: 'PUT', // Puedes cambiar a 'PATCH' si prefieres actualizar parcialmente
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader
+          },
+          body: JSON.stringify({
+            content: updatedContent
+          })
+        });
+
+        if (!updatePostResponse.ok) {
+          const errorText = await updatePostResponse.text();
+          console.error(`[insert-template] Error insertando shortcodes en WordPress: ${errorText}`);
+          throw new Error('Error insertando shortcodes en WordPress.');
+        }
+
+        console.log(`[insert-template] Shortcodes insertados exitosamente en el post de WordPress.`);
+        res.json({ success: true, message: 'Shortcodes insertados exitosamente en el post de WordPress.' });
+      } catch (error) {
+        console.error('Error insertando shortcodes en WordPress:', error);
+        res.status(500).json({ success: false, message: 'Error insertando shortcodes en WordPress.' });
+      }
     });
 
-    if (!updatePostResponse.ok) {
-      const errorText = await updatePostResponse.text();
-      console.error(`[insert-template] Error insertando shortcodes en WordPress: ${errorText}`);
-      throw new Error('Error insertando shortcodes en WordPress.');
-    }
+// ... (El resto de tus endpoints y código)
 
-    console.log(`[insert-template] Shortcodes insertados exitosamente en el post de WordPress.`);
-    res.json({ success: true, message: 'Shortcodes insertados exitosamente en el post de WordPress.' });
-  } catch (error) {
-    console.error('Error insertando shortcodes en WordPress:', error);
-    res.status(500).json({ success: false, message: 'Error insertando shortcodes en WordPress.' });
-  }
-});
+    // **Endpoint: Send Email to Customer**
+    app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
+      const { id } = req.params;
 
+      try {
+        // Obtener detalles de la apreciación
+        const appraisalResponse = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${SHEET_NAME}!A${id}:I${id}`,
+        });
 
+        const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
 
+        if (!appraisalRow) {
+          return res.status(404).json({ success: false, message: 'Appraisal not found for sending email.' });
+        }
 
-// **Endpoint: Send Email to Customer**
-app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
-  const { id } = req.params;
+        const customerEmail = appraisalRow[4] || ''; // Supongamos que la columna E contiene el correo electrónico del cliente
 
-  try {
-    // Obtener detalles de la apreciación
-    const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:I${id}`,
+        if (!customerEmail) {
+          return res.status(400).json({ success: false, message: 'Customer email not provided.' });
+        }
+
+        // **Enviar Email usando SendGrid**
+        const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`
+          },
+          body: JSON.stringify({
+            personalizations: [{
+              to: [{ email: customerEmail }],
+              subject: 'Your Appraisal is Complete'
+            }],
+            from: { email: 'no-reply@appraisily.com', name: 'Appraisily' },
+            content: [{
+              type: 'text/plain',
+              value: 'Dear Customer,\n\nYour appraisal has been completed. Please check your account for more details.\n\nBest regards,\nAppraisily Team'
+            }]
+          })
+        });
+
+        if (!sendGridResponse.ok) {
+          const errorText = await sendGridResponse.text();
+          console.error('Error sending email via SendGrid:', errorText);
+          throw new Error('Error sending email to customer.');
+        }
+
+        res.json({ success: true, message: 'Email sent to customer successfully.' });
+      } catch (error) {
+        console.error('Error sending email to customer:', error);
+        res.status(500).json({ success: false, message: 'Error sending email to customer.' });
+      }
     });
 
-    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+    // Iniciar el Servidor en Todas las Interfaces (ya existente)
 
-    if (!appraisalRow) {
-      return res.status(404).json({ success: false, message: 'Appraisal not found for sending email.' });
-    }
-
-    const customerEmail = appraisalRow[4] || ''; // Supongamos que la columna E contiene el correo electrónico del cliente
-
-    if (!customerEmail) {
-      return res.status(400).json({ success: false, message: 'Customer email not provided.' });
-    }
-
-    // **Enviar Email usando SendGrid**
-    const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`
-      },
-      body: JSON.stringify({
-        personalizations: [{
-          to: [{ email: customerEmail }],
-          subject: 'Your Appraisal is Complete'
-        }],
-        from: { email: 'no-reply@appraisily.com', name: 'Appraisily' },
-        content: [{
-          type: 'text/plain',
-          value: 'Dear Customer,\n\nYour appraisal has been completed. Please check your account for more details.\n\nBest regards,\nAppraisily Team'
-        }]
-      })
-    });
-
-    if (!sendGridResponse.ok) {
-      const errorText = await sendGridResponse.text();
-      console.error('Error sending email via SendGrid:', errorText);
-      throw new Error('Error sending email to customer.');
-    }
-
-    res.json({ success: true, message: 'Email sent to customer successfully.' });
-  } catch (error) {
-    console.error('Error sending email to customer:', error);
-    res.status(500).json({ success: false, message: 'Error sending email to customer.' });
-  }
-});
-
-// Iniciar el Servidor en Todas las Interfaces (ya existente)
-
-
-    
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Servidor backend corriendo en el puerto ${PORT}`);
