@@ -333,6 +333,52 @@ async function startServer() {
       }
     });
 
+// **Endpoint: Obtener session_ID a partir de postId**
+app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
+  const { postId } = req.body;
+
+  if (!postId) {
+    return res.status(400).json({ success: false, message: 'postId es requerido.' });
+  }
+
+  try {
+    // Construir el endpoint de WordPress para obtener el post
+    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+    console.log(`[get-session-id] Endpoint de WordPress: ${wpEndpoint}`);
+
+    // Realizar la solicitud GET a la API REST de WordPress
+    const wpResponse = await fetch(wpEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`
+      }
+    });
+
+    if (!wpResponse.ok) {
+      const errorText = await wpResponse.text();
+      console.error(`[get-session-id] Error obteniendo post de WordPress: ${errorText}`);
+      return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
+    }
+
+    const wpData = await wpResponse.json();
+    const acfFields = wpData.acf || {};
+    const session_ID = acfFields.session_ID || '';
+
+    if (!session_ID) {
+      console.error(`[get-session-id] session_ID no encontrado en el post de WordPress.`);
+      return res.status(404).json({ success: false, message: 'session_ID no encontrado en el post de WordPress.' });
+    }
+
+    console.log(`[get-session-id] session_ID extraído: ${session_ID}`);
+    res.json({ success: true, session_ID });
+  } catch (error) {
+    console.error('Error obteniendo session_ID:', error);
+    res.status(500).json({ success: false, message: 'Error obteniendo session_ID.' });
+  }
+});
+
+    
     // **Endpoint: Completar Apreciación**
     app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
       const { id } = req.params; // Número de fila
