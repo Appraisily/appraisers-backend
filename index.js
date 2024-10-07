@@ -578,14 +578,9 @@ app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
   }
 });
 
-// **Endpoint: Insert WordPress Template**
+// **Endpoint: Insert Shortcodes in WordPress Post**
 app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
   const { id } = req.params;
-  const { templateId } = req.body;
-
-  if (!templateId) {
-    return res.status(400).json({ success: false, message: 'Template ID is required.' });
-  }
 
   try {
     // Obtener detalles de la apreciación para obtener la URL de WordPress
@@ -597,20 +592,20 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
 
     if (!appraisalRow) {
-      return res.status(404).json({ success: false, message: 'Appraisal not found for inserting template in WordPress.' });
+      return res.status(404).json({ success: false, message: 'Apreciación no encontrada para insertar shortcodes en WordPress.' });
     }
 
     const appraisalWordpressUrl = appraisalRow[6] || ''; // Columna G: WordPress URL
 
     if (!appraisalWordpressUrl) {
-      return res.status(400).json({ success: false, message: 'WordPress URL not provided.' });
+      return res.status(400).json({ success: false, message: 'URL de WordPress no proporcionada.' });
     }
 
     const parsedWpUrl = new URL(appraisalWordpressUrl);
     const wpPostId = parsedWpUrl.searchParams.get('post');
 
     if (!wpPostId) {
-      return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
+      return res.status(400).json({ success: false, message: 'No se pudo extraer el ID del post de WordPress.' });
     }
 
     // **Obtener las Credenciales de WordPress desde Secret Manager**
@@ -618,49 +613,23 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     const wpAppPassword = await getSecret('wp_app_password'); // Nombre del secreto para el app password
 
     if (!wpUsername || !wpAppPassword) {
-      console.error('WordPress credentials are missing.');
-      return res.status(500).json({ success: false, message: 'Server configuration error. Please contact support.' });
+      console.error('Credenciales de WordPress faltantes.');
+      return res.status(500).json({ success: false, message: 'Error de configuración del servidor. Por favor, contacta con soporte.' });
     }
 
-    // **Obtener la Plantilla desde WordPress**
-    const getTemplateEndpoint = `${process.env.WORDPRESS_API_URL}/patterns/${templateId}`; // Ajusta el endpoint según tu estructura de WordPress
+    // **Definir los Shortcodes a Insertar**
+    const shortcodes = '[pdf_download]\n[artRegular post_id="114984" post_type="wp_block"]';
 
-    // Configurar la autenticación básica
-    const username = encodeURIComponent(wpUsername);
-    const password = wpAppPassword.trim(); // Asegúrate de que no haya espacios adicionales
-    const credentials = `${username}:${password}`;
+    // **Construir el Endpoint de Actualización del Post**
+    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/posts/${wpPostId}`;
+
+    // **Configurar la Autenticación Básica**
+    const credentials = `${encodeURIComponent(wpUsername)}:${wpAppPassword.trim()}`; // Asegúrate de que no haya espacios adicionales
     const base64Credentials = Buffer.from(credentials).toString('base64');
     const authHeader = 'Basic ' + base64Credentials;
 
-    // Obtener la plantilla desde WordPress
-    const templateResponse = await fetch(getTemplateEndpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
-    });
-
-    if (!templateResponse.ok) {
-      const errorText = await templateResponse.text();
-      console.error('Error fetching template from WordPress:', errorText);
-      throw new Error('Error fetching template from WordPress.');
-    }
-
-    const templateData = await templateResponse.json();
-
-    // Validar la estructura de la respuesta
-    if (!templateData.content || !templateData.content.rendered) {
-      throw new Error('Invalid template structure received from WordPress.');
-    }
-
-    const templateContent = templateData.content.rendered;
-
-    // **Insertar la Plantilla en el Post de WordPress**
-    const insertTemplateEndpoint = `${process.env.WORDPRESS_API_URL}/posts/${wpPostId}`;
-
-    // Obtener el contenido actual del post
-    const currentPostResponse = await fetch(insertTemplateEndpoint, {
+    // **Obtener el Contenido Actual del Post**
+    const currentPostResponse = await fetch(updateWpEndpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -670,17 +639,17 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
 
     if (!currentPostResponse.ok) {
       const errorText = await currentPostResponse.text();
-      console.error('Error fetching current post from WordPress:', errorText);
-      throw new Error('Error fetching current post from WordPress.');
+      console.error('Error obteniendo el post actual de WordPress:', errorText);
+      throw new Error('Error obteniendo el post actual de WordPress.');
     }
 
     const currentPostData = await currentPostResponse.json();
 
-    // Combinar el contenido actual con la plantilla
-    const updatedContent = currentPostData.content.rendered + '\n' + templateContent;
+    // **Combinar el Contenido Actual con los Shortcodes**
+    const updatedContent = currentPostData.content.rendered + '\n' + shortcodes;
 
-    // Actualizar el post con la nueva plantilla
-    const updatePostResponse = await fetch(insertTemplateEndpoint, {
+    // **Actualizar el Post con los Shortcodes**
+    const updatePostResponse = await fetch(updateWpEndpoint, {
       method: 'PUT', // Puedes cambiar a 'PATCH' si prefieres actualizar parcialmente
       headers: {
         'Content-Type': 'application/json',
@@ -693,16 +662,17 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
 
     if (!updatePostResponse.ok) {
       const errorText = await updatePostResponse.text();
-      console.error('Error inserting template in WordPress:', errorText);
-      throw new Error('Error inserting WordPress template.');
+      console.error('Error insertando shortcodes en WordPress:', errorText);
+      throw new Error('Error insertando shortcodes en WordPress.');
     }
 
-    res.json({ success: true, message: 'WordPress template inserted successfully.' });
+    res.json({ success: true, message: 'Shortcodes insertados exitosamente en el post de WordPress.' });
   } catch (error) {
-    console.error('Error inserting template in WordPress:', error);
-    res.status(500).json({ success: false, message: 'Error inserting template in WordPress.' });
+    console.error('Error insertando shortcodes en WordPress:', error);
+    res.status(500).json({ success: false, message: 'Error insertando shortcodes en WordPress.' });
   }
 });
+
 
 // **Endpoint: Send Email to Customer**
 app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
