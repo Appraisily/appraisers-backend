@@ -540,7 +540,27 @@ async function startServer() {
           return res.status(404).json({ success: false, message: 'Apreciación no encontrada para insertar shortcodes en WordPress.' });
         }
 
-        const wpPostId = appraisalRow[9] || ''; // Columna J: Post ID
+ // Extraer la URL de WordPress desde la columna G (índice 6)
+    const wordpressUrl = appraisalRow[6] || ''; // Columna G: WordPress URL
+    console.log(`[insert-template] WordPress URL extraída: ${wordpressUrl}`);
+
+    let wpPostId = '';
+
+    try {
+      const parsedUrl = new URL(wordpressUrl);
+      wpPostId = parsedUrl.searchParams.get('post');
+      console.log(`[insert-template] Post ID extraído: ${wpPostId}`);
+    } catch (error) {
+      console.error(`[insert-template] Error al parsear la URL de WordPress: ${error}`);
+      return res.status(400).json({ success: false, message: 'URL de WordPress inválida.' });
+    }
+
+    if (!wpPostId || isNaN(wpPostId)) {
+      console.error(`[insert-template] Post ID de WordPress no proporcionado o inválido en la URL.`);
+      return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
+    }
+        
+        
         console.log(`[insert-template] Post ID extraído: ${wpPostId}`);
 
         if (!wpPostId || isNaN(wpPostId)) {
