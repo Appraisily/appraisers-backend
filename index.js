@@ -701,37 +701,7 @@ app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
       }
     });
 
-    // **Endpoint: Send Email to Customer**
-app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    // Obtener detalles de la apreciación desde Google Sheets
-    const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:I${id}`, // Rango que incluye la columna E (índice 4)
-    });
-
-    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
-
-    if (!appraisalRow) {
-      return res.status(404).json({ success: false, message: 'Appraisal not found for sending email.' });
-    }
-
-    const customerEmail = appraisalRow[4] || ''; // Columna E: Correo electrónico del cliente
-
-    if (!customerEmail) {
-      return res.status(400).json({ success: false, message: 'Customer email not provided.' });
-    }
-
-    // Obtener las credenciales de SendGrid desde las variables de entorno
-    const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-    const SENDGRID_EMAIL = process.env.SENDGRID_EMAIL;
-
-    if (!SENDGRID_API_KEY || !SENDGRID_EMAIL) {
-      console.error('Credenciales de SendGrid faltantes.');
-      return res.status(500).json({ success: false, message: 'Server configuration error. Please contact support.' });
-    }
+  
 
 // **Endpoint: Send Email to Customer**
 app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
