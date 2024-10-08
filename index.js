@@ -346,15 +346,22 @@ async function startServer() {
 // **Endpoint: Obtener Apreciaciones Completadas**
 app.get('/api/appraisals/completed', authenticate, async (req, res) => {
   try {
-    console.log('Fetching completed appraisals from Google Sheets...');
+    const sheetName = 'Completed Appraisals'; // Asegúrate de que este es el nombre correcto de la hoja
+    const range = `${sheetName}!A2:H`; // Definición correcta del rango
+    console.log(`Fetching completed appraisals with range: ${range}`);
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Completed Appraisals!A2:H`, // Asegúrate de que esta hoja y rango existen
+      range: range, // Usar la variable 'range' definida arriba
     });
 
     const rows = response.data.values || [];
     console.log(`Total de filas obtenidas (Completadas): ${rows.length}`);
+
+    // Verificar si 'rows' es un arreglo
+    if (!Array.isArray(rows)) {
+      throw new Error('La respuesta de Google Sheets no es un arreglo.');
+    }
 
     // Loguear cada fila para depuración
     rows.forEach((row, index) => {
