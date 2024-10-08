@@ -217,9 +217,21 @@ async function startServer() {
     console.log('WORDPRESS_APP_PASSWORD:', process.env.WORDPRESS_APP_PASSWORD ? 'Loaded' : 'Not Loaded');
     console.log('WORDPRESS_API_URL cargado correctamente:', process.env.WORDPRESS_API_URL);
 
+    // Recuperar credenciales de SendGrid desde Secret Manager
+    const SENDGRID_API_KEY = (await getSecret('SENDGRID_API_KEY')).trim();
+    const SENDGRID_EMAIL = (await getSecret('SENDGRID_EMAIL')).trim();
+
+    // Asignar las credenciales a variables de entorno
+    process.env.SENDGRID_API_KEY = SENDGRID_API_KEY;
+    process.env.SENDGRID_EMAIL = SENDGRID_EMAIL;
+
+    console.log('SENDGRID_API_KEY y SENDGRID_EMAIL cargados correctamente.');
+
     // Tu ID de Google Sheet
     const SPREADSHEET_ID = '1PDdt-tEV78uMGW-813UTcVxC9uzrRXQSmNLCI1rR-xc';
     const SHEET_NAME = 'Pending Appraisals';
+
+    
 
     // **Endpoint: Obtener Apreciaciones Pendientes**
     app.get('/api/appraisals', authenticate, async (req, res) => {
@@ -688,6 +700,115 @@ app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
         res.status(500).json({ success: false, message: 'Error insertando shortcodes en WordPress.' });
       }
     });
+
+    // **Endpoint: Send Email to Customer**
+app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Obtener detalles de la apreciación desde Google Sheets
+    const appraisalResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${id}:I${id}`, // Rango que incluye la columna E (índice 4)
+    });
+
+    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+
+    if (!appraisalRow) {
+      return res.status(404).json({ success: false, message: 'Appraisal not found for sending email.' });
+    }
+
+    const customerEmail = appraisalRow[4] || ''; // Columna E: Correo electrónico del cliente
+
+    if (!customerEmail) {
+      return res.status(400).json({ success: false, message: 'Customer email not provided.' });
+    }
+
+    // Obtener las credenciales de SendGrid desde las variables de entorno
+    const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+    const SENDGRID_EMAIL = process.env.SENDGRID_EMAIL;
+
+    if (!SENDGRID_API_KEY || !SENDGRID_EMAIL) {
+      console.error('Credenciales de SendGrid faltantes.');
+      return res.status(500).json({ success: false, message: 'Server configuration error. Please contact support.' });
+    }
+
+// **Endpoint: Send Email to Customer**
+app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Obtener detalles de la apreciación desde Google Sheets
+    const appraisalResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${id}:I${id}`, // Rango que incluye la columna E (índice 4)
+    });
+
+    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+
+    if (!appraisalRow) {
+      return res.status(404).json({ success: false, message: 'Appraisal not found for sending email.' });
+    }
+
+    const customerEmail = appraisalRow[4] || ''; // Columna E: Correo electrónico del cliente
+
+    if (!customerEmail) {
+      return res.status(400).json({ success: false, message: 'Customer email not provided.' });
+    }
+
+    // Validar el formato del email del cliente
+    const isValidEmail = (email) => {
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return re.test(String(email).toLowerCase());
+    };
+
+    if (!isValidEmail(customerEmail)) {
+      return res.status(400).json({ success: false, message: 'Invalid customer email format.' });
+    }
+
+    // Obtener las credenciales de SendGrid desde las variables de entorno
+    const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+    const SENDGRID_EMAIL = process.env.SENDGRID_EMAIL;
+
+    if (!SENDGRID_API_KEY || !SENDGRID_EMAIL) {
+      console.error('Credenciales de SendGrid faltantes.');
+      return res.status(500).json({ success: false, message: 'Server configuration error. Please contact support.' });
+    }
+
+    // **Enviar Email usando SendGrid**
+    const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SENDGRID_API_KEY}`
+      },
+      body: JSON.stringify({
+        personalizations: [{
+          to: [{ email: customerEmail }],
+          subject: 'Your Appraisal is Complete'
+        }],
+        from: { email: SENDGRID_EMAIL, name: 'Appraisily' }, // Usar el email de SendGrid desde Secret Manager
+        content: [{
+          type: 'text/plain',
+          value: 'Dear Customer,\n\nYour appraisal has been completed. Please check your account for more details.\n\nBest regards,\nAppraisily Team'
+        }]
+      })
+    });
+
+    if (!sendGridResponse.ok) {
+      const errorText = await sendGridResponse.text();
+      console.error('Error sending email via SendGrid:', errorText);
+      return res.status(500).json({ success: false, message: 'Error sending email to customer.' });
+    }
+
+    res.json({ success: true, message: 'Email sent to customer successfully.' });
+  } catch (error) {
+    console.error('Error sending email to customer:', error);
+    res.status(500).json({ success: false, message: 'Error sending email to customer.' });
+  }
+});
+
+
 
 // **Endpoint: Update Post Title in WordPress**
 app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
