@@ -360,6 +360,7 @@ app.get('/api/appraisals/completed', authenticate, async (req, res) => {
 
     // Verificar si 'rows' es un arreglo
     if (!Array.isArray(rows)) {
+      console.error('La respuesta de Google Sheets no es un arreglo:', rows);
       throw new Error('La respuesta de Google Sheets no es un arreglo.');
     }
 
@@ -385,6 +386,7 @@ app.get('/api/appraisals/completed', authenticate, async (req, res) => {
     res.status(500).json({ success: false, message: 'Error obteniendo apreciaciones completadas.' });
   }
 });
+
 
 
 
