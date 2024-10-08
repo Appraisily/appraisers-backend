@@ -867,54 +867,7 @@ app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
   }
 });
 
-    // **Endpoint: Send Email to Customer**
-    app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
-      const { id } = req.params;
 
-      try {
-        // Obtener detalles de la apreciación
-        const appraisalResponse = await sheets.spreadsheets.values.get({
-          spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A${id}:I${id}`,
-        });
-
-        const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
-
-        if (!appraisalRow) {
-          return res.status(404).json({ success: false, message: 'Appraisal not found for sending email.' });
-        }
-
-        const customerEmail = appraisalRow[4] || ''; // Supongamos que la columna E contiene el correo electrónico del cliente
-
-        if (!customerEmail) {
-          return res.status(400).json({ success: false, message: 'Customer email not provided.' });
-        }
-
-        // **Enviar Email usando SendGrid**
-        const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`
-          },
-          body: JSON.stringify({
-            personalizations: [{
-              to: [{ email: customerEmail }],
-              subject: 'Your Appraisal is Complete'
-            }],
-            from: { email: 'no-reply@appraisily.com', name: 'Appraisily' },
-            content: [{
-              type: 'text/plain',
-              value: 'Dear Customer,\n\nYour appraisal has been completed. Please check your account for more details.\n\nBest regards,\nAppraisily Team'
-            }]
-          })
-        });
-
-        if (!sendGridResponse.ok) {
-          const errorText = await sendGridResponse.text();
-          console.error('Error sending email via SendGrid:', errorText);
-          throw new Error('Error sending email to customer.');
-        }
 
         res.json({ success: true, message: 'Email sent to customer successfully.' });
       } catch (error) {
