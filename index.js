@@ -261,7 +261,7 @@ async function startServer() {
     });
 
     // **Endpoint: Obtener Detalles de una Apreciación Específica**
-    app.get('/api/appraisals/:id', authenticate, async (req, res) => {
+    app.get('/api/appraisals/:id/list', authenticate, async (req, res) => {
       const { id } = req.params; // Número de fila
 
       try {
