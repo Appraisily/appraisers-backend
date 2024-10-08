@@ -346,13 +346,20 @@ async function startServer() {
 // **Endpoint: Obtener Apreciaciones Completadas**
 app.get('/api/appraisals/completed', authenticate, async (req, res) => {
   try {
+    console.log('Fetching completed appraisals from Google Sheets...');
+    
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Completed Appraisals!A2:H`, // Ajusta el rango según tus columnas
+      range: `Completed Appraisals!A2:H`, // Asegúrate de que esta hoja y rango existen
     });
 
     const rows = response.data.values || [];
     console.log(`Total de filas obtenidas (Completadas): ${rows.length}`);
+
+    // Loguear cada fila para depuración
+    rows.forEach((row, index) => {
+      console.log(`Fila ${index + 2}:`, row);
+    });
 
     const completedAppraisals = rows.map((row, index) => ({
       id: index + 2, // Número de fila en la hoja (A2 corresponde a id=2)
@@ -371,6 +378,7 @@ app.get('/api/appraisals/completed', authenticate, async (req, res) => {
     res.status(500).json({ success: false, message: 'Error obteniendo apreciaciones completadas.' });
   }
 });
+
 
 
     
