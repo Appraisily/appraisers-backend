@@ -702,49 +702,57 @@ app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
     });
 
   
-
 // **Endpoint: Send Email to Customer**
 app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
   const { id } = req.params;
-
+  
+  console.log(`[send-email] Endpoint llamado para appraisal ID: ${id}`);
+  
   try {
     // Obtener detalles de la apreciación desde Google Sheets
     const appraisalResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:I${id}`, // Rango que incluye la columna E (índice 4)
+      range: `${SHEET_NAME}!A${id}:I${id}`, // Asegúrate de que el rango cubre hasta la columna I
     });
-
+  
     const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
-
+  
     if (!appraisalRow) {
+      console.warn(`[send-email] Appraisal ID ${id} no encontrado.`);
       return res.status(404).json({ success: false, message: 'Appraisal not found for sending email.' });
     }
-
-    const customerEmail = appraisalRow[4] || ''; // Columna E: Correo electrónico del cliente
-
+  
+    // **Ajuste: Obtener el email de la columna D (índice 3) en lugar de E (índice 4)**
+    const customerEmail = appraisalRow[3] || ''; // Columna D: Correo electrónico del cliente
+    console.log(`[send-email] Email del cliente obtenido: ${customerEmail}`);
+  
     if (!customerEmail) {
+      console.warn(`[send-email] Email del cliente no proporcionado para appraisal ID ${id}.`);
       return res.status(400).json({ success: false, message: 'Customer email not provided.' });
     }
-
+  
     // Validar el formato del email del cliente
     const isValidEmail = (email) => {
       const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       return re.test(String(email).toLowerCase());
     };
-
+  
     if (!isValidEmail(customerEmail)) {
+      console.warn(`[send-email] Formato de email inválido: ${customerEmail}`);
       return res.status(400).json({ success: false, message: 'Invalid customer email format.' });
     }
-
+  
     // Obtener las credenciales de SendGrid desde las variables de entorno
     const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
     const SENDGRID_EMAIL = process.env.SENDGRID_EMAIL;
-
+  
     if (!SENDGRID_API_KEY || !SENDGRID_EMAIL) {
       console.error('Credenciales de SendGrid faltantes.');
       return res.status(500).json({ success: false, message: 'Server configuration error. Please contact support.' });
     }
-
+  
+    console.log(`[send-email] Enviando email a: ${customerEmail}`);
+  
     // **Enviar Email usando SendGrid**
     const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
@@ -764,20 +772,20 @@ app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
         }]
       })
     });
-
+  
     if (!sendGridResponse.ok) {
       const errorText = await sendGridResponse.text();
-      console.error('Error sending email via SendGrid:', errorText);
+      console.error(`[send-email] Error enviando email vía SendGrid: ${errorText}`);
       return res.status(500).json({ success: false, message: 'Error sending email to customer.' });
     }
-
+  
+    console.log(`[send-email] Email enviado exitosamente a: ${customerEmail}`);
     res.json({ success: true, message: 'Email sent to customer successfully.' });
   } catch (error) {
-    console.error('Error sending email to customer:', error);
+    console.error(`[send-email] Error enviando email al cliente:`, error);
     res.status(500).json({ success: false, message: 'Error sending email to customer.' });
   }
 });
-
 
 
 // **Endpoint: Update Post Title in WordPress**
