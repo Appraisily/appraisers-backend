@@ -455,7 +455,7 @@ app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
 
     const wpData = await wpResponse.json();
     const acfFields = wpData.acf || {};
-    const session_ID = acfFields.session_ID || '';
+    const session_ID = acfFields.session_id || '';
 
     if (!session_ID) {
       console.error(`[get-session-id] session_ID no encontrado en el post de WordPress.`);
