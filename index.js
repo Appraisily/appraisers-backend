@@ -717,6 +717,21 @@ app.post('/api/appraisals/:id/merge-descriptions', authenticate, async (req, res
 
     console.log('Blended Description:', blendedDescription);
 
+    // **Nuevo: Actualizar la columna L con blendedDescription**
+    const updateRange = `${SHEET_NAME}!L${id}:L${id}`; // Columna L
+    const updateValues = [[blendedDescription]];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: updateRange,
+      valueInputOption: 'RAW',
+      resource: {
+        values: updateValues,
+      },
+    });
+
+    console.log(`[merge-descriptions] Actualizada columna L para la fila ${id} con blendedDescription.`);
+
     // Responder al frontend con la descripción unificada
     res.json({ success: true, blendedDescription });
   } catch (error) {
@@ -724,6 +739,7 @@ app.post('/api/appraisals/:id/merge-descriptions', authenticate, async (req, res
     res.status(500).json({ success: false, message: 'Error merging descriptions with OpenAI.' });
   }
 });
+
 
 // **Endpoint: Insert Shortcodes in WordPress Post**
 app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
