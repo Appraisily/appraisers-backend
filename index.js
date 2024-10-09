@@ -436,6 +436,110 @@ app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
   }
 });
 
+
+    // **Endpoint: Set Appraisal Value**
+app.post('/api/appraisals/:id/set-value', authenticate, async (req, res) => {
+  const { id } = req.params; // Número de fila en Google Sheets
+  const { appraisalValue, description } = req.body;
+
+  // Validación de los datos recibidos
+  if (appraisalValue === undefined || description === undefined) {
+    return res.status(400).json({ success: false, message: 'Appraisal Value y descripción son requeridos.' });
+  }
+
+  try {
+    // Actualizar las columnas J y K en Google Sheets
+    const updateRange = `${SHEET_NAME}!J${id}:K${id}`;
+    const values = [[appraisalValue, description]];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: updateRange,
+      valueInputOption: 'RAW',
+      resource: {
+        values: values,
+      },
+    });
+
+    console.log(`[set-value] Actualizadas las columnas J y K para la fila ${id} con Appraisal Value: ${appraisalValue} y Descripción: ${description}`);
+
+    // Obtener detalles de la apreciación para obtener la URL de WordPress
+    const appraisalResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${id}:I${id}`,
+    });
+
+    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+
+    if (!appraisalRow) {
+      return res.status(404).json({ success: false, message: 'Apreciación no encontrada para actualizar en WordPress.' });
+    }
+
+    const appraisalWordpressUrl = appraisalRow[6] || ''; // Columna G: WordPress URL
+
+    if (!appraisalWordpressUrl) {
+      return res.status(400).json({ success: false, message: 'URL de WordPress no proporcionada.' });
+    }
+
+    const parsedWpUrl = new URL(appraisalWordpressUrl);
+    const wpPostId = parsedWpUrl.searchParams.get('post');
+
+    if (!wpPostId) {
+      return res.status(400).json({ success: false, message: 'No se pudo extraer el ID del post de WordPress.' });
+    }
+
+    console.log(`[set-value] Post ID extraído: ${wpPostId}`);
+
+    // **Actualizar el Campo ACF 'value' en WordPress**
+
+    // Construir el endpoint de actualización
+    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+    console.log(`[set-value] Endpoint de actualización de WordPress: ${updateWpEndpoint}`);
+
+    // Preparar los datos para actualizar el campo ACF
+    const updateData = {
+      acf: {
+        value: appraisalValue // Asegúrate de que 'value' es el nombre correcto del campo ACF
+      }
+    };
+
+    // Construir el encabezado de autenticación
+    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+    const base64Credentials = Buffer.from(credentialsString).toString('base64');
+    const authHeader = 'Basic ' + base64Credentials;
+    console.log(`[set-value] Autenticación configurada.`);
+
+    // Realizar la solicitud de actualización a WordPress
+    const wpUpdateResponse = await fetch(updateWpEndpoint, {
+      method: 'PUT', // Puedes cambiar a 'PATCH' si prefieres actualizar parcialmente
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      },
+      body: JSON.stringify(updateData)
+    });
+
+    if (!wpUpdateResponse.ok) {
+      const errorText = await wpUpdateResponse.text();
+      console.error(`[set-value] Error actualizando WordPress: ${errorText}`);
+      throw new Error('Error actualizando el campo ACF en WordPress.');
+    }
+
+    const wpUpdateData = await wpUpdateResponse.json();
+    console.log(`[set-value] WordPress actualizado exitosamente:`, wpUpdateData);
+
+    // Responder al frontend
+    res.json({ success: true, message: 'Appraisal Value y descripción actualizados exitosamente en Google Sheets y WordPress.' });
+  } catch (error) {
+    console.error('Error en el endpoint set-value:', error);
+    res.status(500).json({ success: false, message: 'Error actualizando Appraisal Value y descripción.' });
+  }
+});
+
+
+
+    
+
 // **Endpoint: Completar Apreciación**
 app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
   const { id } = req.params; // Número de fila
