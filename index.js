@@ -797,8 +797,8 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     }
 
     // **Definir los Shortcodes a Insertar**
-    const shortcodes = '[pdf_download]\n[artRegular post_id="114984" post_type="wp_block"]';
-    console.log(`[insert-template] Shortcodes definidos: ${shortcodes}`);
+    const shortcodesToInsert = '[pdf_download]\n[artRegular post_id="114984"]'; // Asegúrate de ajustar el post_id dinámicamente si es necesario
+    console.log(`[insert-template] Shortcodes a insertar: ${shortcodesToInsert}`);
 
     // **Construir el Endpoint de Actualización del Post**
     const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
@@ -829,8 +829,29 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     const currentPostData = await currentPostResponse.json();
     console.log(`[insert-template] Contenido actual del post obtenido:`, currentPostData);
 
-    // **Combinar el Contenido Actual con los Shortcodes**
-    const updatedContent = currentPostData.content.rendered + '\n' + shortcodes;
+    // **Verificar si los Shortcodes ya existen en el contenido**
+    const currentContent = currentPostData.content.rendered;
+    const hasPdfDownload = currentContent.includes('[pdf_download]');
+    const hasArtRegular = currentContent.includes(`[artRegular post_id="${wpPostId}"]`) || currentContent.includes(`[artRegular post_id=${wpPostId}]`);
+
+    if (hasPdfDownload && hasArtRegular) {
+      console.log(`[insert-template] Los shortcodes ya existen en el post de WordPress. No se realizarán cambios.`);
+      return res.json({ success: true, message: 'Shortcodes ya existen en el post de WordPress.' });
+    }
+
+    // **Combinar el Contenido Actual con los Shortcodes si no existen**
+    let updatedContent = currentContent;
+
+    if (!hasPdfDownload) {
+      updatedContent += '\n[pdf_download]';
+      console.log(`[insert-template] Shortcode [pdf_download] añadido al contenido.`);
+    }
+
+    if (!hasArtRegular) {
+      updatedContent += `\n[artRegular post_id="${wpPostId}"]`;
+      console.log(`[insert-template] Shortcode [artRegular post_id="${wpPostId}"] añadido al contenido.`);
+    }
+
     console.log(`[insert-template] Contenido actualizado del post:`, updatedContent);
 
     // **Actualizar el Post con los Shortcodes**
@@ -859,6 +880,9 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     res.status(500).json({ success: false, message: 'Error insertando shortcodes en WordPress.' });
   }
 });
+
+
+    
 
 // **Endpoint: Send Email to Customer**
 app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
