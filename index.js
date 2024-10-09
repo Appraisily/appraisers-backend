@@ -343,6 +343,40 @@ async function startServer() {
       }
     });
 
+    // **Endpoint: Save PDF and Doc Links in Google Sheets**
+app.post('/api/appraisals/:id/save-links', authenticate, async (req, res) => {
+  const { id } = req.params; // Número de fila en Google Sheets
+  const { pdfLink, docLink } = req.body;
+
+  // Validación de los datos recibidos
+  if (!pdfLink || !docLink) {
+    return res.status(400).json({ success: false, message: 'PDF Link y Doc Link son requeridos.' });
+  }
+
+  try {
+    // Actualizar las columnas M y N en Google Sheets
+    const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
+    const values = [[pdfLink, docLink]];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: updateRange,
+      valueInputOption: 'RAW',
+      resource: {
+        values: values,
+      },
+    });
+
+    console.log(`[save-links] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
+
+    res.json({ success: true, message: 'PDF Link y Doc Link guardados exitosamente en Google Sheets.' });
+  } catch (error) {
+    console.error('Error guardando los links en Google Sheets:', error);
+    res.status(500).json({ success: false, message: 'Error guardando los links en Google Sheets.' });
+  }
+});
+
+
 // **Endpoint: Obtener Apreciaciones Completadas**
 app.get('/api/appraisals/completed', authenticate, async (req, res) => {
   try {
