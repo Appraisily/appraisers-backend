@@ -73,12 +73,13 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
       throw new Error('Error actualizando ACF en WordPress.');
     }
 
-    console.log(`[updateShortcodesFlag] Flag en ACF actualizado exitosamente para el post ID: ${wpPostId}`);
+    console.log(`[updateShortcodesFlag] Flag 'shortcodes_inserted' actualizado a 'true' en WordPress.`);
   } catch (error) {
     console.error(`[updateShortcodesFlag] ${error.message}`);
-    throw error;
+    throw error; // Propagar el error para manejarlo en el caller
   }
 }
+
 
 
 
