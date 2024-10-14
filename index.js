@@ -827,11 +827,10 @@ app.post('/api/appraisals/:id/merge-descriptions', authenticate, async (req, res
     res.status(500).json({ success: false, message: 'Error merging descriptions with OpenAI.' });
   }
 });
-
-
 // **Endpoint: Insert Shortcodes in WordPress Post**
 app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
   const { id } = req.params;
+  const { type } = req.body; // Nuevo parámetro 'type'
 
   console.log(`\n[insert-template] Iniciando proceso para la apreciación ID: ${id}`);
 
@@ -839,7 +838,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     // Obtener detalles de la apreciación para obtener la URL de WordPress y el Post ID
     const appraisalResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:K${id}`, // Asegúrate de que la columna K contiene el Template ID
+      range: `${SHEET_NAME}!A${id}:K${id}`, // Asegúrate de que la columna K contiene el Template ID si 'type' no está presente
     });
 
     console.log(`[insert-template] Respuesta de Google Sheets:`, appraisalResponse.data.values);
@@ -872,13 +871,23 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
       return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
     }
 
-    // Extraer el template_id desde la columna K (índice 10)
-    templateId = appraisalRow[10] || ''; // Columna K: Template ID
-    console.log(`[insert-template] Template ID extraído: ${templateId}`);
+    if (type) {
+      // Si 'type' está presente, usar el mapeo para obtener 'template_id'
+      templateId = getTemplateIdByType(type);
+      if (!templateId) {
+        console.error(`[insert-template] Tipo de tasación inválido: ${type}`);
+        return res.status(400).json({ success: false, message: 'Tipo de tasación inválido.' });
+      }
+      console.log(`[insert-template] Template ID obtenido por type (${type}): ${templateId}`);
+    } else {
+      // Si 'type' no está presente, extraer 'template_id' desde la columna K (índice 10)
+      templateId = appraisalRow[10] || ''; // Columna K: Template ID
+      console.log(`[insert-template] Template ID extraído: ${templateId}`);
 
-    if (!templateId || isNaN(templateId)) {
-      console.error(`[insert-template] Template ID no proporcionado o inválido en Google Sheets.`);
-      return res.status(400).json({ success: false, message: 'Template ID no proporcionado o inválido.' });
+      if (!templateId || isNaN(templateId)) {
+        console.error(`[insert-template] Template ID no proporcionado o inválido en Google Sheets.`);
+        return res.status(400).json({ success: false, message: 'Template ID no proporcionado o inválido.' });
+      }
     }
 
     // **Obtener las Credenciales de WordPress desde Secret Manager**
@@ -893,7 +902,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     }
 
     // **Definir los Shortcodes a Insertar**
-    const shortcodesToInsert = `[pdf_download]\n[artRegular template_id="${templateId}"]`; // Usar template_id en lugar de post_id
+    const shortcodesToInsert = `[pdf_download]\n[AppraisalTemplates type="${type || 'RegularArt'}"]`; // Usar type en lugar de template_id
     console.log(`[insert-template] Shortcodes a insertar: ${shortcodesToInsert}`);
 
     // **Construir el Endpoint de Actualización del Post**
@@ -928,7 +937,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     // **Verificar si los Shortcodes ya existen en el contenido**
     const currentContent = currentPostData.content.rendered;
     const hasPdfDownload = currentContent.includes('[pdf_download]');
-    const hasArtRegular = currentContent.includes(`[artRegular template_id="${templateId}"]`) || currentContent.includes(`[artRegular template_id=${templateId}]`);
+    const hasAppraisalTemplate = currentContent.includes(`[AppraisalTemplates type="${type || 'RegularArt'}"]`) || currentContent.includes(`[AppraisalTemplates type=${type || 'RegularArt'}]`);
 
     // **Verificar el Flag en ACF**
     const acfFields = currentPostData.acf || {};
@@ -939,7 +948,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
       return res.json({ success: true, message: 'Shortcodes ya han sido insertados previamente en el post de WordPress.' });
     }
 
-    if (hasPdfDownload && hasArtRegular) {
+    if (hasPdfDownload && hasAppraisalTemplate) {
       console.log(`[insert-template] Los shortcodes ya existen en el post de WordPress. No se realizarán cambios.`);
       // **Actualizar el Flag en ACF a 'true'**
       await updateShortcodesFlag(wpPostId, authHeader);
@@ -954,9 +963,9 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
       console.log(`[insert-template] Shortcode [pdf_download] añadido al contenido.`);
     }
 
-    if (!hasArtRegular) {
-      updatedContent += `\n[artRegular template_id="${templateId}"]`;
-      console.log(`[insert-template] Shortcode [artRegular template_id="${templateId}"] añadido al contenido.`);
+    if (!hasAppraisalTemplate) {
+      updatedContent += `\n[AppraisalTemplates type="${type || 'RegularArt'}"]`;
+      console.log(`[insert-template] Shortcode [AppraisalTemplates type="${type || 'RegularArt'}"] añadido al contenido.`);
     }
 
     console.log(`[insert-template] Contenido actualizado del post:`, updatedContent);
@@ -992,6 +1001,33 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
   }
 });
 
+// **Función para actualizar el flag en ACF**
+async function updateShortcodesFlag(wpPostId, authHeader) {
+  const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+  console.log(`[updateShortcodesFlag] Actualizando el flag en ACF a 'true' en el post ID: ${wpPostId}`);
+
+  const updateFlagResponse = await fetch(updateWpEndpoint, {
+    method: 'PUT', // Método correcto para actualizar
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': authHeader
+    },
+    body: JSON.stringify({
+      acf: {
+        shortcodes_inserted: true
+      }
+    })
+  });
+
+  if (!updateFlagResponse.ok) {
+    const errorText = await updateFlagResponse.text();
+    console.error(`[updateShortcodesFlag] Error actualizando el flag en ACF: ${errorText}`);
+    throw new Error('Error actualizando el flag en ACF.');
+  }
+
+  const updateFlagData = await updateFlagResponse.json();
+  console.log(`[updateShortcodesFlag] Flag en ACF actualizado exitosamente:`, updateFlagData);
+}
     
 
 // **Endpoint: Send Email to Customer**
