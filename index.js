@@ -28,6 +28,60 @@ const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1
 
 const client = new SecretManagerServiceClient();
 
+// **Función para Actualizar el Flag en ACF**
+async function updateShortcodesFlag(wpPostId, authHeader) {
+  try {
+    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+    console.log(`[updateShortcodesFlag] Actualizando flag en ACF para el post ID: ${wpPostId}`);
+
+    // Obtener el contenido actual del post para mantener otros campos
+    const currentPostResponse = await fetch(wpEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+
+    if (!currentPostResponse.ok) {
+      const errorText = await currentPostResponse.text();
+      console.error(`[updateShortcodesFlag] Error obteniendo el post actual para actualizar ACF: ${errorText}`);
+      throw new Error('Error obteniendo el post actual para actualizar ACF.');
+    }
+
+    const currentPostData = await currentPostResponse.json();
+    const updatedACF = {
+      ...currentPostData.acf,
+      shortcodes_inserted: true // Asumiendo que el campo ACF es un booleano
+    };
+
+    // Actualizar el campo ACF en WordPress
+    const updateACFResponse = await fetch(wpEndpoint, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      },
+      body: JSON.stringify({
+        acf: updatedACF
+      })
+    });
+
+    if (!updateACFResponse.ok) {
+      const errorText = await updateACFResponse.text();
+      console.error(`[updateShortcodesFlag] Error actualizando ACF en WordPress: ${errorText}`);
+      throw new Error('Error actualizando ACF en WordPress.');
+    }
+
+    console.log(`[updateShortcodesFlag] Flag en ACF actualizado exitosamente para el post ID: ${wpPostId}`);
+  } catch (error) {
+    console.error(`[updateShortcodesFlag] ${error.message}`);
+    throw error;
+  }
+}
+
+
+
 // Función genérica para obtener un secreto
 async function getSecret(secretName) {
   try {
@@ -785,7 +839,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     // Obtener detalles de la apreciación para obtener la URL de WordPress y el Post ID
     const appraisalResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:J${id}`, // Asegúrate de que la columna J contiene el Post ID
+      range: `${SHEET_NAME}!A${id}:K${id}`, // Asegúrate de que la columna K contiene el Template ID
     });
 
     console.log(`[insert-template] Respuesta de Google Sheets:`, appraisalResponse.data.values);
@@ -802,6 +856,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     console.log(`[insert-template] WordPress URL extraída: ${wordpressUrl}`);
 
     let wpPostId = '';
+    let templateId = ''; // Variable para almacenar el template_id
 
     try {
       const parsedUrl = new URL(wordpressUrl);
@@ -817,7 +872,14 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
       return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
     }
 
-    console.log(`[insert-template] Post ID extraído: ${wpPostId}`);
+    // Extraer el template_id desde la columna K (índice 10)
+    templateId = appraisalRow[10] || ''; // Columna K: Template ID
+    console.log(`[insert-template] Template ID extraído: ${templateId}`);
+
+    if (!templateId || isNaN(templateId)) {
+      console.error(`[insert-template] Template ID no proporcionado o inválido en Google Sheets.`);
+      return res.status(400).json({ success: false, message: 'Template ID no proporcionado o inválido.' });
+    }
 
     // **Obtener las Credenciales de WordPress desde Secret Manager**
     const wpUsername = process.env.WORDPRESS_USERNAME;
@@ -831,7 +893,7 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     }
 
     // **Definir los Shortcodes a Insertar**
-    const shortcodesToInsert = '[pdf_download]\n[artRegular post_id="114984"]'; // Asegúrate de ajustar el post_id dinámicamente si es necesario
+    const shortcodesToInsert = `[pdf_download]\n[artRegular template_id="${templateId}"]`; // Usar template_id en lugar de post_id
     console.log(`[insert-template] Shortcodes a insertar: ${shortcodesToInsert}`);
 
     // **Construir el Endpoint de Actualización del Post**
@@ -866,10 +928,21 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     // **Verificar si los Shortcodes ya existen en el contenido**
     const currentContent = currentPostData.content.rendered;
     const hasPdfDownload = currentContent.includes('[pdf_download]');
-    const hasArtRegular = currentContent.includes(`[artRegular post_id="${wpPostId}"]`) || currentContent.includes(`[artRegular post_id=${wpPostId}]`);
+    const hasArtRegular = currentContent.includes(`[artRegular template_id="${templateId}"]`) || currentContent.includes(`[artRegular template_id=${templateId}]`);
+
+    // **Verificar el Flag en ACF**
+    const acfFields = currentPostData.acf || {};
+    const shortcodesInserted = acfFields.shortcodes_inserted || false;
+
+    if (shortcodesInserted) {
+      console.log(`[insert-template] Shortcodes ya han sido insertados previamente según el flag en ACF. No se realizarán cambios.`);
+      return res.json({ success: true, message: 'Shortcodes ya han sido insertados previamente en el post de WordPress.' });
+    }
 
     if (hasPdfDownload && hasArtRegular) {
       console.log(`[insert-template] Los shortcodes ya existen en el post de WordPress. No se realizarán cambios.`);
+      // **Actualizar el Flag en ACF a 'true'**
+      await updateShortcodesFlag(wpPostId, authHeader);
       return res.json({ success: true, message: 'Shortcodes ya existen en el post de WordPress.' });
     }
 
@@ -882,8 +955,8 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     }
 
     if (!hasArtRegular) {
-      updatedContent += `\n[artRegular post_id="${wpPostId}"]`;
-      console.log(`[insert-template] Shortcode [artRegular post_id="${wpPostId}"] añadido al contenido.`);
+      updatedContent += `\n[artRegular template_id="${templateId}"]`;
+      console.log(`[insert-template] Shortcode [artRegular template_id="${templateId}"] añadido al contenido.`);
     }
 
     console.log(`[insert-template] Contenido actualizado del post:`, updatedContent);
@@ -908,13 +981,16 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
     }
 
     console.log(`[insert-template] Shortcodes insertados exitosamente en el post de WordPress.`);
+
+    // **Actualizar el Flag en ACF a 'true'**
+    await updateShortcodesFlag(wpPostId, authHeader);
+
     res.json({ success: true, message: 'Shortcodes insertados exitosamente en el post de WordPress.' });
   } catch (error) {
     console.error('Error insertando shortcodes en WordPress:', error);
     res.status(500).json({ success: false, message: 'Error insertando shortcodes en WordPress.' });
   }
 });
-
 
     
 
