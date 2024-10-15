@@ -859,9 +859,11 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
       return res.status(404).json({ success: false, message: 'Apreciación no encontrada para insertar shortcodes en WordPress.' });
     }
 
-    // Extraer la URL de WordPress desde la columna A (índice 0)
-    const wordpressUrl = appraisalRow[0] || ''; // Columna A: WordPress URL
-    console.log(`[insert-template] WordPress URL extraída: ${wordpressUrl}`);
+   
+// **Extraer la URL de WordPress desde la columna G (índice 6)**
+const wordpressUrl = appraisalRow[6]?.trim() || ''; // Columna G: WordPress URL
+console.log(`[insert-template] WordPress URL extraída: ${wordpressUrl}`);
+
 
     // Extraer el type desde la columna B (índice 1)
     let appraisalType = appraisalRow[1] || 'RegularArt'; // Columna B: Appraisal Type, por defecto 'RegularArt'
