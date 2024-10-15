@@ -1032,6 +1032,74 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
   const updateFlagData = await updateFlagResponse.json();
   console.log(`[updateShortcodesFlag] Flag en ACF actualizado exitosamente:`, updateFlagData);
 }
+
+    
+// **Endpoint: Obtener enlaces desde WordPress y guardarlos en Google Sheets**
+app.post('/api/appraisals/:id/update-links', authenticate, async (req, res) => {
+  const { id } = req.params; // Número de fila en Google Sheets
+  const { postId } = req.body; // ID del post de WordPress
+
+  if (!postId) {
+    return res.status(400).json({ success: false, message: 'postId es requerido.' });
+  }
+
+  try {
+    // Obtener los enlaces desde los campos ACF de WordPress
+    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+    console.log(`[update-links] Endpoint de WordPress: ${wpEndpoint}`);
+
+    // Autenticación con WordPress
+    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+    const base64Credentials = Buffer.from(credentialsString).toString('base64');
+    const authHeader = 'Basic ' + base64Credentials;
+
+    // Obtener el post de WordPress
+    const wpResponse = await fetch(wpEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+
+    if (!wpResponse.ok) {
+      const errorText = await wpResponse.text();
+      console.error(`[update-links] Error obteniendo post de WordPress: ${errorText}`);
+      return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
+    }
+
+    const wpData = await wpResponse.json();
+    const acfFields = wpData.acf || {};
+
+    const pdfLink = acfFields.pdflink || '';
+    const docLink = acfFields.doclink || '';
+
+    if (!pdfLink || !docLink) {
+      console.error(`[update-links] Enlaces no encontrados en los campos ACF de WordPress.`);
+      return res.status(404).json({ success: false, message: 'Enlaces no encontrados en los campos ACF de WordPress.' });
+    }
+
+    // Actualizar las columnas M y N en Google Sheets
+    const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
+    const values = [[pdfLink, docLink]];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: updateRange,
+      valueInputOption: 'RAW',
+      resource: {
+        values: values,
+      },
+    });
+
+    console.log(`[update-links] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
+
+    res.json({ success: true, message: 'Enlaces actualizados exitosamente en Google Sheets.' });
+  } catch (error) {
+    console.error('Error actualizando los enlaces en Google Sheets:', error);
+    res.status(500).json({ success: false, message: 'Error actualizando los enlaces en Google Sheets.' });
+  }
+});
     
 
 // **Endpoint: Send Email to Customer**
