@@ -42,8 +42,8 @@ const client = new SecretManagerServiceClient();
     });
 
     const authClient = await auth.getClient();
-    const sheets = google.sheets({ version: 'v4', auth: authClient });
 
+    
     // Importar funciones de appraisalSteps
     const {
       setAppraisalValue,
@@ -116,6 +116,13 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
 
 // Configurar variables para secretos
 let JWT_SECRET;
+    let sheets; // Mover sheets al ámbito global
+let SPREADSHEET_ID;
+let SHEET_NAME;
+
+        // Inicializar Google Sheets (si no lo has inicializado aún)
+  sheets = await initializeSheets();
+
 
 // Función para verificar el ID token
 async function verifyIdToken(idToken) {
@@ -272,8 +279,7 @@ async function startServer() {
     JWT_SECRET = config.JWT_SECRET;
     console.log('JWT_SECRET obtenido desde config.');
 
-    // Inicializar Google Sheets (si no lo has inicializado aún)
-    const sheets = await initializeSheets();
+
 
     // Asignar las credenciales de WordPress desde config
     process.env.WORDPRESS_USERNAME = config.WORDPRESS_USERNAME;
