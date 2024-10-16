@@ -567,6 +567,70 @@ async function markAppraisalAsCompleted(id, appraisalValue, description) {
   }
 }
 
+// Function: buildPDF
+async function buildPDF(id) {
+  try {
+    // Get appraisal details from Google Sheets to obtain the WordPress URL
+    const appraisalResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${id}:N${id}`, // Adjust the range as needed
+    });
+
+    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+
+    if (!appraisalRow) {
+      throw new Error('Appraisal not found for PDF generation.');
+    }
+
+    const wordpressUrl = appraisalRow[6]?.trim() || ''; // Column G: WordPress URL
+
+    if (!wordpressUrl) {
+      throw new Error('WordPress URL is missing.');
+    }
+
+    // Extract postId from the WordPress URL
+    const parsedUrl = new URL(wordpressUrl);
+    const postId = parsedUrl.searchParams.get('post');
+
+    if (!postId) {
+      throw new Error('Invalid WordPress URL: Post ID not found.');
+    }
+
+    // Get session_ID
+    const session_ID = await getSessionId(postId);
+
+    if (!session_ID) {
+      throw new Error('session_ID not found.');
+    }
+
+    // Request PDF generation with postId and session_ID
+    console.log(`[buildPDF] Requesting PDF generation with postId: ${postId} and session_ID: ${session_ID}`);
+    const buildPdfResponse = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ postId: postId, session_ID: session_ID })
+    });
+
+    const buildPdfData = await buildPdfResponse.json();
+
+    if (!buildPdfData.success) {
+      throw new Error(buildPdfData.message || 'Error building PDF.');
+    }
+
+    // Update the links in Google Sheets
+    await updateLinks(id, postId);
+
+    console.log('[buildPDF] Links updated in Google Sheets successfully.');
+
+  } catch (error) {
+    console.error('Error in buildPDF:', error);
+    throw error;
+  }
+}
+
+
 
 module.exports = {
   setAppraisalValue,
