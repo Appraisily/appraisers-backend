@@ -477,6 +477,31 @@ app.get('/api/appraisals/completed', authenticate, async (req, res) => {
 });
 
 
+// Endpoint: Complete Appraisal Process
+app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { appraisalValue, description } = req.body;
+
+  if (!appraisalValue || !description) {
+    return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
+  }
+
+  try {
+    // Orchestrate the steps
+    await setAppraisalValue(id, appraisalValue, description);
+    await mergeDescriptions(id, description);
+    await updatePostTitle(id);
+    await insertTemplate(id);
+    await buildPDF(id);
+    await sendEmailToCustomer(id);
+    await markAppraisalAsCompleted(id, appraisalValue, description);
+
+    res.json({ success: true, message: 'Appraisal completed successfully.' });
+  } catch (error) {
+    console.error(`Error completing appraisal ${id}:`, error);
+    res.status(500).json({ success: false, message: `Error completing appraisal: ${error.message}` });
+  }
+});
 
 
     
