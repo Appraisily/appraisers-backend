@@ -5,7 +5,7 @@ require('dotenv').config(); // Ensure environment variables are loaded
 
 // Importar Google Sheets API si es necesario
 const { google } = require('googleapis');
-const { sheets } = require('./googleSheets'); // Asegúrate de exportar correctamente 'sheets' desde otro módulo si es necesario
+const { initializeSheets, SPREADSHEET_ID } = require('./googleSheets');
 
 // Constants
 const SHEET_NAME = 'Pending Appraisals'; // Adjust as per your spreadsheet
