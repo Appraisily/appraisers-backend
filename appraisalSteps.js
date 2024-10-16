@@ -13,7 +13,7 @@ const { config } = require('./config'); // Importa el objeto config
 
 
 // Function: updateCurrentStepInSheet
-async function updateCurrentStepInSheet(id, currentStep) {
+async function updateCurrentStepInSheet(sheets, id, currentStep) {
   try {
     const updateRange = `${config.SHEET_NAME}!F${id}:F${id}`; // Column F
     const values = [[currentStep]];
@@ -216,7 +216,7 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
 }
 
 // Function: updatePostTitle
-async function updatePostTitle(id) {
+async function updatePostTitle(sheets, id) {
   try {
     // Get appraisal details to obtain the WordPress URL and new title from Google Sheets
     const appraisalResponse = await sheets.spreadsheets.values.get({
@@ -291,7 +291,7 @@ async function updatePostTitle(id) {
 }
 
 // Function: insertTemplate
-async function insertTemplate(id) {
+async function insertTemplate(sheets, id) {
   try {
     // Define the mapping of 'type' to 'template_id'
     const typeToTemplateIdMap = {
@@ -410,7 +410,7 @@ async function insertTemplate(id) {
 }
 
 // Function: sendEmailToCustomer
-async function sendEmailToCustomer(id) {
+async function sendEmailToCustomer(sheets, id) {
   try {
     // Get appraisal details from Google Sheets
     const appraisalResponse = await sheets.spreadsheets.values.get({
@@ -576,7 +576,7 @@ async function markAppraisalAsCompleted(sheets, id, appraisalValue, description)
 }
 
 // Function: buildPDF
-async function buildPDF(id) {
+async function buildPDF(sheets, id) {
   try {
     // Get appraisal details from Google Sheets to obtain the WordPress URL
     const appraisalResponse = await sheets.spreadsheets.values.get({
@@ -687,7 +687,7 @@ async function getSessionId(postId) {
 }
 
 // Function: updateLinks
-async function updateLinks(id, postId) {
+async function updateLinks(sheets, id, postId) {
   if (!postId) {
     throw new Error('postId is required.');
   }
