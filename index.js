@@ -28,8 +28,8 @@ const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1
 
 const client = new SecretManagerServiceClient();
 
-// Función para iniciar el servidor
-async function startServer() {
+// Asynchronous initialization
+(async () => {
   try {
     // Initialize Google Sheets API client
     const auth = new google.auth.GoogleAuth({
@@ -39,7 +39,7 @@ async function startServer() {
     const authClient = await auth.getClient();
     const sheets = google.sheets({ version: 'v4', auth: authClient });
 
-    // Require the appraisalSteps.js module and pass the sheets client
+    // Import the appraisalSteps functions
     const {
       setAppraisalValue,
       mergeDescriptions,
