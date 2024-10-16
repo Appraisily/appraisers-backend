@@ -795,14 +795,22 @@ app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
 });
 
 
-    // Iniciar el Servidor en Todas las Interfaces
-    const PORT = process.env.PORT || 8080;
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Servidor backend corriendo en el puerto ${PORT}`);
-    });
+        // Iniciar el Servidor en Todas las Interfaces
+        const PORT = process.env.PORT || 8080;
+        app.listen(PORT, '0.0.0.0', () => {
+          console.log(`Servidor backend corriendo en el puerto ${PORT}`);
+        });
+      } catch (error) {
+        console.error('Error iniciando el servidor:', error);
+        process.exit(1);
+      }
+    }
+
+    // **Llamar a la función startServer**
+    await startServer();
 
   } catch (error) {
-    console.error('Error iniciando el servidor:', error);
-    process.exit(1); // Salir si hay un error de inicialización
+    console.error('Error en la inicialización:', error);
+    process.exit(1);
   }
-})(); // Aquí cerramos y ejecutamos la IIFE
+})(); // <-- Aquí cerramos y ejecutamos la IIFE
