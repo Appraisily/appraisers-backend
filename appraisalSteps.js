@@ -5,7 +5,6 @@ require('dotenv').config(); // Ensure environment variables are loaded
 
 // Importar Google Sheets API si es necesario
 const { google } = require('googleapis');
-const { initializeSheets, SPREADSHEET_ID } = require('./googleSheets');
 
 const { config } = require('./config'); // Importa el objeto config
 
@@ -42,7 +41,7 @@ async function setAppraisalValue(sheets, id, appraisalValue, description) {
 
   try {
     // Update the current step in the spreadsheet
-    await updateCurrentStepInSheet(id, 'Set Appraisal Value');
+    await updateCurrentStepInSheet(sheets, id, 'Set Appraisal Value');
 
     // Update columns J and K in Google Sheets
     const updateRange = `${config.SHEET_NAME}!J${id}:K${id}`;
@@ -135,7 +134,7 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
 
   try {
     // Update the current step in the spreadsheet
-    await updateCurrentStepInSheet(id, 'Merge Descriptions');
+    await updateCurrentStepInSheet(sheets, id, 'Merge Descriptions');
 
     // Retrieve iaDescription from Google Sheets (Column H)
     const response = await sheets.spreadsheets.values.get({
@@ -539,7 +538,7 @@ async function sendEmailToCustomer(sheets, id) {
 async function markAppraisalAsCompleted(sheets, id, appraisalValue, description) {
   try {
     // Update the current step in the spreadsheet
-    await updateCurrentStepInSheet(id, 'Completed');
+    await updateCurrentStepInSheet(sheets, id, 'Completed');
 
     // Update columns J and K with the provided data
     const updateRange = `${config.SHEET_NAME}!J${id}:K${id}`;
