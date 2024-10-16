@@ -1,26 +1,37 @@
 // appraisalSteps.js
 
-
 const fetch = require('node-fetch');
-const { google } = require('googleapis');
 require('dotenv').config(); // Ensure environment variables are loaded
 
-// Initialize Google Sheets API client
-const auth = new google.auth.GoogleAuth({
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
-
+// Importar Google Sheets API si es necesario
+const { google } = require('googleapis');
+const { sheets } = require('./googleSheets'); // Asegúrate de exportar correctamente 'sheets' desde otro módulo si es necesario
 
 // Constants
 const SHEET_NAME = 'Pending Appraisals'; // Adjust as per your spreadsheet
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID; // Ensure this is set
 
+// Function: updateCurrentStepInSheet
+async function updateCurrentStepInSheet(id, currentStep) {
+  try {
+    const updateRange = `${SHEET_NAME}!F${id}:F${id}`; // Column F
+    const values = [[currentStep]];
 
-// Function: appraisalSteps
-function appraisalSteps(sheets, config) {
-  const SHEET_NAME = config.SHEET_NAME;
-  const SPREADSHEET_ID = config.SPREADSHEET_ID;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: updateRange,
+      valueInputOption: 'RAW',
+      resource: {
+        values: values,
+      },
+    });
 
+    console.log(`[updateCurrentStepInSheet] Updated column F for row ${id} with current step: ${currentStep}`);
+  } catch (error) {
+    console.error('Error updating current step in Google Sheets:', error);
+    // Optionally, you might decide whether to throw an error or not
+  }
+}
 
 // Function: setAppraisalValue
 async function setAppraisalValue(id, appraisalValue, description) {
@@ -40,7 +51,7 @@ async function setAppraisalValue(id, appraisalValue, description) {
       spreadsheetId: SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
-      requestBody: {
+      resource: {
         values: values,
       },
     });
@@ -203,7 +214,6 @@ async function mergeDescriptions(id, appraiserDescription) {
   }
 }
 
-
 // Function: updatePostTitle
 async function updatePostTitle(id) {
   try {
@@ -278,7 +288,6 @@ async function updatePostTitle(id) {
     throw error;
   }
 }
-
 
 // Function: insertTemplate
 async function insertTemplate(id) {
@@ -399,35 +408,6 @@ async function insertTemplate(id) {
   }
 }
 
-async function updateShortcodesFlag(wpPostId, authHeader) {
-  const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
-  console.log(`[updateShortcodesFlag] Updating ACF flag for post ID: ${wpPostId}`);
-
-  const updateFlagResponse = await fetch(updateWpEndpoint, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': authHeader
-    },
-    body: JSON.stringify({
-      acf: {
-        shortcodes_inserted: true
-      }
-    })
-  });
-
-  if (!updateFlagResponse.ok) {
-    const errorText = await updateFlagResponse.text();
-    console.error(`[updateShortcodesFlag] Error updating ACF flag: ${errorText}`);
-    throw new Error('Error updating ACF flag.');
-  }
-
-  const updateFlagData = await updateFlagResponse.json();
-  console.log(`[updateShortcodesFlag] ACF flag updated successfully:`, updateFlagData);
-}
-
-
-
 // Function: sendEmailToCustomer
 async function sendEmailToCustomer(id) {
   try {
@@ -516,7 +496,7 @@ async function sendEmailToCustomer(id) {
     }
 
     // Define your SendGrid template ID
-    const templateId = 'YOUR_SENDGRID_TEMPLATE_ID';
+    const templateId = 'YOUR_SENDGRID_TEMPLATE_ID'; // Reemplaza con tu template ID real de SendGrid
 
     // Send Email using SendGrid with the template
     const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -568,7 +548,7 @@ async function markAppraisalAsCompleted(id, appraisalValue, description) {
       spreadsheetId: SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
-      requestBody: {
+      resource: {
         values: values,
       },
     });
@@ -581,7 +561,7 @@ async function markAppraisalAsCompleted(id, appraisalValue, description) {
       spreadsheetId: SPREADSHEET_ID,
       range: statusUpdateRange,
       valueInputOption: 'RAW',
-      requestBody: {
+      resource: {
         values: statusValues,
       },
     });
@@ -768,40 +748,74 @@ async function updateLinks(id, postId) {
   }
 }
 
+// Function: updateShortcodesFlag
+async function updateShortcodesFlag(wpPostId, authHeader) {
+  const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+  console.log(`[updateShortcodesFlag] Updating ACF flag for post ID: ${wpPostId}`);
 
-// Function: updateCurrentStepInSheet
-async function updateCurrentStepInSheet(id, currentStep) {
-  try {
-    const updateRange = `${SHEET_NAME}!F${id}:F${id}`; // Column F
-    const values = [[currentStep]];
+  const updateFlagResponse = await fetch(updateWpEndpoint, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': authHeader
+    },
+    body: JSON.stringify({
+      acf: {
+        shortcodes_inserted: true
+      }
+    })
+  });
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: updateRange,
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: values,
-      },
-    });
-
-    console.log(`[updateCurrentStepInSheet] Updated column F for row ${id} with current step: ${currentStep}`);
-  } catch (error) {
-    console.error('Error updating current step in Google Sheets:', error);
-    // Optionally, you might decide whether to throw an error or not
+  if (!updateFlagResponse.ok) {
+    const errorText = await updateFlagResponse.text();
+    console.error(`[updateShortcodesFlag] Error updating ACF flag: ${errorText}`);
+    throw new Error('Error updating ACF flag.');
   }
+
+  const updateFlagData = await updateFlagResponse.json();
+  console.log(`[updateShortcodesFlag] ACF flag updated successfully:`, updateFlagData);
 }
 
+// Function: appraisalSteps
+function appraisalSteps(sheets, config = {}) {
+  const SHEET_NAME = config.SHEET_NAME || 'Pending Appraisals'; // Default value
+  const SPREADSHEET_ID = config.SPREADSHEET_ID || process.env.SPREADSHEET_ID;
 
   return {
-   setAppraisalValue,
-    mergeDescriptions,
-    updatePostTitle,
-    insertTemplate,
-    buildPDF,
-    sendEmailToCustomer,
-    markAppraisalAsCompleted,
+    setAppraisalValue: (id, appraisalValue, description) =>
+      setAppraisalValue(id, appraisalValue, description),
+    mergeDescriptions: (id, appraiserDescription) =>
+      mergeDescriptions(id, appraiserDescription),
+    updatePostTitle: (id) =>
+      updatePostTitle(id),
+    insertTemplate: (id) =>
+      insertTemplate(id),
+    sendEmailToCustomer: (id) =>
+      sendEmailToCustomer(id),
+    markAppraisalAsCompleted: (id, appraisalValue, description) =>
+      markAppraisalAsCompleted(id, appraisalValue, description),
+    buildPDF: (id) =>
+      buildPDF(id),
+    getSessionId: (postId) =>
+      getSessionId(postId),
+    updateLinks: (id, postId) =>
+      updateLinks(id, postId),
+    updateCurrentStepInSheet: (id, currentStep) =>
+      updateCurrentStepInSheet(id, currentStep),
   };
 }
-}
 
-module.exports = appraisalSteps;
+// Exportar las funciones individuales y la función appraisalSteps
+module.exports = {
+  setAppraisalValue,
+  mergeDescriptions,
+  updatePostTitle,
+  insertTemplate,
+  sendEmailToCustomer,
+  markAppraisalAsCompleted,
+  buildPDF,
+  getSessionId,
+  updateLinks,
+  updateCurrentStepInSheet,
+  appraisalSteps,
+};
