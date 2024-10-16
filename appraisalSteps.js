@@ -20,6 +20,12 @@ const sheets = require('./sheets'); // Assume this is your Google Sheets client
 const fetch = require('node-fetch');
 const { google } = require('googleapis');
 
+// Function: appraisalSteps
+function appraisalSteps(sheets, config) {
+  const SHEET_NAME = config.SHEET_NAME;
+  const SPREADSHEET_ID = config.SPREADSHEET_ID;
+
+
 // Function: setAppraisalValue
 async function setAppraisalValue(id, appraisalValue, description) {
   if (appraisalValue === undefined || description === undefined) {
@@ -790,13 +796,15 @@ async function updateCurrentStepInSheet(id, currentStep) {
 }
 
 
-// Export the functions
-module.exports = {
-  setAppraisalValue,
-  mergeDescriptions,
-  updatePostTitle,
-  insertTemplate,
-  buildPDF,
-  sendEmailToCustomer,
-  markAppraisalAsCompleted,
-};
+  return {
+   setAppraisalValue,
+    mergeDescriptions,
+    updatePostTitle,
+    insertTemplate,
+    buildPDF,
+    sendEmailToCustomer,
+    markAppraisalAsCompleted,
+  };
+}
+
+module.exports = appraisalSteps;
