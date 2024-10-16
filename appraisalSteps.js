@@ -802,5 +802,6 @@ async function updateCurrentStepInSheet(id, currentStep) {
     markAppraisalAsCompleted,
   };
 }
+}
 
 module.exports = appraisalSteps;
