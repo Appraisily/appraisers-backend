@@ -398,6 +398,71 @@ async function startServer() {
       }
     });
 
+
+// Endpoint para actualizar un campo ACF específico
+app.put('/api/appraisals/:id/update-acf-field', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { fieldName, fieldValue } = req.body;
+
+  if (!fieldName) {
+    return res.status(400).json({ success: false, message: 'Field name is required.' });
+  }
+
+  try {
+    // Construir el endpoint de WordPress
+    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${id}`;
+
+    // Autenticación con WordPress
+    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
+
+    // Obtener el post actual para mantener otros campos ACF
+    const wpResponse = await fetch(wpEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+
+    if (!wpResponse.ok) {
+      const errorText = await wpResponse.text();
+      console.error(`[update-acf-field] Error obteniendo post de WordPress: ${errorText}`);
+      return res.status(500).json({ success: false, message: 'Error fetching WordPress post.' });
+    }
+
+    const wpData = await wpResponse.json();
+    const acfFields = wpData.acf || {};
+
+    // Actualizar el campo ACF específico
+    acfFields[fieldName] = fieldValue;
+
+    // Actualizar los campos ACF en WordPress
+    const updateResponse = await fetch(wpEndpoint, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      },
+      body: JSON.stringify({ acf: acfFields })
+    });
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error(`[update-acf-field] Error actualizando ACF field: ${errorText}`);
+      return res.status(500).json({ success: false, message: 'Error updating ACF field in WordPress.' });
+    }
+
+    res.json({ success: true, message: `Field '${fieldName}' updated successfully.` });
+  } catch (error) {
+    console.error('Error updating ACF field:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+
+
+
+    
     // **Endpoint: Save PDF and Doc Links in Google Sheets**
 app.post('/api/appraisals/:id/save-links', authenticate, async (req, res) => {
   const { id } = req.params; // Número de fila en Google Sheets
