@@ -696,33 +696,6 @@ app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) =
 
     
 
-// **Función para actualizar el flag en ACF**
-async function updateShortcodesFlag(wpPostId, authHeader) {
-  const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
-  console.log(`[updateShortcodesFlag] Actualizando el flag en ACF a 'true' en el post ID: ${wpPostId}`);
-
-  const updateFlagResponse = await fetch(updateWpEndpoint, {
-    method: 'PUT', // Método correcto para actualizar
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': authHeader
-    },
-    body: JSON.stringify({
-      acf: {
-        shortcodes_inserted: true
-      }
-    })
-  });
-
-  if (!updateFlagResponse.ok) {
-    const errorText = await updateFlagResponse.text();
-    console.error(`[updateShortcodesFlag] Error actualizando el flag en ACF: ${errorText}`);
-    throw new Error('Error actualizando el flag en ACF.');
-  }
-
-  const updateFlagData = await updateFlagResponse.json();
-  console.log(`[updateShortcodesFlag] Flag en ACF actualizado exitosamente:`, updateFlagData);
-}
 
     
 // **Endpoint: Obtener enlaces desde WordPress y guardarlos en Google Sheets**
