@@ -1,13 +1,12 @@
 // googleSheets.js
 
 const { google } = require('googleapis');
-const { getSecret } = require('./secretManager'); // Asumiendo que tienes una función para obtener secretos
+const { config } = require('./config'); // Importa el objeto config
 
 async function initializeSheets() {
   try {
-    console.log('Accediendo al secreto de la cuenta de servicio...');
+    // Si necesitas credenciales de servicio, obténlas desde config
     const serviceAccount = await getSecret('service-account-json');
-    console.log('Secreto de la cuenta de servicio accedido exitosamente.');
 
     const auth = new google.auth.GoogleAuth({
       credentials: JSON.parse(serviceAccount),
@@ -23,6 +22,4 @@ async function initializeSheets() {
   }
 }
 
-const SPREADSHEET_ID = '1PDdt-tEV78uMGW-813UTcVxC9uzrRXQSmNLCI1rR-xc'; // Reemplaza con tu ID de hoja de cálculo
-
-module.exports = { initializeSheets, SPREADSHEET_ID };
+module.exports = { initializeSheets };
