@@ -10,15 +10,11 @@ const auth = new google.auth.GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
-const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
 
 // Constants
 const SHEET_NAME = 'Pending Appraisals'; // Adjust as per your spreadsheet
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID; // Ensure this is set
 
-const sheets = require('./sheets'); // Assume this is your Google Sheets client
-const fetch = require('node-fetch');
-const { google } = require('googleapis');
 
 // Function: appraisalSteps
 function appraisalSteps(sheets, config) {
