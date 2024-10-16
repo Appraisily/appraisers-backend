@@ -11,6 +11,8 @@ const authorizedUsers = require('./authorizedUsers');
 const fetch = require('node-fetch');
 const app = express();
 const { getSecret } = require('./secretManager');
+const { config, initializeConfig } = require('./config'); // Importa el módulo de configuración
+
 
 require('dotenv').config();
 
@@ -265,39 +267,29 @@ const getImageUrl = async (imageField) => {
 // Función para iniciar el servidor
 async function startServer() {
   try {
-    // Obtener secretos antes de iniciar el servidor
-    JWT_SECRET = await getSecret('jwt-secret');
-    console.log('JWT_SECRET obtenido exitosamente.');
+      // **No es necesario obtener los secretos aquí, ya los obtuvimos en initializeConfig()**
+    JWT_SECRET = config.JWT_SECRET;
+    console.log('JWT_SECRET obtenido desde config.');
 
+    // Inicializar Google Sheets (si no lo has inicializado aún)
     const sheets = await initializeSheets();
 
-    // Recuperar credenciales de WordPress desde Secret Manager
-    const WORDPRESS_USERNAME = (await getSecret('wp_username')).trim();
-    const WORDPRESS_APP_PASSWORD = (await getSecret('wp_app_password')).trim();
-    const WORDPRESS_API_URL = (await getSecret('WORDPRESS_API_URL')).trim();
+    // Asignar las credenciales de WordPress desde config
+    process.env.WORDPRESS_USERNAME = config.WORDPRESS_USERNAME;
+    process.env.WORDPRESS_APP_PASSWORD = config.WORDPRESS_APP_PASSWORD;
+    process.env.WORDPRESS_API_URL = config.WORDPRESS_API_URL;
 
-    // Asignar las credenciales y URL a variables de entorno
-    process.env.WORDPRESS_USERNAME = WORDPRESS_USERNAME;
-    process.env.WORDPRESS_APP_PASSWORD = WORDPRESS_APP_PASSWORD;
-    process.env.WORDPRESS_API_URL = WORDPRESS_API_URL;
+    console.log('Credenciales de WordPress asignadas desde config.');
 
-    console.log('WORDPRESS_USERNAME:', process.env.WORDPRESS_USERNAME);
-    console.log('WORDPRESS_APP_PASSWORD:', process.env.WORDPRESS_APP_PASSWORD ? 'Loaded' : 'Not Loaded');
-    console.log('WORDPRESS_API_URL cargado correctamente:', process.env.WORDPRESS_API_URL);
+    // Asignar las credenciales de SendGrid desde config
+    process.env.SENDGRID_API_KEY = config.SENDGRID_API_KEY;
+    process.env.SENDGRID_EMAIL = config.SENDGRID_EMAIL;
 
-    // Recuperar credenciales de SendGrid desde Secret Manager
-    const SENDGRID_API_KEY = (await getSecret('SENDGRID_API_KEY')).trim();
-    const SENDGRID_EMAIL = (await getSecret('SENDGRID_EMAIL')).trim();
+    console.log('Credenciales de SendGrid asignadas desde config.');
 
-    // Asignar las credenciales a variables de entorno
-    process.env.SENDGRID_API_KEY = SENDGRID_API_KEY;
-    process.env.SENDGRID_EMAIL = SENDGRID_EMAIL;
-
-    console.log('SENDGRID_API_KEY y SENDGRID_EMAIL cargados correctamente.');
-
-    // Tu ID de Google Sheet
-    const SPREADSHEET_ID = '1PDdt-tEV78uMGW-813UTcVxC9uzrRXQSmNLCI1rR-xc';
-    const SHEET_NAME = 'Pending Appraisals';
+    // Asignar SPREADSHEET_ID y SHEET_NAME desde config
+    const SPREADSHEET_ID = config.SPREADSHEET_ID;
+    const SHEET_NAME = config.SHEET_NAME;
 
     // **Endpoint: Obtener Apreciaciones Pendientes**
     app.get('/api/appraisals', authenticate, async (req, res) => {
@@ -794,6 +786,7 @@ app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
         process.exit(1);
       }
     }
+    await initializeConfig();
 
     // **Llamar a la función startServer**
     await startServer();
