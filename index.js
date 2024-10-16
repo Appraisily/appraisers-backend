@@ -7,16 +7,16 @@ const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-const authorizedUsers = require('./authorizedUsers'); // Lista de usuarios autorizados
+const authorizedUsers = require('./authorizedUsers');
 const fetch = require('node-fetch');
 const app = express();
-require('dotenv').config(); // Asegúrate de tener dotenv configurado
+require('dotenv').config();
 
-// CORS Configuration
+// Configuración de CORS
 const corsOptions = {
-  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // Tu URL frontend
-  credentials: true, // Permitir credenciales (cookies)
-  optionsSuccessStatus: 200
+  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app',
+  credentials: true,
+  optionsSuccessStatus: 200,
 };
 app.use(cors(corsOptions));
 
@@ -24,14 +24,14 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Configurar cliente OAuth2 con tu Client ID
-const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com'); // Tu Client ID
+const oauthClient = new OAuth2Client('TU_CLIENT_ID');
 
 const client = new SecretManagerServiceClient();
 
-// Asynchronous initialization
+// IIFE asíncrona para inicializar el servidor
 (async () => {
   try {
-    // Initialize Google Sheets API client
+    // Inicializar cliente de Google Sheets API
     const auth = new google.auth.GoogleAuth({
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
@@ -39,7 +39,7 @@ const client = new SecretManagerServiceClient();
     const authClient = await auth.getClient();
     const sheets = google.sheets({ version: 'v4', auth: authClient });
 
-    // Import the appraisalSteps functions
+    // Importar funciones de appraisalSteps
     const {
       setAppraisalValue,
       mergeDescriptions,
@@ -794,13 +794,15 @@ app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
   }
 });
 
+
     // Iniciar el Servidor en Todas las Interfaces
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Servidor backend corriendo en el puerto ${PORT}`);
     });
+
   } catch (error) {
     console.error('Error iniciando el servidor:', error);
     process.exit(1); // Salir si hay un error de inicialización
   }
-})(); // <-- Aquí cerramos y ejecutamos la IIFE
+})(); // Aquí cerramos y ejecutamos la IIFE
