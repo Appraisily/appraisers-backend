@@ -107,20 +107,7 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
 
 
 
-// Función genérica para obtener un secreto
-async function getSecret(secretName) {
-  try {
-    const projectId = await client.getProjectId();
-    const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
 
-    const [version] = await client.accessSecretVersion({ name });
-    const payload = version.payload.data.toString('utf8');
-    return payload;
-  } catch (error) {
-    console.error(`Error obteniendo el secreto ${secretName}:`, error);
-    throw new Error(`No se pudo obtener el secreto ${secretName}`);
-  }
-}
 
 // Configurar variables para secretos
 let JWT_SECRET;
