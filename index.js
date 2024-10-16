@@ -10,6 +10,8 @@ const cookieParser = require('cookie-parser');
 const authorizedUsers = require('./authorizedUsers');
 const fetch = require('node-fetch');
 const app = express();
+const { getSecret } = require('./secretManager');
+
 require('dotenv').config();
 
 // Configuración de CORS
