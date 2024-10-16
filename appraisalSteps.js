@@ -779,8 +779,8 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
 
 // Function: appraisalSteps
 function appraisalSteps(sheets, config = {}) {
-  const SHEET_NAME = config.SHEET_NAME || 'Pending Appraisals'; // Default value
-  const SPREADSHEET_ID = config.SPREADSHEET_ID || process.env.SPREADSHEET_ID;
+  const SPREADSHEET_ID = config.SPREADSHEET_ID;
+  const SHEET_NAME = config.SHEET_NAME;
 
   return {
     setAppraisalValue: (id, appraisalValue, description) =>
