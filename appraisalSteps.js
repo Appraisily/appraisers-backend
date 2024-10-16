@@ -35,7 +35,7 @@ async function updateCurrentStepInSheet(id, currentStep) {
 }
 
 // Function: setAppraisalValue
-async function setAppraisalValue(id, appraisalValue, description) {
+async function setAppraisalValue(sheets, id, appraisalValue, description) {
   if (appraisalValue === undefined || description === undefined) {
     throw new Error('Appraisal Value and description are required.');
   }
@@ -125,7 +125,7 @@ async function setAppraisalValue(id, appraisalValue, description) {
 }
 
 // Function: mergeDescriptions
-async function mergeDescriptions(id, appraiserDescription) {
+async function mergeDescriptions(sheets, id, appraiserDescription) {
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
   if (!OPENAI_API_KEY) {
@@ -536,7 +536,7 @@ async function sendEmailToCustomer(id) {
 }
 
 // Function: markAppraisalAsCompleted
-async function markAppraisalAsCompleted(id, appraisalValue, description) {
+async function markAppraisalAsCompleted(sheets, id, appraisalValue, description) {
   try {
     // Update the current step in the spreadsheet
     await updateCurrentStepInSheet(id, 'Completed');
