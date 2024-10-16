@@ -1,5 +1,21 @@
 // appraisalSteps.js
 
+
+const fetch = require('node-fetch');
+const { google } = require('googleapis');
+require('dotenv').config(); // Ensure environment variables are loaded
+
+// Initialize Google Sheets API client
+const auth = new google.auth.GoogleAuth({
+  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+});
+
+const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
+
+// Constants
+const SHEET_NAME = 'Pending Appraisals'; // Adjust as per your spreadsheet
+const SPREADSHEET_ID = process.env.SPREADSHEET_ID; // Ensure this is set
+
 const sheets = require('./sheets'); // Assume this is your Google Sheets client
 const fetch = require('node-fetch');
 const { google } = require('googleapis');
@@ -11,6 +27,9 @@ async function setAppraisalValue(id, appraisalValue, description) {
   }
 
   try {
+    // Update the current step in the spreadsheet
+    await updateCurrentStepInSheet(id, 'Set Appraisal Value');
+
     // Update columns J and K in Google Sheets
     const updateRange = `${SHEET_NAME}!J${id}:K${id}`;
     const values = [[appraisalValue, description]];
@@ -19,7 +38,7 @@ async function setAppraisalValue(id, appraisalValue, description) {
       spreadsheetId: SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
-      resource: {
+      requestBody: {
         values: values,
       },
     });
@@ -83,8 +102,7 @@ async function setAppraisalValue(id, appraisalValue, description) {
       throw new Error('Error updating the ACF field in WordPress.');
     }
 
-    const wpUpdateData = await wpUpdateResponse.json();
-    console.log(`[setAppraisalValue] WordPress updated successfully:`, wpUpdateData);
+    console.log(`[setAppraisalValue] WordPress updated successfully.`);
 
   } catch (error) {
     console.error('Error in setAppraisalValue:', error);
@@ -102,6 +120,9 @@ async function mergeDescriptions(id, appraiserDescription) {
   }
 
   try {
+    // Update the current step in the spreadsheet
+    await updateCurrentStepInSheet(id, 'Merge Descriptions');
+
     // Retrieve iaDescription from Google Sheets (Column H)
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
@@ -167,7 +188,7 @@ async function mergeDescriptions(id, appraiserDescription) {
       spreadsheetId: SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
-      resource: {
+      requestBody: {
         values: updateValues,
       },
     });
@@ -179,6 +200,7 @@ async function mergeDescriptions(id, appraiserDescription) {
     throw error;
   }
 }
+
 
 // Function: updatePostTitle
 async function updatePostTitle(id) {
@@ -533,6 +555,9 @@ async function sendEmailToCustomer(id) {
 // Function: markAppraisalAsCompleted
 async function markAppraisalAsCompleted(id, appraisalValue, description) {
   try {
+    // Update the current step in the spreadsheet
+    await updateCurrentStepInSheet(id, 'Completed');
+
     // Update columns J and K with the provided data
     const updateRange = `${SHEET_NAME}!J${id}:K${id}`;
     const values = [[appraisalValue, description]];
@@ -541,7 +566,7 @@ async function markAppraisalAsCompleted(id, appraisalValue, description) {
       spreadsheetId: SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
-      resource: {
+      requestBody: {
         values: values,
       },
     });
@@ -554,7 +579,7 @@ async function markAppraisalAsCompleted(id, appraisalValue, description) {
       spreadsheetId: SPREADSHEET_ID,
       range: statusUpdateRange,
       valueInputOption: 'RAW',
-      resource: {
+      requestBody: {
         values: statusValues,
       },
     });
@@ -630,8 +655,142 @@ async function buildPDF(id) {
   }
 }
 
+// Function: getSessionId
+async function getSessionId(postId) {
+  if (!postId) {
+    throw new Error('postId is required.');
+  }
+
+  try {
+    // Build WordPress endpoint to get the post
+    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+    console.log(`[getSessionId] WordPress Endpoint: ${wpEndpoint}`);
+
+    // Authentication with WordPress
+    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+    const base64Credentials = Buffer.from(credentialsString).toString('base64');
+    const authHeader = 'Basic ' + base64Credentials;
+
+    // Make GET request to WordPress REST API
+    const wpResponse = await fetch(wpEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+
+    if (!wpResponse.ok) {
+      const errorText = await wpResponse.text();
+      console.error(`[getSessionId] Error fetching post from WordPress: ${errorText}`);
+      throw new Error('Error fetching data from WordPress.');
+    }
+
+    const wpData = await wpResponse.json();
+    const acfFields = wpData.acf || {};
+    const session_ID = acfFields.session_id || '';
+
+    if (!session_ID) {
+      console.error(`[getSessionId] session_ID not found in WordPress post.`);
+      throw new Error('session_ID not found in WordPress post.');
+    }
+
+    console.log(`[getSessionId] Extracted session_ID: ${session_ID}`);
+    return session_ID;
+  } catch (error) {
+    console.error('Error in getSessionId:', error);
+    throw error;
+  }
+}
+
+// Function: updateLinks
+async function updateLinks(id, postId) {
+  if (!postId) {
+    throw new Error('postId is required.');
+  }
+
+  try {
+    // Get the links from the ACF fields in WordPress
+    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+    console.log(`[updateLinks] WordPress Endpoint: ${wpEndpoint}`);
+
+    // Authentication with WordPress
+    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+    const base64Credentials = Buffer.from(credentialsString).toString('base64');
+    const authHeader = 'Basic ' + base64Credentials;
+
+    // Get the post from WordPress
+    const wpResponse = await fetch(wpEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+
+    if (!wpResponse.ok) {
+      const errorText = await wpResponse.text();
+      console.error(`[updateLinks] Error fetching post from WordPress: ${errorText}`);
+      throw new Error('Error fetching data from WordPress.');
+    }
+
+    const wpData = await wpResponse.json();
+    const acfFields = wpData.acf || {};
+
+    const pdfLink = acfFields.pdflink || '';
+    const docLink = acfFields.doclink || '';
+
+    if (!pdfLink || !docLink) {
+      console.error(`[updateLinks] Links not found in ACF fields of WordPress.`);
+      throw new Error('Links not found in ACF fields of WordPress.');
+    }
+
+    // Update columns M and N in Google Sheets
+    const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columns M and N
+    const values = [[pdfLink, docLink]];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: updateRange,
+      valueInputOption: 'RAW',
+      resource: {
+        values: values,
+      },
+    });
+
+    console.log(`[updateLinks] Updated columns M and N for row ${id} with PDF Link: ${pdfLink} and Doc Link: ${docLink}`);
+
+  } catch (error) {
+    console.error('Error in updateLinks:', error);
+    throw error;
+  }
+}
 
 
+// Function: updateCurrentStepInSheet
+async function updateCurrentStepInSheet(id, currentStep) {
+  try {
+    const updateRange = `${SHEET_NAME}!F${id}:F${id}`; // Column F
+    const values = [[currentStep]];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: updateRange,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: values,
+      },
+    });
+
+    console.log(`[updateCurrentStepInSheet] Updated column F for row ${id} with current step: ${currentStep}`);
+  } catch (error) {
+    console.error('Error updating current step in Google Sheets:', error);
+    // Optionally, you might decide whether to throw an error or not
+  }
+}
+
+
+// Export the functions
 module.exports = {
   setAppraisalValue,
   mergeDescriptions,
@@ -639,5 +798,5 @@ module.exports = {
   insertTemplate,
   buildPDF,
   sendEmailToCustomer,
-  markAppraisalAsCompleted
+  markAppraisalAsCompleted,
 };
