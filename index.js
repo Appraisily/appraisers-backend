@@ -28,6 +28,33 @@ const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1
 
 const client = new SecretManagerServiceClient();
 
+// Asynchronous initialization
+(async () => {
+  // Initialize Google Sheets API client
+  const auth = new google.auth.GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+
+  const authClient = await auth.getClient();
+  const sheets = google.sheets({ version: 'v4', auth: authClient });
+
+  // Require the appraisalSteps.js module and pass the sheets client
+  const appraisalSteps = require('./appraisalSteps')(sheets, {
+    SHEET_NAME: 'Pending Appraisals', // Adjust as per your sheet
+    SPREADSHEET_ID: process.env.SPREADSHEET_ID, // Ensure this is set
+  });
+
+  // Import the appraisalSteps functions
+  const {
+    setAppraisalValue,
+    mergeDescriptions,
+    updatePostTitle,
+    insertTemplate,
+    buildPDF,
+    sendEmailToCustomer,
+    markAppraisalAsCompleted,
+  } = require('./appraisalSteps');
+
 // **Función para Actualizar el Flag en ACF**
 async function updateShortcodesFlag(wpPostId, authHeader) {
   try {
