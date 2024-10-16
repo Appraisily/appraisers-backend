@@ -12,6 +12,7 @@ const fetch = require('node-fetch');
 const app = express();
 const { getSecret } = require('./secretManager');
 const { config, initializeConfig } = require('./config'); // Importa el módulo de configuración
+const appraisalSteps = require('./appraisalSteps');
 
 
 require('dotenv').config();
