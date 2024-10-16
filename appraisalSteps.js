@@ -49,7 +49,7 @@ async function setAppraisalValue(sheets, id, appraisalValue, description) {
     const values = [[appraisalValue, description]];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -61,7 +61,7 @@ async function setAppraisalValue(sheets, id, appraisalValue, description) {
 
     // Get appraisal details to obtain the WordPress URL
     const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: `${config.SHEET_NAME}!A${id}:I${id}`,
     });
 
@@ -139,7 +139,7 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
 
     // Retrieve iaDescription from Google Sheets (Column H)
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: `${config.SHEET_NAME}!H${id}:H${id}`, // Column H: iaDescription
     });
 
@@ -199,7 +199,7 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
     const updateValues = [[blendedDescription]];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
       requestBody: {
@@ -220,7 +220,7 @@ async function updatePostTitle(id) {
   try {
     // Get appraisal details to obtain the WordPress URL and new title from Google Sheets
     const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: `${config.SHEET_NAME}!A${id}:K${id}`, // Adjust the range as needed
     });
 
@@ -302,7 +302,7 @@ async function insertTemplate(id) {
 
     // Get appraisal details to obtain the WordPress URL and Type
     const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: `${config.SHEET_NAME}!A${id}:K${id}`, // Adjust the range as needed
     });
 
@@ -414,7 +414,7 @@ async function sendEmailToCustomer(id) {
   try {
     // Get appraisal details from Google Sheets
     const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: `${config.SHEET_NAME}!A${id}:N${id}`, // Include columns up to N to get PDF link
     });
 
@@ -546,7 +546,7 @@ async function markAppraisalAsCompleted(sheets, id, appraisalValue, description)
     const values = [[appraisalValue, description]];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -559,7 +559,7 @@ async function markAppraisalAsCompleted(sheets, id, appraisalValue, description)
     const statusValues = [['Completed']];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: statusUpdateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -580,7 +580,7 @@ async function buildPDF(id) {
   try {
     // Get appraisal details from Google Sheets to obtain the WordPress URL
     const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: `${config.SHEET_NAME}!A${id}:N${id}`, // Adjust the range as needed
     });
 
@@ -733,7 +733,7 @@ async function updateLinks(id, postId) {
     const values = [[pdfLink, docLink]];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
       resource: {
