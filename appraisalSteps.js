@@ -7,9 +7,10 @@ require('dotenv').config(); // Ensure environment variables are loaded
 const { google } = require('googleapis');
 const { initializeSheets, SPREADSHEET_ID } = require('./googleSheets');
 
-// Constants
-const SHEET_NAME = 'Pending Appraisals'; // Adjust as per your spreadsheet
-const SPREADSHEET_ID = process.env.SPREADSHEET_ID; // Ensure this is set
+const { config } = require('./config'); // Importa el objeto config
+
+
+
 
 // Function: updateCurrentStepInSheet
 async function updateCurrentStepInSheet(id, currentStep) {
