@@ -1,4 +1,4 @@
-// index.js.
+// index.js
 
 const express = require('express');
 const cors = require('cors');
@@ -28,32 +28,29 @@ const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1
 
 const client = new SecretManagerServiceClient();
 
-// Asynchronous initialization
-(async () => {
-  // Initialize Google Sheets API client
-  const auth = new google.auth.GoogleAuth({
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
+// Función para iniciar el servidor
+async function startServer() {
+  try {
+    // Initialize Google Sheets API client
+    const auth = new google.auth.GoogleAuth({
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
 
-  const authClient = await auth.getClient();
-  const sheets = google.sheets({ version: 'v4', auth: authClient });
+    const authClient = await auth.getClient();
+    const sheets = google.sheets({ version: 'v4', auth: authClient });
 
-  // Require the appraisalSteps.js module and pass the sheets client
-  const appraisalSteps = require('./appraisalSteps')(sheets, {
-    SHEET_NAME: 'Pending Appraisals', // Adjust as per your sheet
-    SPREADSHEET_ID: process.env.SPREADSHEET_ID, // Ensure this is set
-  });
+    // Require the appraisalSteps.js module and pass the sheets client
+    const {
+      setAppraisalValue,
+      mergeDescriptions,
+      updatePostTitle,
+      insertTemplate,
+      buildPDF,
+      sendEmailToCustomer,
+      markAppraisalAsCompleted,
+    } = require('./appraisalSteps');
 
-  // Import the appraisalSteps functions
-  const {
-    setAppraisalValue,
-    mergeDescriptions,
-    updatePostTitle,
-    insertTemplate,
-    buildPDF,
-    sendEmailToCustomer,
-    markAppraisalAsCompleted,
-  } = require('./appraisalSteps');
+  
 
 // **Función para Actualizar el Flag en ACF**
 async function updateShortcodesFlag(wpPostId, authHeader) {
@@ -824,16 +821,15 @@ app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
   }
 });
 
-// Iniciar el Servidor en Todas las Interfaces (ya existente)
-
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Servidor backend corriendo en el puerto ${PORT}`);
-});
-} catch (error) {
-  console.error('Error iniciando el servidor:', error);
-  process.exit(1); // Salir si hay un error de inicialización
-}
+  // Iniciar el Servidor en Todas las Interfaces
+    const PORT = process.env.PORT || 8080;
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Servidor backend corriendo en el puerto ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Error iniciando el servidor:', error);
+    process.exit(1); // Salir si hay un error de inicialización
+  }
 }
 
 startServer();
