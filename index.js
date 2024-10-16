@@ -821,7 +821,7 @@ app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
   }
 });
 
-  // Iniciar el Servidor en Todas las Interfaces
+    // Iniciar el Servidor en Todas las Interfaces
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Servidor backend corriendo en el puerto ${PORT}`);
@@ -830,6 +830,4 @@ app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
     console.error('Error iniciando el servidor:', error);
     process.exit(1); // Salir si hay un error de inicialización
   }
-}
-
-startServer();
+})(); // <-- Aquí cerramos y ejecutamos la IIFE
