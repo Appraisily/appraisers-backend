@@ -6,7 +6,7 @@ require('dotenv').config(); // Ensure environment variables are loaded
 // Importar Google Sheets API si es necesario
 const { google } = require('googleapis');
 
-const { config } = require('./config'); // Importa el objeto config
+const { config } = require('./config'); // Ruta actualizada si está dentro de shared/
 
 
 
