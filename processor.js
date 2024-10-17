@@ -17,32 +17,45 @@ async function main() {
       projectId: config.GCP_PROJECT_ID,
     });
 
-    // Nombre de la suscripción (asegúrate de que exista en Pub/Sub)
-    const subscriptionName = 'appraisal-tasks-subscription'; // Debes crear esta suscripción
+    // Nombre de la suscripción (debe existir en Pub/Sub)
+    const subscriptionName = 'appraisal-tasks-subscription';
 
     const subscription = pubsub.subscription(subscriptionName);
 
     // Función para manejar cada mensaje
     const messageHandler = async (message) => {
-      console.log(`Received message: ${message.id}`);
+      console.log(`[processor.js] [Task ID: ${message.id}] Received message: ${message.id}`);
       const data = JSON.parse(message.data.toString());
       const { id, appraisalValue, description } = data;
 
       try {
-        console.log(`[processor.js] Processing appraisal task for id: ${id}`);
+        console.log(`[processor.js] [Task ID: ${id}] Starting appraisal processing.`);
 
         await appraisalSteps.setAppraisalValue(id, appraisalValue, description);
-        await appraisalSteps.mergeDescriptions(id, description);
-        await appraisalSteps.updatePostTitle(id);
-        await appraisalSteps.insertTemplate(id);
-        await appraisalSteps.buildPDF(id);
-        await appraisalSteps.sendEmailToCustomer(id);
-        await appraisalSteps.markAppraisalAsCompleted(id, appraisalValue, description);
+        console.log(`[processor.js] [Task ID: ${id}] setAppraisalValue completed.`);
 
-        console.log(`[processor.js] Completed appraisal task for id: ${id}`);
+        await appraisalSteps.mergeDescriptions(id, description);
+        console.log(`[processor.js] [Task ID: ${id}] mergeDescriptions completed.`);
+
+        await appraisalSteps.updatePostTitle(id);
+        console.log(`[processor.js] [Task ID: ${id}] updatePostTitle completed.`);
+
+        await appraisalSteps.insertTemplate(id);
+        console.log(`[processor.js] [Task ID: ${id}] insertTemplate completed.`);
+
+        await appraisalSteps.buildPDF(id);
+        console.log(`[processor.js] [Task ID: ${id}] buildPDF completed.`);
+
+        await appraisalSteps.sendEmailToCustomer(id);
+        console.log(`[processor.js] [Task ID: ${id}] sendEmailToCustomer completed.`);
+
+        await appraisalSteps.markAppraisalAsCompleted(id, appraisalValue, description);
+        console.log(`[processor.js] [Task ID: ${id}] markAppraisalAsCompleted completed.`);
+
+        console.log(`[processor.js] [Task ID: ${id}] Completed appraisal task successfully.`);
         message.ack(); // Acknowledge el mensaje
       } catch (error) {
-        console.error(`[processor.js] Error processing appraisal task for id: ${id}:`, error);
+        console.error(`[processor.js] [Task ID: ${id}] Error processing appraisal task:`, error);
         message.nack(); // Reintentar el mensaje
       }
     };
