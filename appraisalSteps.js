@@ -785,27 +785,28 @@ function appraisalSteps(sheets, config = {}) {
 
   return {
     setAppraisalValue: (id, appraisalValue, description) =>
-      setAppraisalValue(id, appraisalValue, description),
+      setAppraisalValue(sheets, id, appraisalValue, description),
     mergeDescriptions: (id, appraiserDescription) =>
-      mergeDescriptions(id, appraiserDescription),
+      mergeDescriptions(sheets, id, appraiserDescription),
     updatePostTitle: (id) =>
-      updatePostTitle(id),
+      updatePostTitle(sheets, id),
     insertTemplate: (id) =>
-      insertTemplate(id),
+      insertTemplate(sheets, id),
     sendEmailToCustomer: (id) =>
-      sendEmailToCustomer(id),
+      sendEmailToCustomer(sheets, id),
     markAppraisalAsCompleted: (id, appraisalValue, description) =>
-      markAppraisalAsCompleted(id, appraisalValue, description),
+      markAppraisalAsCompleted(sheets, id, appraisalValue, description),
     buildPDF: (id) =>
-      buildPDF(id),
+      buildPDF(sheets, id),
     getSessionId: (postId) =>
       getSessionId(postId),
     updateLinks: (id, postId) =>
-      updateLinks(id, postId),
+      updateLinks(sheets, id, postId),
     updateCurrentStepInSheet: (id, currentStep) =>
-      updateCurrentStepInSheet(id, currentStep),
+      updateCurrentStepInSheet(sheets, id, currentStep),
   };
 }
+
 
 // Exportar las funciones individuales y la función appraisalSteps
 module.exports = {
