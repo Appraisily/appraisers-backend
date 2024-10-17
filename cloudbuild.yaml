@@ -2,6 +2,7 @@
 
 options:
   logging: CLOUD_LOGGING_ONLY
+# cloudbuild.yaml
 
 steps:
   # Construir y desplegar el servicio principal (main-service)
@@ -12,12 +13,12 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/main-service']
 
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'  # Usa una versión actualizada
     entrypoint: gcloud
     args:
       - run
       - deploy
-      - main-service
+      - main-service  # Nombre único del servicio
       - --image
       - gcr.io/$PROJECT_ID/main-service
       - --region=us-central1
@@ -33,12 +34,12 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/processor-service']
 
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'  # Usa una versión actualizada
     entrypoint: gcloud
     args:
       - run
       - deploy
-      - processor-service
+      - processor-service  # Nombre único del servicio
       - --image
       - gcr.io/$PROJECT_ID/processor-service
       - --region=us-central1
@@ -49,4 +50,5 @@ steps:
 images:
   - 'gcr.io/$PROJECT_ID/main-service'
   - 'gcr.io/$PROJECT_ID/processor-service'
+
 
