@@ -2,18 +2,23 @@
 
 FROM node:16-alpine
 
+# Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-COPY package*.json ./
+# Copia los archivos de dependencias
+COPY main-service/package*.json ./
+
+# Instala las dependencias
 RUN npm install --production
 
-COPY . .
+# Copia los archivos de main-service
+COPY main-service ./
 
-# Cambiar temporalmente para invalidar cache
-RUN echo "Construcción de depuración"
+# Copia la carpeta shared dentro de /app/shared
+COPY shared ./shared
 
-RUN ls -la /app
-
+# Expone el puerto en el que la aplicación escuchará
 EXPOSE 8080
 
+# Comando para ejecutar la aplicación
 CMD ["node", "index.js"]
