@@ -1,0 +1,16 @@
+{
+  "name": "processor-service",
+  "version": "1.0.0",
+  "description": "Servicio para procesar tareas de tasación encoladas",
+  "main": "processor.js",
+  "scripts": {
+    "start": "node processor.js"
+  },
+  "dependencies": {
+    "@google-cloud/pubsub": "^3.10.0",
+    "googleapis": "^100.0.0",
+    "node-fetch": "^2.6.7",
+    "dotenv": "^16.0.3",
+    "jsonwebtoken": "^9.0.0"
+  }
+}
