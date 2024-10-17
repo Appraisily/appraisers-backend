@@ -3,9 +3,9 @@
 require('dotenv').config(); // Cargar variables de entorno desde .env
 
 const { PubSub } = require('@google-cloud/pubsub');
-const { initializeSheets } = require('../shared/googleSheets'); // Ruta actualizada
-const { config, initializeConfig } = require('../shared/config'); // Ruta actualizada
-const appraisalStepsModule = require('../shared/appraisalSteps'); // Ruta actualizada
+const { initializeSheets } = require('./shared/googleSheets'); // Ruta actualizada
+const { config, initializeConfig } = require('./shared/config'); // Ruta actualizada
+const appraisalStepsModule = require('./shared/appraisalSteps'); // Ruta actualizada
 
 
 
