@@ -1,4 +1,4 @@
-# cloudbuild.yaml
+# cloudbuild.yaml.
 
 steps:
   # Construir y desplegar el servicio principal
