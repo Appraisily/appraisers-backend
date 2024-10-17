@@ -13,6 +13,7 @@ const app = express();
 const { getSecret } = require('./secretManager');
 const { config, initializeConfig } = require('./config'); // Importa el módulo de configuración
 const appraisalStepsModule = require('./appraisalSteps');
+const { PubSub } = require('@google-cloud/pubsub');
 
 
 require('dotenv').config();
@@ -32,6 +33,14 @@ app.use(cookieParser());
 const oauthClient = new OAuth2Client('TU_CLIENT_ID');
 
 const client = new SecretManagerServiceClient();
+
+// Inicializar Pub/Sub
+const pubsub = new PubSub({
+  projectId: config.GCP_PROJECT_ID, // Asegúrate de tener esta variable en tu configuración
+});
+
+
+
 
 // IIFE asíncrona para inicializar el servidor
 (async () => {
