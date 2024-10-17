@@ -1,7 +1,7 @@
-# cloudbuild.yaml.
+# cloudbuild.yaml
 
 steps:
-  # Construir y desplegar el servicio principal
+  # Construir y desplegar el servicio principal (main-service)
   - name: 'gcr.io/cloud-builders/docker'
     dir: 'main-service'
     args: ['build', '-t', 'gcr.io/$PROJECT_ID/main-service', '.']
@@ -21,7 +21,7 @@ steps:
       - --platform managed
       - --allow-unauthenticated
 
-  # Construir y desplegar el procesador de tareas
+  # Construir y desplegar el procesador de tareas (processor-service)
   - name: 'gcr.io/cloud-builders/docker'
     dir: 'processor-service'
     args: ['build', '-t', 'gcr.io/$PROJECT_ID/processor-service', '.']
