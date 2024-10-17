@@ -566,13 +566,14 @@ app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) 
   }
 
   try {
-    await appraisalSteps.setAppraisalValue(sheets, id, appraisalValue, description);
-    await appraisalSteps.mergeDescriptions(sheets, id, description);
-    await appraisalSteps.updatePostTitle(id);
-    await appraisalSteps.insertTemplate(id);
-    await appraisalSteps.buildPDF(id);
-    await appraisalSteps.sendEmailToCustomer(id);
-    await appraisalSteps.markAppraisalAsCompleted(sheets, id, appraisalValue, description);
+await appraisalSteps.setAppraisalValue(id, appraisalValue, description);
+await appraisalSteps.mergeDescriptions(id, description);
+await appraisalSteps.updatePostTitle(id);
+await appraisalSteps.insertTemplate(id);
+await appraisalSteps.buildPDF(id);
+await appraisalSteps.sendEmailToCustomer(id);
+await appraisalSteps.markAppraisalAsCompleted(id, appraisalValue, description);
+
 
     res.json({ success: true, message: 'Appraisal completed successfully.' });
   } catch (error) {
