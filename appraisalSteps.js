@@ -37,6 +37,8 @@ async function updateCurrentStepInSheet(sheets, id, currentStep) {
 
 // Function: setAppraisalValue
 async function setAppraisalValue(sheets, id, appraisalValue, description) {
+    console.log(`[setAppraisalValue] Called with id:`, id, `type:`, typeof id);
+
   if (appraisalValue === undefined || description === undefined) {
     throw new Error('Appraisal Value and description are required.');
   }
