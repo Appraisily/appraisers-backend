@@ -787,7 +787,7 @@ function appraisalSteps(sheets, config = {}) {
   const SPREADSHEET_ID = config.SPREADSHEET_ID;
   const SHEET_NAME = config.SHEET_NAME;
 
-  return {
+ return {
     setAppraisalValue: (id, appraisalValue, description) =>
       setAppraisalValue(sheets, id, appraisalValue, description),
     mergeDescriptions: (id, appraiserDescription) =>
