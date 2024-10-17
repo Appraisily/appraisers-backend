@@ -2,62 +2,57 @@
 
 options:
   logging: CLOUD_LOGGING_ONLY
-# cloudbuild.yaml
-
-# cloudbuild.yaml
 
 steps:
-  # Paso 1: Construir la imagen Docker para main-service
+  # Paso 1: Construir y desplegar main-service
   - name: 'gcr.io/cloud-builders/docker'
-    dir: 'main-service'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/main-service', '.']
+    args: [
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/main-service',
+      '-f', 'main-service/Dockerfile',
+      '.'
+    ]
 
-  # Paso 2: Empujar la imagen Docker de main-service al Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/main-service']
 
-  # Paso 3: Desplegar main-service en Cloud Run
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'  # Usar una versión actualizada
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     entrypoint: 'gcloud'
-    args:
-      - 'run'
-      - 'deploy'
-      - 'main-service'  # Nombre único del servicio
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/main-service'
-      - '--region'
-      - 'us-central1'  # Ajusta según tu región
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'  # Permitir acceso no autenticado (ajusta según necesidades)
+    args: [
+      'run',
+      'deploy',
+      'main-service',
+      '--image', 'gcr.io/$PROJECT_ID/main-service',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--allow-unauthenticated'
+    ]
 
-  # Paso 4: Construir la imagen Docker para processor-service
+  # Paso 2: Construir y desplegar processor-service
   - name: 'gcr.io/cloud-builders/docker'
-    dir: 'processor-service'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/processor-service', '.']
+    args: [
+      'build',
+      '-t', 'gcr.io/$PROJECT_ID/processor-service',
+      '-f', 'processor-service/Dockerfile',
+      '.'
+    ]
 
-  # Paso 5: Empujar la imagen Docker de processor-service al Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/processor-service']
 
-  # Paso 6: Desplegar processor-service en Cloud Run
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'  # Usar una versión actualizada
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     entrypoint: 'gcloud'
-    args:
-      - 'run'
-      - 'deploy'
-      - 'processor-service'  # Nombre único del servicio
-      - '--image'
-      - 'gcr.io/$PROJECT_ID/processor-service'
-      - '--region'
-      - 'us-central1'  # Ajusta según tu región
-      - '--platform'
-      - 'managed'
-      - '--no-allow-unauthenticated'  # Denegar acceso no autenticado
+    args: [
+      'run',
+      'deploy',
+      'processor-service',
+      '--image', 'gcr.io/$PROJECT_ID/processor-service',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--no-allow-unauthenticated'
+    ]
 
 images:
   - 'gcr.io/$PROJECT_ID/main-service'
   - 'gcr.io/$PROJECT_ID/processor-service'
-
-
 
