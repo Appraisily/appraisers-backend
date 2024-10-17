@@ -7,12 +7,12 @@ const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-const authorizedUsers = require('./authorizedUsers');
+const authorizedUsers = require('../shared/authorizedUsers'); // Ruta actualizada
 const fetch = require('node-fetch');
 const app = express();
-const { getSecret } = require('./secretManager');
-const { config, initializeConfig } = require('./config'); // Importa el módulo de configuración
-const appraisalStepsModule = require('./appraisalSteps');
+const { getSecret } = require('../shared/secretManager'); // Ruta actualizada
+const { config, initializeConfig } = require('../shared/config'); // Ruta actualizada
+const appraisalStepsModule = require('../shared/appraisalSteps'); // Ruta actualizada
 const { PubSub } = require('@google-cloud/pubsub');
 
 
