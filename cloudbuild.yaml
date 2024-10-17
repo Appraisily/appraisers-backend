@@ -1,41 +1,46 @@
 # cloudbuild.yaml
 
 steps:
-  # Paso 1: Construir la imagen Docker
+  # Construir y desplegar el servicio principal
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'Build Backend'
-    args:
-      - build
-      - '-t'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
-      - '.'
+    dir: 'main-service'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/main-service', '.']
 
-  # Paso 2: Empujar la imagen Docker al Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'Push Backend'
-    args:
-      - push
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
+    args: ['push', 'gcr.io/$PROJECT_ID/main-service']
 
-  # Paso 3: Desplegar la imagen a Cloud Run con las variables de entorno
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'Deploy Backend'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
     args:
-      - 'run'
-      - 'deploy'
-      - 'appraisers-backend' # Nombre del servicio en Cloud Run
-      - '--image'
-      - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
-      - '--region'
-      - 'us-central1' # Reemplaza con tu región si es diferente
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated' # Ajusta según tus necesidades de autenticación
-      - '--set-env-vars'
-      - 'GOOGLE_CLOUD_PROJECT=civil-forge-403609,JWT_SECRET=a1b2c3d4e5f6...' # Reemplaza con tu JWT_SECRET
+      - run
+      - deploy
+      - main-service
+      - --image
+      - gcr.io/$PROJECT_ID/main-service
+      - --region=us-central1
+      - --platform managed
+      - --allow-unauthenticated
+
+  # Construir y desplegar el procesador de tareas
+  - name: 'gcr.io/cloud-builders/docker'
+    dir: 'processor-service'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/processor-service', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/processor-service']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - processor-service
+      - --image
+      - gcr.io/$PROJECT_ID/processor-service
+      - --region=us-central1
+      - --platform managed
+      - --no-allow-unauthenticated
 
 images:
-  - 'us-central1-docker.pkg.dev/$PROJECT_ID/docker-repo/appraisers-backend:$SHORT_SHA'
-
-options:
-  logging: CLOUD_LOGGING_ONLY
+  - 'gcr.io/$PROJECT_ID/main-service'
+  - 'gcr.io/$PROJECT_ID/processor-service'
