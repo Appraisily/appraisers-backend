@@ -9,7 +9,9 @@ RUN npm install --production
 
 COPY . .
 
-# Añadir comando para listar archivos
+# Cambiar temporalmente para invalidar cache
+RUN echo "Construcción de depuración"
+
 RUN ls -la /app
 
 EXPOSE 8080
