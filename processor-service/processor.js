@@ -1,9 +1,14 @@
 // processor.js
 
+require('dotenv').config(); // Cargar variables de entorno desde .env
+
 const { PubSub } = require('@google-cloud/pubsub');
-const { initializeSheets } = require('./sheets');
-const { config, initializeConfig } = require('./config');
-const appraisalStepsModule = require('./appraisalSteps');
+const { initializeSheets } = require('../shared/googleSheets'); // Ruta actualizada
+const { config, initializeConfig } = require('../shared/config'); // Ruta actualizada
+const appraisalStepsModule = require('../shared/appraisalSteps'); // Ruta actualizada
+
+
+
 
 async function main() {
   try {
