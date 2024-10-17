@@ -226,7 +226,7 @@ async function updatePostTitle(sheets, id) {
     // Get appraisal details to obtain the WordPress URL and new title from Google Sheets
     const appraisalResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: config.SPREADSHEET_ID,
-      range: `${config.SHEET_NAME}!A${id}:K${id}`, // Adjust the range as needed
+      range: `${config.SHEET_NAME}!A${id}:L${id}`, // Adjust the range as needed
     });
 
     const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
