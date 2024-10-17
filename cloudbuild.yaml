@@ -12,7 +12,7 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/main-service']
 
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     entrypoint: gcloud
     args:
       - run
@@ -21,7 +21,8 @@ steps:
       - --image
       - gcr.io/$PROJECT_ID/main-service
       - --region=us-central1
-      - --platform managed
+      - --platform
+      - managed
       - --allow-unauthenticated
 
   # Construir y desplegar el procesador de tareas (processor-service)
@@ -32,7 +33,7 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/processor-service']
 
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     entrypoint: gcloud
     args:
       - run
@@ -41,9 +42,11 @@ steps:
       - --image
       - gcr.io/$PROJECT_ID/processor-service
       - --region=us-central1
-      - --platform managed
+      - --platform
+      - managed
       - --no-allow-unauthenticated
 
 images:
   - 'gcr.io/$PROJECT_ID/main-service'
   - 'gcr.io/$PROJECT_ID/processor-service'
+
