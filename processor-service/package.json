@@ -7,7 +7,7 @@
     "start": "node processor.js"
   },
   "dependencies": {
-    "@google-cloud/pubsub": "^3.10.0",
+    "@google-cloud/pubsub": "^4.8.0",
     "googleapis": "^100.0.0",
     "node-fetch": "^2.6.7",
     "dotenv": "^16.0.3",
