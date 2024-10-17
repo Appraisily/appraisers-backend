@@ -696,7 +696,7 @@ async function getSessionId(postId) {
 }
 
 // Function: updateLinks
-async function updateLinks(sheets, id, postId) {
+async function updateLinks(id, postId) {
   if (!postId) {
     throw new Error('postId is required.');
   }
