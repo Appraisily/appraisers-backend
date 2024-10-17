@@ -588,7 +588,7 @@ async function markAppraisalAsCompleted(sheets, id, appraisalValue, description)
 async function buildPDF(id) {
   try {
     // Get appraisal details from Google Sheets to obtain the WordPress URL
-    const appraisalResponse = await sheets.spreadsheets.values.get({
+    const appraisalResponse = await sheetsGlobal.spreadsheets.values.get({
       spreadsheetId: config.SPREADSHEET_ID,
       range: `${config.SHEET_NAME}!A${id}:N${id}`, // Adjust the range as needed
     });
@@ -790,6 +790,8 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
 function appraisalSteps(sheets, config = {}) {
   const SPREADSHEET_ID = config.SPREADSHEET_ID;
   const SHEET_NAME = config.SHEET_NAME;
+      sheetsGlobal = sheets; // Asignar sheets a la variable global
+
 
  return {
     setAppraisalValue: (id, appraisalValue, description) =>
@@ -805,7 +807,7 @@ function appraisalSteps(sheets, config = {}) {
     markAppraisalAsCompleted: (id, appraisalValue, description) =>
       markAppraisalAsCompleted(sheets, id, appraisalValue, description),
     buildPDF: (id) =>
-      buildPDF(sheets, id),
+      buildPDF(id),
     getSessionId: (postId) =>
       getSessionId(postId),
     updateLinks: (id, postId) =>
