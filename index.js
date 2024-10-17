@@ -12,7 +12,7 @@ const fetch = require('node-fetch');
 const app = express();
 const { getSecret } = require('./secretManager');
 const { config, initializeConfig } = require('./config'); // Importa el módulo de configuración
-const appraisalSteps = require('./appraisalSteps');
+const appraisalStepsModule = require('./appraisalSteps');
 
 
 require('dotenv').config();
@@ -297,6 +297,9 @@ async function startServer() {
     // Asignar SPREADSHEET_ID y SHEET_NAME desde config
     const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const SHEET_NAME = config.SHEET_NAME;
+
+     // Inicializar appraisalSteps con sheets y config
+    const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
     // **Endpoint: Obtener Apreciaciones Pendientes**
     app.get('/api/appraisals', authenticate, async (req, res) => {
