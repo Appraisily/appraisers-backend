@@ -585,7 +585,7 @@ async function markAppraisalAsCompleted(sheets, id, appraisalValue, description)
 }
 
 // Function: buildPDF
-async function buildPDF(sheets, id) {
+async function buildPDF(id) {
   try {
     // Get appraisal details from Google Sheets to obtain the WordPress URL
     const appraisalResponse = await sheets.spreadsheets.values.get({
