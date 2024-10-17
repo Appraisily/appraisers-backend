@@ -65,7 +65,7 @@ const pubsub = new PubSub({
       buildPDF,
       sendEmailToCustomer,
       markAppraisalAsCompleted,
-    } = require('./appraisalSteps');
+    } = require('./shared/appraisalSteps');
 
   
 
