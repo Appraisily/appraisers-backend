@@ -1,22 +1,21 @@
-# Dockerfile
+# main-service/Dockerfile
 
-# Usar la versión LTS de Node.js
 FROM node:16-alpine
 
-# Crear y establecer el directorio de trabajo
+# Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Copiar package.json y package-lock.json (si existe)
+# Copia los archivos de dependencias
 COPY package*.json ./
 
-# Instalar dependencias
+# Instala las dependencias
 RUN npm install --production
 
-# Copiar el resto del código de la aplicación
+# Copia el resto de los archivos de la aplicación
 COPY . .
 
-# Exponer el puerto (Cloud Run espera el puerto 8080)
+# Expone el puerto en el que la aplicación escuchará
 EXPOSE 8080
 
-# Iniciar el servidor
+# Comando para ejecutar la aplicación
 CMD ["node", "index.js"]
