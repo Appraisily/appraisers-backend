@@ -283,6 +283,8 @@ async function updatePostTitle(sheets, id) {
     }
 
     const wpUpdateData = await wpUpdateResponse.json();
+        await updateCurrentStepInSheet(sheets, id, 'Updating Post Title');
+
     console.log(`[updatePostTitle] WordPress post title updated successfully:`, wpUpdateData);
 
   } catch (error) {
@@ -398,6 +400,7 @@ async function insertTemplate(sheets, id) {
       console.error(`[insertTemplate] Error updating WordPress post: ${errorText}`);
       throw new Error('Error updating WordPress post.');
     }
+    await updateCurrentStepInSheet(sheets, id, 'Template Inserted');
 
     console.log(`[insertTemplate] Shortcodes inserted successfully in WordPress post.`);
 
@@ -527,6 +530,7 @@ async function sendEmailToCustomer(sheets, id) {
       console.error(`[sendEmailToCustomer] Error sending email via SendGrid: ${errorText}`);
       throw new Error('Error sending email to customer.');
     }
+    await updateCurrentStepInSheet(sheets, id, 'Email sent');
 
     console.log(`[sendEmailToCustomer] Email successfully sent to: ${customerEmail}`);
 
