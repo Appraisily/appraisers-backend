@@ -22,7 +22,11 @@ async function initializeConfig() {
     config.SPREADSHEET_ID = (await getSecret('PENDING_APPRAISALS_SPREADSHEET_ID')).trim();
     config.SHEET_NAME = 'Pending Appraisals'; // Puedes ajustar esto según necesites
 
-    console.log('SPREADSHEET_ID y SHEET_NAME configurados.');
+    // Añadir GCP_PROJECT_ID directamente
+    config.GCP_PROJECT_ID = 'civil-forge-403609';
+    console.log('GCP_PROJECT_ID configurado.');
+
+    console.log('SPREADSHEET_ID, SHEET_NAME y GCP_PROJECT_ID configurados.');
   } catch (error) {
     console.error('Error inicializando la configuración:', error);
     throw error;
