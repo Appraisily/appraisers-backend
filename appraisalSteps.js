@@ -18,7 +18,7 @@ async function updateCurrentStepInSheet(sheets, id, currentStep) {
     const values = [[currentStep]];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: config.SPREADSHEET_ID, // Usar config.SPREADSHEET_ID
       range: updateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -29,9 +29,11 @@ async function updateCurrentStepInSheet(sheets, id, currentStep) {
     console.log(`[updateCurrentStepInSheet] Updated column F for row ${id} with current step: ${currentStep}`);
   } catch (error) {
     console.error('Error updating current step in Google Sheets:', error);
-    // Optionally, you might decide whether to throw an error or not
+    // Opcional: lanzar el error si deseas manejarlo en el caller
+    throw error;
   }
 }
+
 
 // Function: setAppraisalValue
 async function setAppraisalValue(sheets, id, appraisalValue, description) {
