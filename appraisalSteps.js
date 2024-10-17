@@ -809,7 +809,7 @@ function appraisalSteps(sheets, config = {}) {
     getSessionId: (postId) =>
       getSessionId(postId),
     updateLinks: (id, postId) =>
-      updateLinks(sheets, id, postId),
+      updateLinks(id, postId),
     updateCurrentStepInSheet: (id, currentStep) =>
       updateCurrentStepInSheet(sheets, id, currentStep),
   };
