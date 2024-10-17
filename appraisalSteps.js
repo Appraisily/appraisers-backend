@@ -13,6 +13,8 @@ const { config } = require('./config'); // Importa el objeto config
 
 // Function: updateCurrentStepInSheet
 async function updateCurrentStepInSheet(sheets, id, currentStep) {
+    console.log(`[updateCurrentStepInSheet] Called with id:`, id, `type:`, typeof id);
+
   try {
     const updateRange = `${config.SHEET_NAME}!F${id}:F${id}`; // Column F
     const values = [[currentStep]];
