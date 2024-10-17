@@ -3,7 +3,7 @@
 options:
   logging: CLOUD_LOGGING_ONLY
   # Añade la siguiente línea para especificar el bucket de logs
-  logs_bucket: gs://cloud-build-logs-your-project-id
+  logs_bucket: gs://cloud-build-logs-civil-forge-403609
 
 steps:
   # Construir y desplegar el servicio principal (main-service)
