@@ -65,6 +65,12 @@ async function main() {
       }
     };
 
+        // Start the server and listen on the specified port
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`[processor.js] HTTP server listening on port ${PORT}`);
+      console.log('[processor.js] Listening for appraisal tasks...');
+    });
+
     // Escuchar mensajes
     subscription.on('message', messageHandler);
 
