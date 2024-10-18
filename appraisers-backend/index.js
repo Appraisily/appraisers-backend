@@ -313,6 +313,108 @@ async function startServer() {
      // Inicializar appraisalSteps con sheets y config
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
+// **Nuevo Endpoint: Editar Campos ACF Manualmente**
+app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { fieldName, fieldValue } = req.body;
+
+  // Validación básica
+  if (!fieldName) {
+    return res.status(400).json({ success: false, message: 'El nombre del campo es requerido.' });
+  }
+
+  try {
+    // Obtener los datos de Google Sheets para obtener la URL de WordPress
+    const sheetResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${id}:I${id}`, // Ajusta el rango según tus necesidades
+    });
+
+    const row = sheetResponse.data.values ? sheetResponse.data.values[0] : null;
+
+    if (!row) {
+      return res.status(404).json({ success: false, message: 'Apreciación no encontrada en Google Sheets.' });
+    }
+
+    const wordpressUrl = row[6] || ''; // Columna G: URL de WordPress
+
+    if (!wordpressUrl) {
+      return res.status(400).json({ success: false, message: 'URL de WordPress no encontrada en Google Sheets.' });
+    }
+
+    // Extraer el post ID de la URL de WordPress
+    let postId = '';
+    try {
+      const parsedUrl = new URL(wordpressUrl);
+      postId = parsedUrl.searchParams.get('post');
+
+      if (!postId || isNaN(postId)) {
+        throw new Error('Post ID inválido.');
+      }
+    } catch (error) {
+      console.error(`[api/appraisals/${id}/update-acf-field-edit] Error al extraer postId:`, error);
+      return res.status(400).json({ success: false, message: 'Post ID inválido en la URL de WordPress.' });
+    }
+
+    // Construir el endpoint para obtener el post de WordPress
+    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+    console.log(`[api/appraisals/${id}/update-acf-field-edit] Endpoint de WordPress: ${wpEndpoint}`);
+
+    // Autenticación con WordPress
+    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
+
+    // Obtener los datos actuales del post de WordPress
+    const wpResponse = await fetch(wpEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+
+    if (!wpResponse.ok) {
+      const errorText = await wpResponse.text();
+      console.error(`[api/appraisals/${id}/update-acf-field-edit] Error obteniendo post de WordPress: ${errorText}`);
+      return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
+    }
+
+    const wpData = await wpResponse.json();
+    const acfFields = wpData.acf || {};
+
+    // Verificar si el campo ACF existe
+    if (!(fieldName in acfFields)) {
+      return res.status(400).json({ success: false, message: `El campo ACF '${fieldName}' no existe.` });
+    }
+
+    // Actualizar el campo ACF específico
+    acfFields[fieldName] = fieldValue;
+
+    // Actualizar los campos ACF en WordPress
+    const updateResponse = await fetch(wpEndpoint, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      },
+      body: JSON.stringify({ acf: acfFields })
+    });
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error(`[api/appraisals/${id}/update-acf-field-edit] Error actualizando campo ACF: ${errorText}`);
+      return res.status(500).json({ success: false, message: 'Error actualizando campo ACF en WordPress.' });
+    }
+
+    console.log(`[api/appraisals/${id}/update-acf-field-edit] Campo ACF '${fieldName}' actualizado exitosamente.`);
+    res.json({ success: true, message: `Campo '${fieldName}' actualizado exitosamente.` });
+  } catch (error) {
+    console.error(`[api/appraisals/${id}/update-acf-field-edit] Error:`, error);
+    res.status(500).json({ success: false, message: 'Error actualizando el campo ACF.' });
+  }
+});
+
+
+    
     // **Endpoint: Obtener Apreciaciones Pendientes**
     app.get('/api/appraisals', authenticate, async (req, res) => {
       try {
