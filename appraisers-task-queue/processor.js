@@ -9,6 +9,17 @@ const { initializeSheets } = require('./shared/googleSheets'); // Updated path
 const { config, initializeConfig } = require('./shared/config'); // Updated path
 const appraisalStepsModule = require('./shared/appraisalSteps'); // Updated path
 
+// Configuración de CORS
+const corsOptions = {
+  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app',
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+app.use(cors(corsOptions));
+
+// Manejar solicitudes OPTIONS preflight
+app.options('*', cors());
+
 async function main() {
   try {
     // Initialize configurations
@@ -59,16 +70,7 @@ async function main() {
     // Middleware para parsear JSON
     app.use(express.json());
 
-    // Configurar CORS
-    app.use(cors({
-      origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // Reemplaza con el origen de tu frontend
-      methods: ['POST', 'GET', 'OPTIONS'], // Métodos permitidos
-      allowedHeaders: ['Content-Type', 'Authorization'], // Cabeceras permitidas
-      credentials: true // Si necesitas enviar cookies o credenciales
-    }));
-
-    // Manejar solicitudes OPTIONS preflight
-    app.options('*', cors());
+   
 
     // Endpoint de health check
     app.get('/health', (req, res) => {
