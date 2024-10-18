@@ -464,10 +464,6 @@ async function startServer() {
           wordpressUrl: row[6] || '',
           iaDescription: row[7] || '',
           customerDescription: row[8] || '', // Nueva propiedad
-            acfFields: acfFields, // Añade esta línea
-            images: images
-
-
         };
 
         // Extraer el post ID de la URL de WordPress
