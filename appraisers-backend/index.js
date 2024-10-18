@@ -342,6 +342,101 @@ async function startServer() {
       }
     });
 
+    app.get('/api/appraisals/:id/list-edit', authenticate, async (req, res) => {
+  const { id } = req.params; // Número de fila
+
+  try {
+    // Obtener los datos de Google Sheets
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A${id}:I${id}`, // Incluye hasta la columna I
+    });
+
+    const row = response.data.values ? response.data.values[0] : null;
+
+    if (!row) {
+      return res.status(404).json({ success: false, message: 'Apreciación no encontrada.' });
+    }
+
+    // Extraer los datos básicos de la apreciación
+    const appraisal = {
+      id: id,
+      date: row[0] || '',
+      appraisalType: row[1] || '',
+      identifier: row[2] || '',
+      status: row[5] || '',
+      wordpressUrl: row[6] || '',
+      iaDescription: row[7] || '',
+      customerDescription: row[8] || '',
+      // acfFields y images se agregarán después
+    };
+
+    // Extraer el post ID de la URL de WordPress
+    const wordpressUrl = appraisal.wordpressUrl;
+    let postId = '';
+
+    try {
+      const parsedUrl = new URL(wordpressUrl);
+      postId = parsedUrl.searchParams.get('post');
+      console.log(`[api/appraisals/${id}/list-edit] Post ID extraído: ${postId}`);
+    } catch (error) {
+      console.error(`[api/appraisals/${id}/list-edit] Error al parsear la URL de WordPress: ${error}`);
+      return res.status(400).json({ success: false, message: 'URL de WordPress inválida.' });
+    }
+
+    if (!postId || isNaN(postId)) {
+      console.error(`[api/appraisals/${id}/list-edit] Post ID de WordPress no proporcionado o inválido en la URL.`);
+      return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
+    }
+
+    // Construir el endpoint para obtener el post de WordPress
+    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+    console.log(`[api/appraisals/${id}/list-edit] Endpoint de WordPress: ${wpEndpoint}`);
+
+    // Autenticación con WordPress
+    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
+
+    // Realizar la solicitud a la API REST de WordPress
+    const wpResponse = await fetch(wpEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader
+      }
+    });
+
+    if (!wpResponse.ok) {
+      const errorText = await wpResponse.text();
+      console.error(`[api/appraisals/${id}/list-edit] Error obteniendo post de WordPress: ${errorText}`);
+      return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
+    }
+
+    const wpData = await wpResponse.json();
+    console.log(`[api/appraisals/${id}/list-edit] Datos de WordPress obtenidos:`, wpData);
+
+    // Obtener los campos ACF
+    const acfFields = wpData.acf || {};
+
+    // Obtener URLs de imágenes
+    const images = {
+      main: await getImageUrl(acfFields.main),
+      age: await getImageUrl(acfFields.age),
+      signature: await getImageUrl(acfFields.signature)
+    };
+
+    // Agregar acfFields e images al objeto appraisal
+    appraisal.acfFields = acfFields;
+    appraisal.images = images;
+
+    // Enviar la respuesta con la descripción del cliente incluida
+    res.json(appraisal);
+  } catch (error) {
+    console.error('Error obteniendo detalles de la apreciación (list-edit):', error);
+    res.status(500).json({ success: false, message: 'Error obteniendo detalles de la apreciación.' });
+  }
+});
+
+
     // **Endpoint: Obtener Detalles de una Apreciación Específica**
     app.get('/api/appraisals/:id/list', authenticate, async (req, res) => {
       const { id } = req.params; // Número de fila
