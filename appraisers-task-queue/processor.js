@@ -1,33 +1,30 @@
-// processor.js.
+// appraisers-task-queue/processor.js
 
-require('dotenv').config(); // Cargar variables de entorno desde .env
+require('dotenv').config(); // Load environment variables from .env
 
+const express = require('express'); // Import Express
 const { PubSub } = require('@google-cloud/pubsub');
-const { initializeSheets } = require('./shared/googleSheets'); // Ruta actualizada
-const { config, initializeConfig } = require('./shared/config'); // Ruta actualizada
-const appraisalStepsModule = require('./shared/appraisalSteps'); // Ruta actualizada
-
-
-
+const { initializeSheets } = require('./shared/googleSheets'); // Updated path
+const { config, initializeConfig } = require('./shared/config'); // Updated path
+const appraisalStepsModule = require('./shared/appraisalSteps'); // Updated path
 
 async function main() {
   try {
-    // Inicializar configuraciones
+    // Initialize configurations
     await initializeConfig();
     const sheets = await initializeSheets();
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
-    // Inicializar Pub/Sub
+    // Initialize Pub/Sub
     const pubsub = new PubSub({
       projectId: config.GCP_PROJECT_ID,
     });
 
-    // Nombre de la suscripción (debe existir en Pub/Sub)
+    // Name of the subscription (must exist in Pub/Sub)
     const subscriptionName = 'appraisal-tasks-subscription';
-
     const subscription = pubsub.subscription(subscriptionName);
 
-    // Función para manejar cada mensaje
+    // Function to handle each message
     const messageHandler = async (message) => {
       console.log(`[processor.js] [Task ID: ${message.id}] Received message: ${message.id}`);
       const data = JSON.parse(message.data.toString());
@@ -58,20 +55,29 @@ async function main() {
         console.log(`[processor.js] [Task ID: ${id}] markAppraisalAsCompleted completed.`);
 
         console.log(`[processor.js] [Task ID: ${id}] Completed appraisal task successfully.`);
-        message.ack(); // Acknowledge el mensaje
+        message.ack(); // Acknowledge the message
       } catch (error) {
         console.error(`[processor.js] [Task ID: ${id}] Error processing appraisal task:`, error);
-        message.nack(); // Reintentar el mensaje
+        message.nack(); // Retry the message
       }
     };
 
-        // Start the server and listen on the specified port
+    // Initialize Express app
+    const app = express();
+    const PORT = process.env.PORT || 8080;
+
+    // Define a simple health check endpoint
+    app.get('/health', (req, res) => {
+      res.status(200).send('OK');
+    });
+
+    // Start the server and listen on the specified port
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`[processor.js] HTTP server listening on port ${PORT}`);
       console.log('[processor.js] Listening for appraisal tasks...');
     });
 
-    // Escuchar mensajes
+    // Listen for messages
     subscription.on('message', messageHandler);
 
     subscription.on('error', (error) => {
@@ -81,7 +87,7 @@ async function main() {
     console.log('[processor.js] Listening for appraisal tasks...');
   } catch (error) {
     console.error('Error iniciando el procesador:', error);
-    process.exit(1);
+    process.exit(1); // Exit with failure
   }
 }
 
