@@ -2,6 +2,7 @@
 
 const { google } = require('googleapis');
 const { config } = require('./config'); // Importa el objeto config
+const { getSecret } = require('./secretManager'); // Import getSecret from secretManager.js
 
 async function initializeSheets() {
   try {
