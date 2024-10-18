@@ -313,7 +313,7 @@ async function startServer() {
      // Inicializar appraisalSteps con sheets y config
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
-// **Nuevo Endpoint: Editar Campos ACF Manualmente**
+// **Nuevo Endpoint Mejorado: Editar Campos ACF Manualmente**
 app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, res) => {
   const { id } = req.params;
   const { fieldName, fieldValue } = req.body;
@@ -386,8 +386,31 @@ app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, r
       return res.status(400).json({ success: false, message: `El campo ACF '${fieldName}' no existe.` });
     }
 
+    // Validaciones adicionales según el tipo de campo
+    // Ejemplo: Si el campo es 'customer_email', validar el formato de email
+    const emailFields = ['customer_email', 'secondary_email'];
+    if (emailFields.includes(fieldName)) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(fieldValue)) {
+        return res.status(400).json({ success: false, message: `El valor proporcionado para '${fieldName}' no es una dirección de correo válida.` });
+      }
+    }
+
+    // Validar campos de imagen que esperan una URL
+    const imageFields = ['main', 'signature', 'age'];
+    if (imageFields.includes(fieldName)) {
+      try {
+        new URL(fieldValue);
+      } catch (_) {
+        return res.status(400).json({ success: false, message: `El valor proporcionado para '${fieldName}' no es una URL válida.` });
+      }
+    }
+
     // Actualizar el campo ACF específico
     acfFields[fieldName] = fieldValue;
+
+    // Registrar los datos ACF que se enviarán a WordPress
+    console.log(`[api/appraisals/${id}/update-acf-field-edit] Datos ACF actualizados:`, acfFields);
 
     // Actualizar los campos ACF en WordPress
     const updateResponse = await fetch(wpEndpoint, {
@@ -402,7 +425,7 @@ app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, r
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
       console.error(`[api/appraisals/${id}/update-acf-field-edit] Error actualizando campo ACF: ${errorText}`);
-      return res.status(500).json({ success: false, message: 'Error actualizando campo ACF en WordPress.' });
+      return res.status(500).json({ success: false, message: `Error actualizando campo ACF en WordPress: ${errorText}` });
     }
 
     console.log(`[api/appraisals/${id}/update-acf-field-edit] Campo ACF '${fieldName}' actualizado exitosamente.`);
