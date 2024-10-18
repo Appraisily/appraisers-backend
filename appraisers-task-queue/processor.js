@@ -9,12 +9,15 @@ const { initializeSheets } = require('./shared/googleSheets'); // Updated path
 const { config, initializeConfig } = require('./shared/config'); // Updated path
 const appraisalStepsModule = require('./shared/appraisalSteps'); // Updated path
 
-// Configuración de CORS
+// **Configuración de CORS**
 const corsOptions = {
   origin: 'https://appraisers-frontend-856401495068.us-central1.run.app',
-  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true, // Si necesitas enviar cookies o credenciales
   optionsSuccessStatus: 200,
 };
+
 app.use(cors(corsOptions));
 
 // Manejar solicitudes OPTIONS preflight
