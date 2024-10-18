@@ -313,7 +313,7 @@ async function startServer() {
      // Inicializar appraisalSteps con sheets y config
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
-// **Nuevo Endpoint Mejorado: Editar Campos ACF Manualmente**
+// Endpoint Mejorado: Editar Campos ACF Manualmente
 app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, res) => {
   const { id } = req.params;
   const { fieldName, fieldValue } = req.body;
@@ -327,7 +327,7 @@ app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, r
     // Obtener los datos de Google Sheets para obtener la URL de WordPress
     const sheetResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:I${id}`, // Ajusta el rango según tus necesidades
+      range: `${config.SHEET_NAME}!A${id}:I${id}`, // Usar config.SHEET_NAME
     });
 
     const row = sheetResponse.data.values ? sheetResponse.data.values[0] : null;
@@ -357,11 +357,11 @@ app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, r
     }
 
     // Construir el endpoint para obtener el post de WordPress
-    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
     console.log(`[api/appraisals/${id}/update-acf-field-edit] Endpoint de WordPress: ${wpEndpoint}`);
 
     // Autenticación con WordPress
-    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
+    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
 
     // Obtener los datos actuales del post de WordPress
     const wpResponse = await fetch(wpEndpoint, {
@@ -406,20 +406,22 @@ app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, r
       }
     }
 
-    // Actualizar el campo ACF específico
-    acfFields[fieldName] = fieldValue;
+    // Actualizar solo el campo específico
+    const updatedACF = {
+      [fieldName]: fieldValue
+    };
 
     // Registrar los datos ACF que se enviarán a WordPress
-    console.log(`[api/appraisals/${id}/update-acf-field-edit] Datos ACF actualizados:`, acfFields);
+    console.log(`[api/appraisals/${id}/update-acf-field-edit] Datos ACF actualizados:`, updatedACF);
 
-    // Actualizar los campos ACF en WordPress
+    // Actualizar el campo ACF específico en WordPress
     const updateResponse = await fetch(wpEndpoint, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': authHeader
       },
-      body: JSON.stringify({ acf: acfFields })
+      body: JSON.stringify({ acf: updatedACF })
     });
 
     if (!updateResponse.ok) {
@@ -435,6 +437,7 @@ app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, r
     res.status(500).json({ success: false, message: 'Error actualizando el campo ACF.' });
   }
 });
+
 
 
     
