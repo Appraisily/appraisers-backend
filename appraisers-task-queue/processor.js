@@ -1,4 +1,4 @@
-// processor.js
+// processor.js.
 
 require('dotenv').config(); // Cargar variables de entorno desde .env
 
