@@ -46,12 +46,11 @@ app.post('/api/tasks', async (req, res) => {
   }
 
   try {
-    // Inicializar Pub/Sub
+    // Publicar el mensaje en Pub/Sub
     const pubsub = new PubSub({
       projectId: config.GCP_PROJECT_ID,
     });
 
-    // Publicar el mensaje en Pub/Sub
     const dataBuffer = Buffer.from(JSON.stringify({ id: appraisalId, appraisalValue, description }));
     await pubsub.topic('appraisal-tasks').publish(dataBuffer);
 
