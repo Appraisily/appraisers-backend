@@ -879,18 +879,20 @@ app.post('/api/appraisals/:id/set-value', authenticate, async (req, res) => {
   const { id } = req.params;
   const { appraisalValue, description } = req.body;
 
-  if (appraisalValue === undefined || description === undefined) {
-    return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
+  // Verificar que al menos uno de los campos esté presente
+  if (appraisalValue === undefined && description === undefined) {
+    return res.status(400).json({ success: false, message: 'At least Appraisal Value or description is required.' });
   }
 
   try {
     await setAppraisalValue(id, appraisalValue, description);
-    res.json({ success: true, message: 'Appraisal Value and description updated successfully in Google Sheets and WordPress.' });
+    res.json({ success: true, message: 'Appraisal updated successfully in Google Sheets and WordPress.' });
   } catch (error) {
     console.error('Error in set-value endpoint:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
 
 
 
