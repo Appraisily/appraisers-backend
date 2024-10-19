@@ -91,7 +91,7 @@ async function setAppraisalValue(sheets, id, appraisalValue, description) {
     console.log(`[setAppraisalValue] Extracted Post ID: ${wpPostId}`);
 
     // Update the ACF 'value' field in WordPress
-    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+    const updateWpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
     console.log(`[setAppraisalValue] WordPress update endpoint: ${updateWpEndpoint}`);
 
     const updateData = {
@@ -100,7 +100,7 @@ async function setAppraisalValue(sheets, id, appraisalValue, description) {
       }
     };
 
-    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+    const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
     const base64Credentials = Buffer.from(credentialsString).toString('base64');
     const authHeader = 'Basic ' + base64Credentials;
     console.log(`[setAppraisalValue] Authentication configured.`);
@@ -130,7 +130,7 @@ async function setAppraisalValue(sheets, id, appraisalValue, description) {
 
 // Function: mergeDescriptions
 async function mergeDescriptions(sheets, id, appraiserDescription) {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const OPENAI_API_KEY = config.OPENAI_API_KEY;
 
   if (!OPENAI_API_KEY) {
     console.error('OPENAI_API_KEY is not defined in environment variables.');
@@ -257,14 +257,14 @@ async function updatePostTitle(sheets, id) {
     console.log(`[updatePostTitle] Extracted Post ID: ${wpPostId}`);
 
     // Update the post title in WordPress
-    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+    const updateWpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
     console.log(`[updatePostTitle] WordPress update endpoint: ${updateWpEndpoint}`);
 
     const updateData = {
       title: newTitle
     };
 
-    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+    const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
     const base64Credentials = Buffer.from(credentialsString).toString('base64');
     const authHeader = 'Basic ' + base64Credentials;
 
@@ -335,14 +335,14 @@ async function insertTemplate(sheets, id) {
 
     console.log(`[insertTemplate] Extracted Post ID: ${wpPostId}`);
 
-    const wpUsername = process.env.WORDPRESS_USERNAME;
-    const wpAppPassword = process.env.WORDPRESS_APP_PASSWORD;
+    const wpUsername = config.WORDPRESS_USERNAME;
+    const wpAppPassword = config.WORDPRESS_APP_PASSWORD;
 
     if (!wpUsername || !wpAppPassword) {
       throw new Error('Missing WordPress credentials.');
     }
 
-    const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+    const updateWpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
     console.log(`[insertTemplate] WordPress update endpoint: ${updateWpEndpoint}`);
 
     const credentialsString = `${encodeURIComponent(wpUsername)}:${wpAppPassword.trim()}`;
@@ -463,10 +463,10 @@ async function sendEmailToCustomer(sheets, id) {
     }
 
     // Obtain the public URL of the post from the WordPress REST API
-    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
     console.log(`[sendEmailToCustomer] WordPress API endpoint: ${wpEndpoint}`);
 
-    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+    const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
     const base64Credentials = Buffer.from(credentialsString).toString('base64');
     const authHeader = 'Basic ' + base64Credentials;
 
@@ -496,8 +496,8 @@ async function sendEmailToCustomer(sheets, id) {
 
     const customerDashboardLink = `https://www.appraisily.com/dashboard/?email=${encodeURIComponent(customerEmail)}`;
 
-    const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
-    const SENDGRID_EMAIL = process.env.SENDGRID_EMAIL;
+    const SENDGRID_API_KEY = config.SENDGRID_API_KEY;
+    const SENDGRID_EMAIL = config.SENDGRID_EMAIL;
 
     if (!SENDGRID_API_KEY || !SENDGRID_EMAIL) {
       throw new Error('Missing SendGrid credentials.');
@@ -654,11 +654,11 @@ async function getSessionId(postId) {
 
   try {
     // Build WordPress endpoint to get the post
-    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
     console.log(`[getSessionId] WordPress Endpoint: ${wpEndpoint}`);
 
     // Authentication with WordPress
-    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+    const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
     const base64Credentials = Buffer.from(credentialsString).toString('base64');
     const authHeader = 'Basic ' + base64Credentials;
 
@@ -702,11 +702,11 @@ async function updateLinks(id, postId) {
 
   try {
     // Get the links from the ACF fields in WordPress
-    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
     console.log(`[updateLinks] WordPress Endpoint: ${wpEndpoint}`);
 
     // Authentication with WordPress
-    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+    const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
     const base64Credentials = Buffer.from(credentialsString).toString('base64');
     const authHeader = 'Basic ' + base64Credentials;
 
@@ -759,7 +759,7 @@ async function updateLinks(id, postId) {
 
 // Function: updateShortcodesFlag
 async function updateShortcodesFlag(wpPostId, authHeader) {
-  const updateWpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+  const updateWpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
   console.log(`[updateShortcodesFlag] Updating ACF flag for post ID: ${wpPostId}`);
 
   const updateFlagResponse = await fetch(updateWpEndpoint, {
