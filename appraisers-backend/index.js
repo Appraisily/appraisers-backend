@@ -31,7 +31,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Configurar cliente OAuth2 con tu Client ID
-const oauthClient = new OAuth2Client('TU_CLIENT_ID'); // Reemplaza con tu Client ID
+const oauthClient = new OAuth2Client('TU_CLIENT_ID'); // Reemplaza con tu Client ID real
 
 const client = new SecretManagerServiceClient();
 
@@ -181,10 +181,6 @@ async function startServer() {
 
     // **Definir endpoints después de configurar todo**
 
-    /**
-     * 1. Rutas de Autenticación
-     */
-
     // Ruta de autenticación
     app.post('/api/authenticate', async (req, res) => {
       const { idToken } = req.body;
@@ -243,11 +239,7 @@ async function startServer() {
       res.json({ authenticated: true, name: req.user.name });
     });
 
-    /**
-     * 2. Endpoints de Apreciaciones
-     */
-
-    // Endpoint: Obtener Apreciaciones Pendientes
+    // **Endpoint: Obtener Apreciaciones Pendientes**
     app.get('/api/appraisals', authenticate, async (req, res) => {
       try {
         const response = await sheets.spreadsheets.values.get({
@@ -276,7 +268,7 @@ async function startServer() {
       }
     });
 
-    // Endpoint: Obtener Detalles de una Apreciación para Edición
+    // **Endpoint: Obtener Detalles de una Apreciación para Edición**
     app.get('/api/appraisals/:id/list-edit', authenticate, async (req, res) => {
       const { id } = req.params; // Número de fila
 
@@ -371,7 +363,7 @@ async function startServer() {
       }
     });
 
-    // Endpoint: Obtener Detalles de una Apreciación Específica
+    // **Endpoint: Obtener Detalles de una Apreciación Específica**
     app.get('/api/appraisals/:id/list', authenticate, async (req, res) => {
       const { id } = req.params; // Número de fila
 
@@ -454,7 +446,7 @@ async function startServer() {
       }
     });
 
-    // Endpoint: Actualizar un Campo ACF Específico
+    // **Endpoint: Actualizar un Campo ACF Específico**
     app.put('/api/appraisals/:id/update-acf-field', authenticate, async (req, res) => {
       const { id } = req.params;
       const { fieldName, fieldValue } = req.body;
@@ -514,7 +506,7 @@ async function startServer() {
       }
     });
 
-    // Endpoint: Actualizar appraisalValue y/o description
+    // **Endpoint: Actualizar appraisalValue y/o description**
     app.post('/api/appraisals/:id/set-value', authenticate, async (req, res) => {
       const { id } = req.params;
       const { appraisalValue, description } = req.body;
@@ -533,7 +525,7 @@ async function startServer() {
       }
     });
 
-    // Endpoint: Completar el Proceso de la Apreciación (Encolar en Pub/Sub)
+    // **Endpoint: Completar el Proceso de la Apreciación (Encolado en Pub/Sub)**
     app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) => {
       const { id } = req.params;
       const { appraisalValue, description } = req.body;
@@ -565,38 +557,7 @@ async function startServer() {
       }
     });
 
-    // Endpoint: Completar la Apreciación
-    app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
-      const { id } = req.params;
-      const { appraisalValue, description } = req.body;
-
-      if (appraisalValue === undefined || description === undefined) {
-        return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
-      }
-
-      try {
-        await markAppraisalAsCompleted(id, appraisalValue, description);
-        res.json({ success: true, message: 'Appraisal completed successfully.' });
-      } catch (error) {
-        console.error('Error completing the appraisal:', error);
-        res.status(500).json({ success: false, message: error.message });
-      }
-    });
-
-    // Endpoint: Insertar Template en el Post de WordPress
-    app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
-      const { id } = req.params;
-
-      try {
-        await insertTemplate(id);
-        res.json({ success: true, message: 'Shortcodes inserted successfully in WordPress post.' });
-      } catch (error) {
-        console.error('Error inserting shortcodes in WordPress:', error);
-        res.status(500).json({ success: false, message: error.message });
-      }
-    });
-
-    // Endpoint: Obtener session_ID a partir de postId
+    // **Endpoint: Obtener session_ID a partir de postId**
     app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
       const { postId } = req.body;
 
@@ -641,7 +602,201 @@ async function startServer() {
       }
     });
 
-    // Endpoint: Actualizar Enlaces desde WordPress y Guardarlos en Google Sheets
+    // **Endpoint: Guardar Enlaces PDF y Doc en Google Sheets**
+    app.post('/api/appraisals/:id/save-links', authenticate, async (req, res) => {
+      const { id } = req.params; // Número de fila en Google Sheets
+      const { pdfLink, docLink } = req.body;
+
+      // Validación de los datos recibidos
+      if (!pdfLink || !docLink) {
+        return res.status(400).json({ success: false, message: 'PDF Link y Doc Link son requeridos.' });
+      }
+
+      try {
+        // Actualizar las columnas M y N en Google Sheets
+        const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
+        const values = [[pdfLink, docLink]];
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID,
+          range: updateRange,
+          valueInputOption: 'RAW',
+          resource: {
+            values: values,
+          },
+        });
+
+        console.log(`[save-links] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
+
+        res.json({ success: true, message: 'PDF Link y Doc Link guardados exitosamente en Google Sheets.' });
+      } catch (error) {
+        console.error('Error guardando los links en Google Sheets:', error);
+        res.status(500).json({ success: false, message: 'Error guardando los links en Google Sheets.' });
+      }
+    });
+
+    // **Endpoint: Obtener Apreciaciones Completadas**
+    app.get('/api/appraisals/completed', authenticate, async (req, res) => {
+      try {
+        const sheetName = 'Completed Appraisals'; // Asegúrate de que este es el nombre correcto de la hoja
+        const range = `${sheetName}!A2:H`; // Definición correcta del rango
+        console.log(`Fetching completed appraisals with range: ${range}`);
+        
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: range, // Usar la variable 'range' definida arriba
+        });
+
+        const rows = response.data.values || [];
+        console.log(`Total de filas obtenidas (Completadas): ${rows.length}`);
+
+        // Verificar si 'rows' es un arreglo
+        if (!Array.isArray(rows)) {
+          console.error('La respuesta de Google Sheets no es un arreglo:', rows);
+          throw new Error('La respuesta de Google Sheets no es un arreglo.');
+        }
+
+        // Loguear cada fila para depuración
+        rows.forEach((row, index) => {
+          console.log(`Fila ${index + 2}:`, row);
+        });
+
+        const completedAppraisals = rows.map((row, index) => ({
+          id: index + 2, // Número de fila en la hoja (A2 corresponde a id=2)
+          date: row[0] || '', // Columna A: Fecha
+          appraisalType: row[1] || '', // Columna B: Tipo de Apreciación
+          identifier: row[2] || '', // Columna C: Número de Apreciación
+          status: row[5] || '', // Columna F: Estado
+          wordpressUrl: row[6] || '', // Columna G: URL de WordPress
+          iaDescription: row[7] || '' // Columna H: Descripción de AI
+        }));
+
+        console.log(`Total de apreciaciones completadas mapeadas: ${completedAppraisals.length}`);
+        res.json(completedAppraisals);
+      } catch (error) {
+        console.error('Error obteniendo apreciaciones completadas:', error);
+        res.status(500).json({ success: false, message: 'Error obteniendo apreciaciones completadas.' });
+      }
+    });
+
+    // **Endpoint: Completar el Proceso de la Apreciación**
+    // MODIFICACIÓN PRINCIPAL: Encolar la tarea en Pub/Sub en lugar de procesarla directamente
+    app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) => {
+      const { id } = req.params;
+      const { appraisalValue, description } = req.body;
+
+      if (!appraisalValue || !description) {
+        return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
+      }
+
+      try {
+        // Crear el mensaje para Pub/Sub
+        const task = {
+          id,
+          appraisalValue,
+          description,
+        };
+
+        const dataBuffer = Buffer.from(JSON.stringify(task));
+
+        // Publicar el mensaje en Pub/Sub
+        await pubsub.topic('appraisal-tasks').publish(dataBuffer);
+
+        console.log(`[index.js] Enqueued appraisal task for id: ${id}`);
+
+        // Responder inmediatamente al cliente
+        res.json({ success: true, message: 'Appraisal submitted successfully.' });
+      } catch (error) {
+        console.error(`Error encolando la apreciación ${id}:`, error);
+        res.status(500).json({ success: false, message: `Error submitting appraisal: ${error.message}` });
+      }
+    });
+
+    // **Endpoint: Obtener session_ID a partir de postId**
+    app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
+      const { postId } = req.body;
+
+      if (!postId) {
+        return res.status(400).json({ success: false, message: 'postId es requerido.' });
+      }
+
+      try {
+        // Construir el endpoint de WordPress para obtener el post
+        const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+        console.log(`[get-session-id] Endpoint de WordPress: ${wpEndpoint}`);
+
+        // Realizar la solicitud GET a la API REST de WordPress
+        const wpResponse = await fetch(wpEndpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`
+          }
+        });
+
+        if (!wpResponse.ok) {
+          const errorText = await wpResponse.text();
+          console.error(`[get-session-id] Error obteniendo post de WordPress: ${errorText}`);
+          return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
+        }
+
+        const wpData = await wpResponse.json();
+        const acfFields = wpData.acf || {};
+        const session_ID = acfFields.session_id || '';
+
+        if (!session_ID) {
+          console.error(`[get-session-id] session_ID no encontrado en el post de WordPress.`);
+          return res.status(404).json({ success: false, message: 'session_ID no encontrado en el post de WordPress.' });
+        }
+
+        console.log(`[get-session-id] session_ID extraído: ${session_ID}`);
+        res.json({ success: true, session_ID });
+      } catch (error) {
+        console.error('Error obteniendo session_ID:', error);
+        res.status(500).json({ success: false, message: 'Error obteniendo session_ID.' });
+      }
+    });
+
+    // **Endpoint: Insertar Template en el Post de WordPress**
+    app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        await appraisalSteps.insertTemplate(id);
+        res.json({ success: true, message: 'Shortcodes inserted successfully in WordPress post.' });
+      } catch (error) {
+        console.error('Error inserting shortcodes in WordPress:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
+
+    // **Endpoint: Actualizar Título del Post de WordPress**
+    app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        await appraisalSteps.updatePostTitle(id);
+        res.json({ success: true, message: 'WordPress post title updated successfully.' });
+      } catch (error) {
+        console.error('Error updating post title in WordPress:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
+
+    // **Endpoint: Enviar Email al Cliente**
+    app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        await appraisalSteps.sendEmailToCustomer(id);
+        res.json({ success: true, message: 'Email sent to customer successfully.' });
+      } catch (error) {
+        console.error('Error sending email to customer:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
+
+    // **Endpoint: Actualizar los Enlaces PDF y Doc en Google Sheets desde WordPress**
     app.post('/api/appraisals/:id/update-links', authenticate, async (req, res) => {
       const { id } = req.params; // Número de fila en Google Sheets
       const { postId } = req.body; // ID del post de WordPress
@@ -708,102 +863,7 @@ async function startServer() {
       }
     });
 
-    // Endpoint: Guardar Enlaces PDF y Doc en Google Sheets
-    app.post('/api/appraisals/:id/save-links', authenticate, async (req, res) => {
-      const { id } = req.params; // Número de fila en Google Sheets
-      const { pdfLink, docLink } = req.body;
-
-      // Validación de los datos recibidos
-      if (!pdfLink || !docLink) {
-        return res.status(400).json({ success: false, message: 'PDF Link y Doc Link son requeridos.' });
-      }
-
-      try {
-        // Actualizar las columnas M y N en Google Sheets
-        const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
-        const values = [[pdfLink, docLink]];
-
-        await sheets.spreadsheets.values.update({
-          spreadsheetId: SPREADSHEET_ID,
-          range: updateRange,
-          valueInputOption: 'RAW',
-          resource: {
-            values: values,
-          },
-        });
-
-        console.log(`[save-links] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
-
-        res.json({ success: true, message: 'PDF Link y Doc Link guardados exitosamente en Google Sheets.' });
-      } catch (error) {
-        console.error('Error guardando los links en Google Sheets:', error);
-        res.status(500).json({ success: false, message: 'Error guardando los links en Google Sheets.' });
-      }
-    });
-
-    // Endpoint: Enviar Email al Cliente
-    app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
-      const { id } = req.params;
-
-      try {
-        await sendEmailToCustomer(id);
-        res.json({ success: true, message: 'Email sent to customer successfully.' });
-      } catch (error) {
-        console.error('Error sending email to customer:', error);
-        res.status(500).json({ success: false, message: error.message });
-      }
-    });
-
-    // Endpoint: Actualizar Título del Post en WordPress
-    app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
-      const { id } = req.params;
-
-      try {
-        await updatePostTitle(id);
-        res.json({ success: true, message: 'WordPress post title updated successfully.' });
-      } catch (error) {
-        console.error('Error updating post title in WordPress:', error);
-        res.status(500).json({ success: false, message: error.message });
-      }
-    });
-
-    /**
-     * 3. Otros Endpoints
-     */
-
-    // Endpoint: Completar el Proceso de la Apreciación (Encolar en Pub/Sub)
-    app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) => {
-      const { id } = req.params;
-      const { appraisalValue, description } = req.body;
-
-      if (!appraisalValue || !description) {
-        return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
-      }
-
-      try {
-        // Crear el mensaje para Pub/Sub
-        const task = {
-          id,
-          appraisalValue,
-          description,
-        };
-
-        const dataBuffer = Buffer.from(JSON.stringify(task));
-
-        // Publicar el mensaje en Pub/Sub
-        await pubsub.topic('appraisal-tasks').publish(dataBuffer);
-
-        console.log(`[index.js] Enqueued appraisal task for id: ${id}`);
-
-        // Responder inmediatamente al cliente
-        res.json({ success: true, message: 'Appraisal submitted successfully.' });
-      } catch (error) {
-        console.error(`Error encolando la apreciación ${id}:`, error);
-        res.status(500).json({ success: false, message: `Error submitting appraisal: ${error.message}` });
-      }
-    });
-
-    // Endpoint: Completar la Apreciación
+    // **Endpoint: Completar la Apreciación**
     app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
       const { id } = req.params;
       const { appraisalValue, description } = req.body;
@@ -813,7 +873,7 @@ async function startServer() {
       }
 
       try {
-        await markAppraisalAsCompleted(id, appraisalValue, description);
+        await appraisalSteps.markAppraisalAsCompleted(id, appraisalValue, description);
         res.json({ success: true, message: 'Appraisal completed successfully.' });
       } catch (error) {
         console.error('Error completing the appraisal:', error);
@@ -821,29 +881,11 @@ async function startServer() {
       }
     });
 
-    // Endpoint: Insertar Template en el Post de WordPress
-    app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
-      const { id } = req.params;
-
-      try {
-        await insertTemplate(id);
-        res.json({ success: true, message: 'Shortcodes inserted successfully in WordPress post.' });
-      } catch (error) {
-        console.error('Error inserting shortcodes in WordPress:', error);
-        res.status(500).json({ success: false, message: error.message });
-      }
-    });
-
-    /**
-     * 4. Iniciar el Servidor
-     */
-
     // Iniciar el Servidor en Todas las Interfaces
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`Servidor backend corriendo en el puerto ${PORT}`);
     });
-
   } catch (error) {
     console.error('Error iniciando el servidor:', error);
     process.exit(1);
