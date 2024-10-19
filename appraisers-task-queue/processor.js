@@ -71,6 +71,15 @@ async function main() {
     const sheets = await initializeSheets();
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
+    // Verificar que processAppraisal está definido
+    console.log('appraisalSteps:', appraisalSteps);
+
+    if (typeof appraisalSteps.processAppraisal === 'function') {
+      console.log('processAppraisal está definido correctamente.');
+    } else {
+      console.error('processAppraisal NO está definido en appraisalSteps.');
+    }
+
     // Función para manejar los mensajes recibidos de Pub/Sub
     async function messageHandler(message) {
       try {
