@@ -1,15 +1,15 @@
 // appraisalSteps.js
 
 const fetch = require('node-fetch');
-require('dotenv').config(); // Ensure environment variables are loaded
+require('dotenv').config(); // Asegurarse de que las variables de entorno están cargadas
 
 // Importar Google Sheets API si es necesario
 const { google } = require('googleapis');
 
-const { config } = require('./config'); // Ruta actualizada si está dentro de shared/
+const { config } = require('./config'); // Asegúrate de que la ruta es correcta
 
-
-
+// Variable global para sheets (si es necesario)
+let sheetsGlobal; // Declarar la variable global
 
 // Function: updateCurrentStepInSheet
 async function updateCurrentStepInSheet(sheets, id, currentStep) {
@@ -35,7 +35,6 @@ async function updateCurrentStepInSheet(sheets, id, currentStep) {
     throw error;
   }
 }
-
 
 // Function: setAppraisalValue
 async function setAppraisalValue(sheets, id, appraisalValue, description) {
@@ -235,7 +234,7 @@ async function updatePostTitle(sheets, id) {
       throw new Error('Appraisal not found for updating in WordPress.');
     }
 
-    const appraisalWordpressUrl = appraisalRow[6] || ''; // Column G: WordPress URL
+    const appraisalWordpressUrl = appraisalRow[6]?.trim() || ''; // Column G: WordPress URL
     const blendedDescription = appraisalRow[11] || ''; // Column L: Blended Description
 
     if (!appraisalWordpressUrl) {
@@ -287,7 +286,7 @@ async function updatePostTitle(sheets, id) {
     }
 
     const wpUpdateData = await wpUpdateResponse.json();
-        await updateCurrentStepInSheet(sheets, id, 'Updating Post Title');
+    await updateCurrentStepInSheet(sheets, id, 'Updating Post Title');
 
     console.log(`[updatePostTitle] WordPress post title updated successfully:`, wpUpdateData);
 
@@ -750,7 +749,7 @@ async function updateLinks(id, postId) {
       },
     });
 
-    console.log(`[updateLinks] Updated columns M and N for row ${id} with PDF Link: ${pdfLink} and Doc Link: ${docLink}`);
+    console.log(`[updateLinks] Updated columns M and N for row ${id} with PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
 
   } catch (error) {
     console.error('Error in updateLinks:', error);
@@ -786,12 +785,51 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
   console.log(`[updateShortcodesFlag] ACF flag updated successfully:`, updateFlagData);
 }
 
+// Function: processAppraisal
+async function processAppraisal(id, appraisalValue, description) {
+  try {
+    console.log(`[processAppraisal] Starting process for Appraisal ID: ${id}`);
+
+    // Paso 1: Establecer el valor de la tasación
+    await setAppraisalValue(sheetsGlobal, id, appraisalValue, description);
+    console.log(`[processAppraisal] setAppraisalValue completed for ID: ${id}`);
+
+    // Paso 2: Combinar descripciones
+    await mergeDescriptions(sheetsGlobal, id, description);
+    console.log(`[processAppraisal] mergeDescriptions completed for ID: ${id}`);
+
+    // Paso 3: Actualizar el título del post en WordPress
+    await updatePostTitle(sheetsGlobal, id);
+    console.log(`[processAppraisal] updatePostTitle completed for ID: ${id}`);
+
+    // Paso 4: Insertar plantillas en WordPress
+    await insertTemplate(sheetsGlobal, id);
+    console.log(`[processAppraisal] insertTemplate completed for ID: ${id}`);
+
+    // Paso 5: Enviar correo al cliente
+    await sendEmailToCustomer(sheetsGlobal, id);
+    console.log(`[processAppraisal] sendEmailToCustomer completed for ID: ${id}`);
+
+    // Paso 6: Marcar la tasación como completada
+    await markAppraisalAsCompleted(sheetsGlobal, id, appraisalValue, description);
+    console.log(`[processAppraisal] markAppraisalAsCompleted completed for ID: ${id}`);
+
+    // Paso 7: Construir PDF
+    await buildPDF(id);
+    console.log(`[processAppraisal] buildPDF completed for ID: ${id}`);
+
+    console.log(`[processAppraisal] Processing completed successfully for Appraisal ID: ${id}`);
+  } catch (error) {
+    console.error(`[processAppraisal] Error processing appraisal ID: ${id} - ${error.message}`);
+    throw error; // Propagar el error para manejarlo en el caller
+  }
+}
+
 // Function: appraisalSteps
 function appraisalSteps(sheets, config = {}) {
   const SPREADSHEET_ID = config.SPREADSHEET_ID;
   const SHEET_NAME = config.SHEET_NAME;
       sheetsGlobal = sheets; // Asignar sheets a la variable global
-
 
  return {
     setAppraisalValue: (id, appraisalValue, description) =>
@@ -814,9 +852,10 @@ function appraisalSteps(sheets, config = {}) {
       updateLinks(id, postId),
     updateCurrentStepInSheet: (id, currentStep) =>
       updateCurrentStepInSheet(sheets, id, currentStep),
+    processAppraisal: (id, appraisalValue, description) =>
+      processAppraisal(id, appraisalValue, description),
   };
 }
-
 
 // Exportar las funciones individuales y la función appraisalSteps
 module.exports = {
@@ -830,5 +869,6 @@ module.exports = {
   getSessionId,
   updateLinks,
   updateCurrentStepInSheet,
+  processAppraisal, // Exportar si deseas acceder a ella directamente
   appraisalSteps,
 };
