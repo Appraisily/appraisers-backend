@@ -8,18 +8,16 @@ const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const fetch = require('node-fetch');
-const app = express();
 const { PubSub } = require('@google-cloud/pubsub');
-
 
 const authorizedUsers = require('./shared/authorizedUsers'); // Ruta actualizada
 const { getSecret } = require('./shared/secretManager'); // Ruta actualizada
 const { config, initializeConfig } = require('./shared/config'); // Ruta actualizada
 const appraisalStepsModule = require('./shared/appraisalSteps'); // Ruta actualizada
 
-
-
 require('dotenv').config();
+
+const app = express();
 
 // Configuración de CORS
 const corsOptions = {
@@ -33,7 +31,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Configurar cliente OAuth2 con tu Client ID
-const oauthClient = new OAuth2Client('TU_CLIENT_ID');
+const oauthClient = new OAuth2Client('TU_CLIENT_ID'); // Reemplaza con tu Client ID
 
 const client = new SecretManagerServiceClient();
 
@@ -41,100 +39,6 @@ const client = new SecretManagerServiceClient();
 const pubsub = new PubSub({
   projectId: config.GCP_PROJECT_ID, // Asegúrate de tener esta variable en tu configuración
 });
-
-
-
-
-// IIFE asíncrona para inicializar el servidor
-(async () => {
-  try {
-    // Inicializar cliente de Google Sheets API
-    const auth = new google.auth.GoogleAuth({
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-
-    const authClient = await auth.getClient();
-
-    
-    // Importar funciones de appraisalSteps
-    const {
-      setAppraisalValue,
-      mergeDescriptions,
-      updatePostTitle,
-      insertTemplate,
-      buildPDF,
-      sendEmailToCustomer,
-      markAppraisalAsCompleted,
-    } = require('./shared/appraisalSteps');
-
-  
-
-// **Función para Actualizar el Flag en ACF**
-async function updateShortcodesFlag(wpPostId, authHeader) {
-  try {
-    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
-    console.log(`[updateShortcodesFlag] Actualizando flag en ACF para el post ID: ${wpPostId}`);
-
-    // Obtener el contenido actual del post para mantener otros campos
-    const currentPostResponse = await fetch(wpEndpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
-    });
-
-    if (!currentPostResponse.ok) {
-      const errorText = await currentPostResponse.text();
-      console.error(`[updateShortcodesFlag] Error obteniendo el post actual para actualizar ACF: ${errorText}`);
-      throw new Error('Error obteniendo el post actual para actualizar ACF.');
-    }
-
-    const currentPostData = await currentPostResponse.json();
-    const updatedACF = {
-      ...currentPostData.acf,
-      shortcodes_inserted: true // Asumiendo que el campo ACF es un booleano
-    };
-
-    // Actualizar el campo ACF en WordPress
-    const updateACFResponse = await fetch(wpEndpoint, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      },
-      body: JSON.stringify({
-        acf: updatedACF
-      })
-    });
-
-    if (!updateACFResponse.ok) {
-      const errorText = await updateACFResponse.text();
-      console.error(`[updateShortcodesFlag] Error actualizando ACF en WordPress: ${errorText}`);
-      throw new Error('Error actualizando ACF en WordPress.');
-    }
-
-    console.log(`[updateShortcodesFlag] Flag 'shortcodes_inserted' actualizado a 'true' en WordPress.`);
-  } catch (error) {
-    console.error(`[updateShortcodesFlag] ${error.message}`);
-    throw error; // Propagar el error para manejarlo en el caller
-  }
-}
-
-
-
-
-
-
-// Configurar variables para secretos
-let JWT_SECRET;
-    let sheets; // Mover sheets al ámbito global
-let SPREADSHEET_ID;
-let SHEET_NAME;
-
-        // Inicializar Google Sheets (si no lo has inicializado aún)
-  sheets = await initializeSheets();
-
 
 // Función para verificar el ID token
 async function verifyIdToken(idToken) {
@@ -148,81 +52,30 @@ async function verifyIdToken(idToken) {
 }
 
 // Middleware de autenticación y autorización usando JWT de la cookie
-function authenticate(req, res, next) {
-  const token = req.cookies.jwtToken;
+function authenticateMiddleware(JWT_SECRET) {
+  return function authenticate(req, res, next) {
+    const token = req.cookies.jwtToken;
 
-  if (!token) {
-    return res.status(401).json({ success: false, message: 'Unauthorized. Token not provided.' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // Almacena información del usuario en req.user
-
-    // Verificar si el usuario está en la lista de autorizados
-    if (!authorizedUsers.includes(decoded.email)) {
-      return res.status(403).json({ success: false, message: 'Forbidden. You do not have access to this resource.' });
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'Unauthorized. Token not provided.' });
     }
 
-    next();
-  } catch (error) {
-    console.error('Error verifying JWT:', error);
-    res.status(401).json({ success: false, message: 'Invalid token.' });
-  }
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.user = decoded; // Almacena información del usuario en req.user
+
+      // Verificar si el usuario está en la lista de autorizados
+      if (!authorizedUsers.includes(decoded.email)) {
+        return res.status(403).json({ success: false, message: 'Forbidden. You do not have access to this resource.' });
+      }
+
+      next();
+    } catch (error) {
+      console.error('Error verifying JWT:', error);
+      res.status(401).json({ success: false, message: 'Invalid token.' });
+    }
+  };
 }
-
-// Ruta de autenticación
-app.post('/api/authenticate', async (req, res) => {
-  const { idToken } = req.body;
-
-  if (!idToken) {
-    return res.status(400).json({ success: false, message: 'ID Token is required.' });
-  }
-
-  try {
-    const payload = await verifyIdToken(idToken);
-    console.log('Authenticated user:', payload.email);
-
-    // Verificar si el usuario está en la lista de autorizados
-    if (!authorizedUsers.includes(payload.email)) {
-      return res.status(403).json({ success: false, message: 'Access denied: User not authorized.' });
-    }
-
-    // Generar tu propio JWT
-    const token = jwt.sign(
-      {
-        email: payload.email,
-        name: payload.name
-      },
-      JWT_SECRET,
-      { expiresIn: '1h' } // Token válido por 1 hora
-    );
-
-    // Enviar el JWT como una cookie httpOnly
-    res.cookie('jwtToken', token, {
-      httpOnly: true,
-      secure: true, // Asegúrate de que tu app use HTTPS
-      sameSite: 'None', // 'None' para permitir cookies de sitios cruzados
-      maxAge: 60 * 60 * 1000 // 1 hora
-    });
-
-    // Enviar el nombre del usuario en la respuesta
-    res.json({ success: true, name: payload.name });
-  } catch (error) {
-    console.error('Error verifying ID Token:', error);
-    res.status(401).json({ success: false, message: 'Authentication failed.' });
-  }
-});
-
-// Ruta de logout
-app.post('/api/logout', (req, res) => {
-  res.clearCookie('jwtToken', {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'None'
-  });
-  res.json({ success: true, message: 'Successfully logged out.' });
-});
 
 // Función para inicializar la API de Google Sheets
 async function initializeSheets() {
@@ -259,10 +112,12 @@ const getImageUrl = async (imageField) => {
           'Content-Type': 'application/json'
         }
       });
+
       if (!mediaResponse.ok) {
         console.error(`Error fetching image with ID ${mediaId}:`, await mediaResponse.text());
         return null;
       }
+
       const mediaData = await mediaResponse.json();
       return mediaData.source_url || null;
     } catch (error) {
@@ -287,11 +142,16 @@ const getImageUrl = async (imageField) => {
 // Función para iniciar el servidor
 async function startServer() {
   try {
-      // **No es necesario obtener los secretos aquí, ya los obtuvimos en initializeConfig()**
-    JWT_SECRET = config.JWT_SECRET;
+    // Inicializar configuración
+    await initializeConfig();
+
+    // Asignar variables de configuración
+    const JWT_SECRET = config.JWT_SECRET;
+    if (!JWT_SECRET) {
+      console.error('JWT_SECRET no está configurado.');
+      process.exit(1);
+    }
     console.log('JWT_SECRET obtenido desde config.');
-
-
 
     // Asignar las credenciales de WordPress desde config
     process.env.WORDPRESS_USERNAME = config.WORDPRESS_USERNAME;
@@ -310,138 +170,84 @@ async function startServer() {
     const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const SHEET_NAME = config.SHEET_NAME;
 
-     // Inicializar appraisalSteps con sheets y config
+    // Inicializar Google Sheets
+    const sheets = await initializeSheets();
+
+    // Inicializar appraisalSteps con sheets y config
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
-// Endpoint Mejorado: Editar Campos ACF Manualmente
-app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, res) => {
-  const { id } = req.params;
-  const { fieldName, fieldValue } = req.body;
+    // Definir el middleware de autenticación con el JWT_SECRET
+    const authenticate = authenticateMiddleware(JWT_SECRET);
 
-  // Validación básica
-  if (!fieldName) {
-    return res.status(400).json({ success: false, message: 'El nombre del campo es requerido.' });
-  }
+    // **Definir endpoints después de configurar todo**
 
-  try {
-    // Obtener los datos de Google Sheets para obtener la URL de WordPress
-    const sheetResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${config.SHEET_NAME}!A${id}:I${id}`, // Usar config.SHEET_NAME
-    });
+    /**
+     * 1. Rutas de Autenticación
+     */
 
-    const row = sheetResponse.data.values ? sheetResponse.data.values[0] : null;
+    // Ruta de autenticación
+    app.post('/api/authenticate', async (req, res) => {
+      const { idToken } = req.body;
 
-    if (!row) {
-      return res.status(404).json({ success: false, message: 'Apreciación no encontrada en Google Sheets.' });
-    }
-
-    const wordpressUrl = row[6] || ''; // Columna G: URL de WordPress
-
-    if (!wordpressUrl) {
-      return res.status(400).json({ success: false, message: 'URL de WordPress no encontrada en Google Sheets.' });
-    }
-
-    // Extraer el post ID de la URL de WordPress
-    let postId = '';
-    try {
-      const parsedUrl = new URL(wordpressUrl);
-      postId = parsedUrl.searchParams.get('post');
-
-      if (!postId || isNaN(postId)) {
-        throw new Error('Post ID inválido.');
+      if (!idToken) {
+        return res.status(400).json({ success: false, message: 'ID Token is required.' });
       }
-    } catch (error) {
-      console.error(`[api/appraisals/${id}/update-acf-field-edit] Error al extraer postId:`, error);
-      return res.status(400).json({ success: false, message: 'Post ID inválido en la URL de WordPress.' });
-    }
 
-    // Construir el endpoint para obtener el post de WordPress
-    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
-    console.log(`[api/appraisals/${id}/update-acf-field-edit] Endpoint de WordPress: ${wpEndpoint}`);
-
-    // Autenticación con WordPress
-    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
-
-    // Obtener los datos actuales del post de WordPress
-    const wpResponse = await fetch(wpEndpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
-    });
-
-    if (!wpResponse.ok) {
-      const errorText = await wpResponse.text();
-      console.error(`[api/appraisals/${id}/update-acf-field-edit] Error obteniendo post de WordPress: ${errorText}`);
-      return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
-    }
-
-    const wpData = await wpResponse.json();
-    const acfFields = wpData.acf || {};
-
-    // Verificar si el campo ACF existe
-    if (!(fieldName in acfFields)) {
-      return res.status(400).json({ success: false, message: `El campo ACF '${fieldName}' no existe.` });
-    }
-
-    // Validaciones adicionales según el tipo de campo
-    // Ejemplo: Si el campo es 'customer_email', validar el formato de email
-    const emailFields = ['customer_email', 'secondary_email'];
-    if (emailFields.includes(fieldName)) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(fieldValue)) {
-        return res.status(400).json({ success: false, message: `El valor proporcionado para '${fieldName}' no es una dirección de correo válida.` });
-      }
-    }
-
-    // Validar campos de imagen que esperan una URL
-    const imageFields = ['main', 'signature', 'age'];
-    if (imageFields.includes(fieldName)) {
       try {
-        new URL(fieldValue);
-      } catch (_) {
-        return res.status(400).json({ success: false, message: `El valor proporcionado para '${fieldName}' no es una URL válida.` });
+        const payload = await verifyIdToken(idToken);
+        console.log('Authenticated user:', payload.email);
+
+        // Verificar si el usuario está en la lista de autorizados
+        if (!authorizedUsers.includes(payload.email)) {
+          return res.status(403).json({ success: false, message: 'Access denied: User not authorized.' });
+        }
+
+        // Generar tu propio JWT
+        const token = jwt.sign(
+          {
+            email: payload.email,
+            name: payload.name
+          },
+          JWT_SECRET,
+          { expiresIn: '1h' } // Token válido por 1 hora
+        );
+
+        // Enviar el JWT como una cookie httpOnly
+        res.cookie('jwtToken', token, {
+          httpOnly: true,
+          secure: true, // Asegúrate de que tu app use HTTPS
+          sameSite: 'None', // 'None' para permitir cookies de sitios cruzados
+          maxAge: 60 * 60 * 1000 // 1 hora
+        });
+
+        // Enviar el nombre del usuario en la respuesta
+        res.json({ success: true, name: payload.name });
+      } catch (error) {
+        console.error('Error verifying ID Token:', error);
+        res.status(401).json({ success: false, message: 'Authentication failed.' });
       }
-    }
-
-    // Actualizar solo el campo específico
-    const updatedACF = {
-      [fieldName]: fieldValue
-    };
-
-    // Registrar los datos ACF que se enviarán a WordPress
-    console.log(`[api/appraisals/${id}/update-acf-field-edit] Datos ACF actualizados:`, updatedACF);
-
-    // Actualizar el campo ACF específico en WordPress
-    const updateResponse = await fetch(wpEndpoint, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      },
-      body: JSON.stringify({ acf: updatedACF })
     });
 
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text();
-      console.error(`[api/appraisals/${id}/update-acf-field-edit] Error actualizando campo ACF: ${errorText}`);
-      return res.status(500).json({ success: false, message: `Error actualizando campo ACF en WordPress: ${errorText}` });
-    }
+    // Ruta de logout
+    app.post('/api/logout', (req, res) => {
+      res.clearCookie('jwtToken', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'None'
+      });
+      res.json({ success: true, message: 'Successfully logged out.' });
+    });
 
-    console.log(`[api/appraisals/${id}/update-acf-field-edit] Campo ACF '${fieldName}' actualizado exitosamente.`);
-    res.json({ success: true, message: `Campo '${fieldName}' actualizado exitosamente.` });
-  } catch (error) {
-    console.error(`[api/appraisals/${id}/update-acf-field-edit] Error:`, error);
-    res.status(500).json({ success: false, message: 'Error actualizando el campo ACF.' });
-  }
-});
+    // Endpoint para verificar si el usuario está autenticado
+    app.get('/api/check-auth', authenticate, (req, res) => {
+      res.json({ authenticated: true, name: req.user.name });
+    });
 
+    /**
+     * 2. Endpoints de Apreciaciones
+     */
 
-
-    
-    // **Endpoint: Obtener Apreciaciones Pendientes**
+    // Endpoint: Obtener Apreciaciones Pendientes
     app.get('/api/appraisals', authenticate, async (req, res) => {
       try {
         const response = await sheets.spreadsheets.values.get({
@@ -470,102 +276,102 @@ app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, r
       }
     });
 
+    // Endpoint: Obtener Detalles de una Apreciación para Edición
     app.get('/api/appraisals/:id/list-edit', authenticate, async (req, res) => {
-  const { id } = req.params; // Número de fila
+      const { id } = req.params; // Número de fila
 
-  try {
-    // Obtener los datos de Google Sheets
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${id}:I${id}`, // Incluye hasta la columna I
-    });
+      try {
+        // Obtener los datos de Google Sheets
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `${SHEET_NAME}!A${id}:I${id}`, // Incluye hasta la columna I
+        });
 
-    const row = response.data.values ? response.data.values[0] : null;
+        const row = response.data.values ? response.data.values[0] : null;
 
-    if (!row) {
-      return res.status(404).json({ success: false, message: 'Apreciación no encontrada.' });
-    }
+        if (!row) {
+          return res.status(404).json({ success: false, message: 'Apreciación no encontrada.' });
+        }
 
-    // Extraer los datos básicos de la apreciación
-    const appraisal = {
-      id: id,
-      date: row[0] || '',
-      appraisalType: row[1] || '',
-      identifier: row[2] || '',
-      status: row[5] || '',
-      wordpressUrl: row[6] || '',
-      iaDescription: row[7] || '',
-      customerDescription: row[8] || '',
-      // acfFields y images se agregarán después
-    };
+        // Extraer los datos básicos de la apreciación
+        const appraisal = {
+          id: id,
+          date: row[0] || '',
+          appraisalType: row[1] || '',
+          identifier: row[2] || '',
+          status: row[5] || '',
+          wordpressUrl: row[6] || '',
+          iaDescription: row[7] || '',
+          customerDescription: row[8] || '',
+          // acfFields y images se agregarán después
+        };
 
-    // Extraer el post ID de la URL de WordPress
-    const wordpressUrl = appraisal.wordpressUrl;
-    let postId = '';
+        // Extraer el post ID de la URL de WordPress
+        const wordpressUrl = appraisal.wordpressUrl;
+        let postId = '';
 
-    try {
-      const parsedUrl = new URL(wordpressUrl);
-      postId = parsedUrl.searchParams.get('post');
-      console.log(`[api/appraisals/${id}/list-edit] Post ID extraído: ${postId}`);
-    } catch (error) {
-      console.error(`[api/appraisals/${id}/list-edit] Error al parsear la URL de WordPress: ${error}`);
-      return res.status(400).json({ success: false, message: 'URL de WordPress inválida.' });
-    }
+        try {
+          const parsedUrl = new URL(wordpressUrl);
+          postId = parsedUrl.searchParams.get('post');
+          console.log(`[api/appraisals/${id}/list-edit] Post ID extraído: ${postId}`);
+        } catch (error) {
+          console.error(`[api/appraisals/${id}/list-edit] Error al parsear la URL de WordPress: ${error}`);
+          return res.status(400).json({ success: false, message: 'URL de WordPress inválida.' });
+        }
 
-    if (!postId || isNaN(postId)) {
-      console.error(`[api/appraisals/${id}/list-edit] Post ID de WordPress no proporcionado o inválido en la URL.`);
-      return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
-    }
+        if (!postId || isNaN(postId)) {
+          console.error(`[api/appraisals/${id}/list-edit] Post ID de WordPress no proporcionado o inválido en la URL.`);
+          return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
+        }
 
-    // Construir el endpoint para obtener el post de WordPress
-    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
-    console.log(`[api/appraisals/${id}/list-edit] Endpoint de WordPress: ${wpEndpoint}`);
+        // Construir el endpoint para obtener el post de WordPress
+        const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+        console.log(`[api/appraisals/${id}/list-edit] Endpoint de WordPress: ${wpEndpoint}`);
 
-    // Autenticación con WordPress
-    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
+        // Autenticación con WordPress
+        const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
 
-    // Realizar la solicitud a la API REST de WordPress
-    const wpResponse = await fetch(wpEndpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
+        // Realizar la solicitud a la API REST de WordPress
+        const wpResponse = await fetch(wpEndpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader
+          }
+        });
+
+        if (!wpResponse.ok) {
+          const errorText = await wpResponse.text();
+          console.error(`[api/appraisals/${id}/list-edit] Error obteniendo post de WordPress: ${errorText}`);
+          return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
+        }
+
+        const wpData = await wpResponse.json();
+        console.log(`[api/appraisals/${id}/list-edit] Datos de WordPress obtenidos:`, wpData);
+
+        // Obtener los campos ACF
+        const acfFields = wpData.acf || {};
+
+        // Obtener URLs de imágenes
+        const images = {
+          main: await getImageUrl(acfFields.main),
+          age: await getImageUrl(acfFields.age),
+          signature: await getImageUrl(acfFields.signature)
+        };
+
+        // Agregar acfFields e images al objeto appraisal
+        appraisal.acfFields = acfFields;
+        appraisal.images = images;
+
+        // Enviar la respuesta con la descripción del cliente incluida
+        res.json(appraisal);
+      } catch (error) {
+        console.error('Error obteniendo detalles de la apreciación (list-edit):', error);
+        res.status(500).json({ success: false, message: 'Error obteniendo detalles de la apreciación.' });
       }
     });
 
-    if (!wpResponse.ok) {
-      const errorText = await wpResponse.text();
-      console.error(`[api/appraisals/${id}/list-edit] Error obteniendo post de WordPress: ${errorText}`);
-      return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
-    }
-
-    const wpData = await wpResponse.json();
-    console.log(`[api/appraisals/${id}/list-edit] Datos de WordPress obtenidos:`, wpData);
-
-    // Obtener los campos ACF
-    const acfFields = wpData.acf || {};
-
-    // Obtener URLs de imágenes
-    const images = {
-      main: await getImageUrl(acfFields.main),
-      age: await getImageUrl(acfFields.age),
-      signature: await getImageUrl(acfFields.signature)
-    };
-
-    // Agregar acfFields e images al objeto appraisal
-    appraisal.acfFields = acfFields;
-    appraisal.images = images;
-
-    // Enviar la respuesta con la descripción del cliente incluida
-    res.json(appraisal);
-  } catch (error) {
-    console.error('Error obteniendo detalles de la apreciación (list-edit):', error);
-    res.status(500).json({ success: false, message: 'Error obteniendo detalles de la apreciación.' });
-  }
-});
-
-
-    // **Endpoint: Obtener Detalles de una Apreciación Específica**
+    // Endpoint: Obtener Detalles de una Apreciación Específica
     app.get('/api/appraisals/:id/list', authenticate, async (req, res) => {
       const { id } = req.params; // Número de fila
 
@@ -648,408 +454,409 @@ app.put('/api/appraisals/:id/update-acf-field-edit', authenticate, async (req, r
       }
     });
 
+    // Endpoint: Actualizar un Campo ACF Específico
+    app.put('/api/appraisals/:id/update-acf-field', authenticate, async (req, res) => {
+      const { id } = req.params;
+      const { fieldName, fieldValue } = req.body;
 
-// Endpoint para actualizar un campo ACF específico
-app.put('/api/appraisals/:id/update-acf-field', authenticate, async (req, res) => {
-  const { id } = req.params;
-  const { fieldName, fieldValue } = req.body;
-
-  if (!fieldName) {
-    return res.status(400).json({ success: false, message: 'Field name is required.' });
-  }
-
-  try {
-    // Construir el endpoint de WordPress
-    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${id}`;
-
-    // Autenticación con WordPress
-    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
-
-    // Obtener el post actual para mantener otros campos ACF
-    const wpResponse = await fetch(wpEndpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
+      if (!fieldName) {
+        return res.status(400).json({ success: false, message: 'Field name is required.' });
       }
-    });
 
-    if (!wpResponse.ok) {
-      const errorText = await wpResponse.text();
-      console.error(`[update-acf-field] Error obteniendo post de WordPress: ${errorText}`);
-      return res.status(500).json({ success: false, message: 'Error fetching WordPress post.' });
-    }
-
-    const wpData = await wpResponse.json();
-    const acfFields = wpData.acf || {};
-
-    // Actualizar el campo ACF específico
-    acfFields[fieldName] = fieldValue;
-
-    // Actualizar los campos ACF en WordPress
-    const updateResponse = await fetch(wpEndpoint, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      },
-      body: JSON.stringify({ acf: acfFields })
-    });
-
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text();
-      console.error(`[update-acf-field] Error actualizando ACF field: ${errorText}`);
-      return res.status(500).json({ success: false, message: 'Error updating ACF field in WordPress.' });
-    }
-
-    res.json({ success: true, message: `Field '${fieldName}' updated successfully.` });
-  } catch (error) {
-    console.error('Error updating ACF field:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-
-
-
-    
-    // **Endpoint: Save PDF and Doc Links in Google Sheets**
-app.post('/api/appraisals/:id/save-links', authenticate, async (req, res) => {
-  const { id } = req.params; // Número de fila en Google Sheets
-  const { pdfLink, docLink } = req.body;
-
-  // Validación de los datos recibidos
-  if (!pdfLink || !docLink) {
-    return res.status(400).json({ success: false, message: 'PDF Link y Doc Link son requeridos.' });
-  }
-
-  try {
-    // Actualizar las columnas M y N en Google Sheets
-    const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
-    const values = [[pdfLink, docLink]];
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: updateRange,
-      valueInputOption: 'RAW',
-      resource: {
-        values: values,
-      },
-    });
-
-    console.log(`[save-links] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
-
-    res.json({ success: true, message: 'PDF Link y Doc Link guardados exitosamente en Google Sheets.' });
-  } catch (error) {
-    console.error('Error guardando los links en Google Sheets:', error);
-    res.status(500).json({ success: false, message: 'Error guardando los links en Google Sheets.' });
-  }
-});
-
-
-// **Endpoint: Obtener Apreciaciones Completadas**
-app.get('/api/appraisals/completed', authenticate, async (req, res) => {
-  try {
-    const sheetName = 'Completed Appraisals'; // Asegúrate de que este es el nombre correcto de la hoja
-    const range = `${sheetName}!A2:H`; // Definición correcta del rango
-    console.log(`Fetching completed appraisals with range: ${range}`);
-    
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: range, // Usar la variable 'range' definida arriba
-    });
-
-    const rows = response.data.values || [];
-    console.log(`Total de filas obtenidas (Completadas): ${rows.length}`);
-
-    // Verificar si 'rows' es un arreglo
-    if (!Array.isArray(rows)) {
-      console.error('La respuesta de Google Sheets no es un arreglo:', rows);
-      throw new Error('La respuesta de Google Sheets no es un arreglo.');
-    }
-
-    // Loguear cada fila para depuración
-    rows.forEach((row, index) => {
-      console.log(`Fila ${index + 2}:`, row);
-    });
-
-    const completedAppraisals = rows.map((row, index) => ({
-      id: index + 2, // Número de fila en la hoja (A2 corresponde a id=2)
-      date: row[0] || '', // Columna A: Fecha
-      appraisalType: row[1] || '', // Columna B: Tipo de Apreciación
-      identifier: row[2] || '', // Columna C: Número de Apreciación
-      status: row[5] || '', // Columna F: Estado
-      wordpressUrl: row[6] || '', // Columna G: URL de WordPress
-      iaDescription: row[7] || '' // Columna H: Descripción de AI
-    }));
-
-    console.log(`Total de apreciaciones completadas mapeadas: ${completedAppraisals.length}`);
-    res.json(completedAppraisals);
-  } catch (error) {
-    console.error('Error obteniendo apreciaciones completadas:', error);
-    res.status(500).json({ success: false, message: 'Error obteniendo apreciaciones completadas.' });
-  }
-});
-
-
-// **Endpoint: Completar el Proceso de la Apreciación**
-// MODIFICACIÓN PRINCIPAL: Encolar la tarea en Pub/Sub en lugar de procesarla directamente
-app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) => {
-  const { id } = req.params;
-  const { appraisalValue, description } = req.body;
-
-  if (!appraisalValue || !description) {
-    return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
-  }
-
-  try {
-    // Crear el mensaje para Pub/Sub
-    const task = {
-      id,
-      appraisalValue,
-      description,
-    };
-
-    const dataBuffer = Buffer.from(JSON.stringify(task));
-
-    // Publicar el mensaje en Pub/Sub
-    await pubsub.topic('appraisal-tasks').publish(dataBuffer);
-
-    console.log(`[index.js] Enqueued appraisal task for id: ${id}`);
-
-    // Responder inmediatamente al cliente
-    res.json({ success: true, message: 'Appraisal submitted successfully.' });
-  } catch (error) {
-    console.error(`Error encolando la apreciación ${id}:`, error);
-    res.status(500).json({ success: false, message: `Error submitting appraisal: ${error.message}` });
-  }
-});
-
-
-
-
-    
-// **Endpoint: Obtener session_ID a partir de postId**
-app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
-  const { postId } = req.body;
-
-  if (!postId) {
-    return res.status(400).json({ success: false, message: 'postId es requerido.' });
-  }
-
-  try {
-    // Construir el endpoint de WordPress para obtener el post
-    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
-    console.log(`[get-session-id] Endpoint de WordPress: ${wpEndpoint}`);
-
-    // Realizar la solicitud GET a la API REST de WordPress
-    const wpResponse = await fetch(wpEndpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`
-      }
-    });
-
-    if (!wpResponse.ok) {
-      const errorText = await wpResponse.text();
-      console.error(`[get-session-id] Error obteniendo post de WordPress: ${errorText}`);
-      return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
-    }
-
-    const wpData = await wpResponse.json();
-    const acfFields = wpData.acf || {};
-    const session_ID = acfFields.session_id || '';
-
-    if (!session_ID) {
-      console.error(`[get-session-id] session_ID no encontrado en el post de WordPress.`);
-      return res.status(404).json({ success: false, message: 'session_ID no encontrado en el post de WordPress.' });
-    }
-
-    console.log(`[get-session-id] session_ID extraído: ${session_ID}`);
-    res.json({ success: true, session_ID });
-  } catch (error) {
-    console.error('Error obteniendo session_ID:', error);
-    res.status(500).json({ success: false, message: 'Error obteniendo session_ID.' });
-  }
-});
-
-
-app.post('/api/appraisals/:id/set-value', authenticate, async (req, res) => {
-  const { id } = req.params;
-  const { appraisalValue, description } = req.body;
-
-  // Verificar que al menos uno de los campos esté presente
-  if (appraisalValue === undefined && description === undefined) {
-    return res.status(400).json({ success: false, message: 'At least Appraisal Value or description is required.' });
-  }
-
-  try {
-    await setAppraisalValue(id, appraisalValue, description);
-    res.json({ success: true, message: 'Appraisal updated successfully in Google Sheets and WordPress.' });
-  } catch (error) {
-    console.error('Error in set-value endpoint:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-
-
-
-    
-
-app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
-  const { id } = req.params;
-  const { appraisalValue, description } = req.body;
-
-  if (appraisalValue === undefined || description === undefined) {
-    return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
-  }
-
-  try {
-    await markAppraisalAsCompleted(id, appraisalValue, description);
-    res.json({ success: true, message: 'Appraisal completed successfully.' });
-  } catch (error) {
-    console.error('Error completing the appraisal:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-
-
-  // Endpoint to insert template in the wordpress post  
-app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await insertTemplate(id);
-    res.json({ success: true, message: 'Shortcodes inserted successfully in WordPress post.' });
-  } catch (error) {
-    console.error('Error inserting shortcodes in WordPress:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-
-
-    
-
-
-    
-// **Endpoint: Obtener enlaces desde WordPress y guardarlos en Google Sheets**
-app.post('/api/appraisals/:id/update-links', authenticate, async (req, res) => {
-  const { id } = req.params; // Número de fila en Google Sheets
-  const { postId } = req.body; // ID del post de WordPress
-
-  if (!postId) {
-    return res.status(400).json({ success: false, message: 'postId es requerido.' });
-  }
-
-  try {
-    // Obtener los enlaces desde los campos ACF de WordPress
-    const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
-    console.log(`[update-links] Endpoint de WordPress: ${wpEndpoint}`);
-
-    // Autenticación con WordPress
-    const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
-    const base64Credentials = Buffer.from(credentialsString).toString('base64');
-    const authHeader = 'Basic ' + base64Credentials;
-
-    // Obtener el post de WordPress
-    const wpResponse = await fetch(wpEndpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
-    });
-
-    if (!wpResponse.ok) {
-      const errorText = await wpResponse.text();
-      console.error(`[update-links] Error obteniendo post de WordPress: ${errorText}`);
-      return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
-    }
-
-    const wpData = await wpResponse.json();
-    const acfFields = wpData.acf || {};
-
-    const pdfLink = acfFields.pdflink || '';
-    const docLink = acfFields.doclink || '';
-
-    if (!pdfLink || !docLink) {
-      console.error(`[update-links] Enlaces no encontrados en los campos ACF de WordPress.`);
-      return res.status(404).json({ success: false, message: 'Enlaces no encontrados en los campos ACF de WordPress.' });
-    }
-
-    // Actualizar las columnas M y N en Google Sheets
-    const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
-    const values = [[pdfLink, docLink]];
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: updateRange,
-      valueInputOption: 'RAW',
-      resource: {
-        values: values,
-      },
-    });
-
-    console.log(`[update-links] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
-
-    res.json({ success: true, message: 'Enlaces actualizados exitosamente en Google Sheets.' });
-  } catch (error) {
-    console.error('Error actualizando los enlaces en Google Sheets:', error);
-    res.status(500).json({ success: false, message: 'Error actualizando los enlaces en Google Sheets.' });
-  }
-});
-    
-
-app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await sendEmailToCustomer(id);
-    res.json({ success: true, message: 'Email sent to customer successfully.' });
-  } catch (error) {
-    console.error('Error sending email to customer:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-
-
-
-
-app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    await updatePostTitle(id);
-    res.json({ success: true, message: 'WordPress post title updated successfully.' });
-  } catch (error) {
-    console.error('Error updating post title in WordPress:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-
-        // Iniciar el Servidor en Todas las Interfaces
-        const PORT = process.env.PORT || 8080;
-        app.listen(PORT, '0.0.0.0', () => {
-          console.log(`Servidor backend corriendo en el puerto ${PORT}`);
+      try {
+        // Construir el endpoint de WordPress
+        const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${id}`;
+
+        // Autenticación con WordPress
+        const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
+
+        // Obtener el post actual para mantener otros campos ACF
+        const wpResponse = await fetch(wpEndpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader
+          }
         });
+
+        if (!wpResponse.ok) {
+          const errorText = await wpResponse.text();
+          console.error(`[update-acf-field] Error obteniendo post de WordPress: ${errorText}`);
+          return res.status(500).json({ success: false, message: 'Error fetching WordPress post.' });
+        }
+
+        const wpData = await wpResponse.json();
+        const acfFields = wpData.acf || {};
+
+        // Actualizar el campo ACF específico
+        acfFields[fieldName] = fieldValue;
+
+        // Actualizar los campos ACF en WordPress
+        const updateResponse = await fetch(wpEndpoint, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader
+          },
+          body: JSON.stringify({ acf: acfFields })
+        });
+
+        if (!updateResponse.ok) {
+          const errorText = await updateResponse.text();
+          console.error(`[update-acf-field] Error actualizando ACF field: ${errorText}`);
+          return res.status(500).json({ success: false, message: 'Error updating ACF field in WordPress.' });
+        }
+
+        res.json({ success: true, message: `Field '${fieldName}' updated successfully.` });
       } catch (error) {
-        console.error('Error iniciando el servidor:', error);
-        process.exit(1);
+        console.error('Error updating ACF field:', error);
+        res.status(500).json({ success: false, message: error.message });
       }
-    }
+    });
+
+    // Endpoint: Actualizar appraisalValue y/o description
+    app.post('/api/appraisals/:id/set-value', authenticate, async (req, res) => {
+      const { id } = req.params;
+      const { appraisalValue, description } = req.body;
+
+      // Verificar que al menos uno de los campos esté presente
+      if (appraisalValue === undefined && description === undefined) {
+        return res.status(400).json({ success: false, message: 'At least Appraisal Value or description is required.' });
+      }
+
+      try {
+        await appraisalSteps.setAppraisalValue(id, appraisalValue, description);
+        res.json({ success: true, message: 'Appraisal updated successfully in Google Sheets and WordPress.' });
+      } catch (error) {
+        console.error('Error in set-value endpoint:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
+
+    // Endpoint: Completar el Proceso de la Apreciación (Encolar en Pub/Sub)
+    app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) => {
+      const { id } = req.params;
+      const { appraisalValue, description } = req.body;
+
+      if (!appraisalValue || !description) {
+        return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
+      }
+
+      try {
+        // Crear el mensaje para Pub/Sub
+        const task = {
+          id,
+          appraisalValue,
+          description,
+        };
+
+        const dataBuffer = Buffer.from(JSON.stringify(task));
+
+        // Publicar el mensaje en Pub/Sub
+        await pubsub.topic('appraisal-tasks').publish(dataBuffer);
+
+        console.log(`[index.js] Enqueued appraisal task for id: ${id}`);
+
+        // Responder inmediatamente al cliente
+        res.json({ success: true, message: 'Appraisal submitted successfully.' });
+      } catch (error) {
+        console.error(`Error encolando la apreciación ${id}:`, error);
+        res.status(500).json({ success: false, message: `Error submitting appraisal: ${error.message}` });
+      }
+    });
+
+    // Endpoint: Completar la Apreciación
+    app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
+      const { id } = req.params;
+      const { appraisalValue, description } = req.body;
+
+      if (appraisalValue === undefined || description === undefined) {
+        return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
+      }
+
+      try {
+        await markAppraisalAsCompleted(id, appraisalValue, description);
+        res.json({ success: true, message: 'Appraisal completed successfully.' });
+      } catch (error) {
+        console.error('Error completing the appraisal:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
+
+    // Endpoint: Insertar Template en el Post de WordPress
+    app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        await insertTemplate(id);
+        res.json({ success: true, message: 'Shortcodes inserted successfully in WordPress post.' });
+      } catch (error) {
+        console.error('Error inserting shortcodes in WordPress:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
+
+    // Endpoint: Obtener session_ID a partir de postId
+    app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
+      const { postId } = req.body;
+
+      if (!postId) {
+        return res.status(400).json({ success: false, message: 'postId es requerido.' });
+      }
+
+      try {
+        // Construir el endpoint de WordPress para obtener el post
+        const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+        console.log(`[get-session-id] Endpoint de WordPress: ${wpEndpoint}`);
+
+        // Realizar la solicitud GET a la API REST de WordPress
+        const wpResponse = await fetch(wpEndpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`
+          }
+        });
+
+        if (!wpResponse.ok) {
+          const errorText = await wpResponse.text();
+          console.error(`[get-session-id] Error obteniendo post de WordPress: ${errorText}`);
+          return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
+        }
+
+        const wpData = await wpResponse.json();
+        const acfFields = wpData.acf || {};
+        const session_ID = acfFields.session_id || '';
+
+        if (!session_ID) {
+          console.error(`[get-session-id] session_ID no encontrado en el post de WordPress.`);
+          return res.status(404).json({ success: false, message: 'session_ID no encontrado en el post de WordPress.' });
+        }
+
+        console.log(`[get-session-id] session_ID extraído: ${session_ID}`);
+        res.json({ success: true, session_ID });
+      } catch (error) {
+        console.error('Error obteniendo session_ID:', error);
+        res.status(500).json({ success: false, message: 'Error obteniendo session_ID.' });
+      }
+    });
+
+    // Endpoint: Actualizar Enlaces desde WordPress y Guardarlos en Google Sheets
+    app.post('/api/appraisals/:id/update-links', authenticate, async (req, res) => {
+      const { id } = req.params; // Número de fila en Google Sheets
+      const { postId } = req.body; // ID del post de WordPress
+
+      if (!postId) {
+        return res.status(400).json({ success: false, message: 'postId es requerido.' });
+      }
+
+      try {
+        // Obtener los enlaces desde los campos ACF de WordPress
+        const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
+        console.log(`[update-links] Endpoint de WordPress: ${wpEndpoint}`);
+
+        // Autenticación con WordPress
+        const credentialsString = `${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`;
+        const base64Credentials = Buffer.from(credentialsString).toString('base64');
+        const authHeader = 'Basic ' + base64Credentials;
+
+        // Obtener el post de WordPress
+        const wpResponse = await fetch(wpEndpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authHeader
+          }
+        });
+
+        if (!wpResponse.ok) {
+          const errorText = await wpResponse.text();
+          console.error(`[update-links] Error obteniendo post de WordPress: ${errorText}`);
+          return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
+        }
+
+        const wpData = await wpResponse.json();
+        const acfFields = wpData.acf || {};
+
+        const pdfLink = acfFields.pdflink || '';
+        const docLink = acfFields.doclink || '';
+
+        if (!pdfLink || !docLink) {
+          console.error(`[update-links] Enlaces no encontrados en los campos ACF de WordPress.`);
+          return res.status(404).json({ success: false, message: 'Enlaces no encontrados en los campos ACF de WordPress.' });
+        }
+
+        // Actualizar las columnas M y N en Google Sheets
+        const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
+        const values = [[pdfLink, docLink]];
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID,
+          range: updateRange,
+          valueInputOption: 'RAW',
+          resource: {
+            values: values,
+          },
+        });
+
+        console.log(`[update-links] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
+
+        res.json({ success: true, message: 'Enlaces actualizados exitosamente en Google Sheets.' });
+      } catch (error) {
+        console.error('Error actualizando los enlaces en Google Sheets:', error);
+        res.status(500).json({ success: false, message: 'Error actualizando los enlaces en Google Sheets.' });
+      }
+    });
+
+    // Endpoint: Guardar Enlaces PDF y Doc en Google Sheets
+    app.post('/api/appraisals/:id/save-links', authenticate, async (req, res) => {
+      const { id } = req.params; // Número de fila en Google Sheets
+      const { pdfLink, docLink } = req.body;
+
+      // Validación de los datos recibidos
+      if (!pdfLink || !docLink) {
+        return res.status(400).json({ success: false, message: 'PDF Link y Doc Link son requeridos.' });
+      }
+
+      try {
+        // Actualizar las columnas M y N en Google Sheets
+        const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
+        const values = [[pdfLink, docLink]];
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SPREADSHEET_ID,
+          range: updateRange,
+          valueInputOption: 'RAW',
+          resource: {
+            values: values,
+          },
+        });
+
+        console.log(`[save-links] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
+
+        res.json({ success: true, message: 'PDF Link y Doc Link guardados exitosamente en Google Sheets.' });
+      } catch (error) {
+        console.error('Error guardando los links en Google Sheets:', error);
+        res.status(500).json({ success: false, message: 'Error guardando los links en Google Sheets.' });
+      }
+    });
+
+    // Endpoint: Enviar Email al Cliente
+    app.post('/api/appraisals/:id/send-email', authenticate, async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        await sendEmailToCustomer(id);
+        res.json({ success: true, message: 'Email sent to customer successfully.' });
+      } catch (error) {
+        console.error('Error sending email to customer:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
+
+    // Endpoint: Actualizar Título del Post en WordPress
+    app.post('/api/appraisals/:id/update-title', authenticate, async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        await updatePostTitle(id);
+        res.json({ success: true, message: 'WordPress post title updated successfully.' });
+      } catch (error) {
+        console.error('Error updating post title in WordPress:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
+
+    /**
+     * 3. Otros Endpoints
+     */
+
+    // Endpoint: Completar el Proceso de la Apreciación (Encolar en Pub/Sub)
+    app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) => {
+      const { id } = req.params;
+      const { appraisalValue, description } = req.body;
+
+      if (!appraisalValue || !description) {
+        return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
+      }
+
+      try {
+        // Crear el mensaje para Pub/Sub
+        const task = {
+          id,
+          appraisalValue,
+          description,
+        };
+
+        const dataBuffer = Buffer.from(JSON.stringify(task));
+
+        // Publicar el mensaje en Pub/Sub
+        await pubsub.topic('appraisal-tasks').publish(dataBuffer);
+
+        console.log(`[index.js] Enqueued appraisal task for id: ${id}`);
+
+        // Responder inmediatamente al cliente
+        res.json({ success: true, message: 'Appraisal submitted successfully.' });
+      } catch (error) {
+        console.error(`Error encolando la apreciación ${id}:`, error);
+        res.status(500).json({ success: false, message: `Error submitting appraisal: ${error.message}` });
+      }
+    });
+
+    // Endpoint: Completar la Apreciación
+    app.post('/api/appraisals/:id/complete', authenticate, async (req, res) => {
+      const { id } = req.params;
+      const { appraisalValue, description } = req.body;
+
+      if (appraisalValue === undefined || description === undefined) {
+        return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
+      }
+
+      try {
+        await markAppraisalAsCompleted(id, appraisalValue, description);
+        res.json({ success: true, message: 'Appraisal completed successfully.' });
+      } catch (error) {
+        console.error('Error completing the appraisal:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
+
+    // Endpoint: Insertar Template en el Post de WordPress
+    app.post('/api/appraisals/:id/insert-template', authenticate, async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        await insertTemplate(id);
+        res.json({ success: true, message: 'Shortcodes inserted successfully in WordPress post.' });
+      } catch (error) {
+        console.error('Error inserting shortcodes in WordPress:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
+
+    /**
+     * 4. Iniciar el Servidor
+     */
+
+    // Iniciar el Servidor en Todas las Interfaces
+    const PORT = process.env.PORT || 8080;
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Servidor backend corriendo en el puerto ${PORT}`);
+    });
+
+  } catch (error) {
+    console.error('Error iniciando el servidor:', error);
+    process.exit(1);
+  }
+}
+
+// Ejecutar la IIFE para inicializar la configuración y el servidor
+(async () => {
+  try {
     await initializeConfig();
-
-    // **Llamar a la función startServer**
     await startServer();
-
   } catch (error) {
     console.error('Error en la inicialización:', error);
     process.exit(1);
   }
-})(); // <-- Aquí cerramos y ejecutamos la IIFE
+})();
