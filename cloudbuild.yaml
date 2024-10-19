@@ -25,7 +25,7 @@ steps:
       '--image', 'gcr.io/$PROJECT_ID/appraisers-backend',
       '--region', 'us-central1',
       '--platform', 'managed',
-      '--allow-unauthenticated'
+      '--allow-unauthenticated'  # Mantener esta bandera si deseas permitir invocaciones no autenticadas
     ]
 
   # Step 2: Build and deploy appraisers-task-queue
@@ -49,7 +49,7 @@ steps:
       '--image', 'gcr.io/$PROJECT_ID/appraisers-task-queue',
       '--region', 'us-central1',
       '--platform', 'managed',
-      '--no-allow-unauthenticated'
+      '--allow-unauthenticated'  # Cambiado de '--no-allow-unauthenticated' a '--allow-unauthenticated'
     ]
 
 images:
