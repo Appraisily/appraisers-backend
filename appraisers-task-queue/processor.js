@@ -27,6 +27,13 @@ app.use(cors(corsOptions));
 // **Manejar solicitudes OPTIONS preflight**
 app.options('*', cors(corsOptions));
 
+// Middleware de manejo de errores
+app.use((err, req, res, next) => {
+  console.error('Unhandled Error:', err);
+  res.status(500).json({ success: false, message: 'Internal Server Error' });
+});
+
+
 // **Middlewares adicionales**
 app.use(express.json());
 app.use(cookieParser());
