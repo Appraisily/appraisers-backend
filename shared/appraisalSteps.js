@@ -785,6 +785,62 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
   console.log(`[updateShortcodesFlag] ACF flag updated successfully:`, updateFlagData);
 }
 
+async function getPostIdFromSheet(id, sheetName = config.SHEET_NAME) {
+  console.log(`[getPostIdFromSheet] Called for Appraisal ID: ${id} in sheet: ${sheetName}`);
+  
+  try {
+    const range = `${sheetName}!G${id}:G${id}`; // Columna G de la fila correspondiente
+    const response = await sheetsGlobal.spreadsheets.values.get({
+      spreadsheetId: config.SPREADSHEET_ID,
+      range: range,
+    });
+
+    const values = response.data.values;
+    if (!values || !values[0] || !values[0][0]) {
+      throw new Error(`No URL found in column G for Appraisal ID: ${id}`);
+    }
+
+    const url = values[0][0];
+    const postId = extractPostId(url);
+
+    if (!postId) {
+      throw new Error(`Unable to extract postId from URL: ${url}`);
+    }
+
+    console.log(`[getPostIdFromSheet] Extracted postId: ${postId} for Appraisal ID: ${id}`);
+    return postId;
+  } catch (error) {
+    console.error(`[getPostIdFromSheet] Error: ${error.message}`);
+    throw error;
+  }
+}
+
+// Función: completarTasacion (Paso 5)
+async function completarTasacion(postId) {
+  console.log(`[completarTasacion] Called for Post ID: ${postId}`);
+
+  try {
+    const response = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/complete-appraisal-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ postId }),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.message || 'Error completing appraisal report.');
+    }
+
+    console.log(`[completarTasacion] Completed appraisal report for Post ID: ${postId}`);
+  } catch (error) {
+    console.error('Error in completarTasacion:', error);
+    throw error;
+  }
+}
+
 // appraisalSteps.js
 
 async function processAppraisal(id, appraisalValue, description) {
@@ -808,6 +864,8 @@ async function processAppraisal(id, appraisalValue, description) {
     console.log(`[processAppraisal] insertTemplate completed for ID: ${id}`);
 
     // Paso 5: Completar la tasación mediante una petición a otro backend
+          const postId = await getPostIdFromSheet(id); // Extraer postId desde la hoja
+
     await completarTasacion(postId);
     console.log(`[processAppraisal] completarTasacion completed for Post ID: ${postId}`);
 
@@ -843,6 +901,8 @@ function appraisalSteps(sheets, config = {}) {
       setAppraisalValue(sheets, id, appraisalValue, description, sheetName),
     mergeDescriptions: (id, appraiserDescription) =>
       mergeDescriptions(sheets, id, appraiserDescription),
+     completarTasacion: (postId) =>
+         completarTasacion(postId),
     updatePostTitle: (id) =>
       updatePostTitle(sheets, id),
     insertTemplate: (id) =>
