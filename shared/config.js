@@ -29,6 +29,10 @@ async function initializeConfig() {
         // **Añadir OPENAI_API_KEY**
         config.OPENAI_API_KEY = (await getSecret('OPENAI_API_KEY')).trim();
 
+        // Obtener EDIT_SHEET_NAME desde Secret Manager
+    config.EDIT_SHEET_NAME = (await getSecret('EDIT_SHEET_NAME')).trim();
+    console.log('EDIT_SHEET_NAME obtenido exitosamente.');
+
 
     console.log('SPREADSHEET_ID, SHEET_NAME y GCP_PROJECT_ID configurados.');
   } catch (error) {
