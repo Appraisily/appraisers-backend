@@ -61,7 +61,7 @@ async function setAppraisalValue(sheets, id, appraisalValue, description, sheetN
       },
     });
 
-    console.log(`[setAppraisalValue] Updated columns J and K for row ${id} with Appraisal
+console.log(`[setAppraisalValue] Updated columns J and K for row ${id} with Appraisal Value: ${appraisalValue} and Description: ${description}`);
 
     // Get appraisal details to obtain the WordPress URL
     const appraisalResponse = await sheets.spreadsheets.values.get({
