@@ -37,8 +37,8 @@ async function updateCurrentStepInSheet(sheets, id, currentStep) {
 }
 
 // Function: setAppraisalValue
-async function setAppraisalValue(sheets, id, appraisalValue, description) {
-    console.log(`[setAppraisalValue] Called with id:`, id, `type:`, typeof id);
+async function setAppraisalValue(sheets, id, appraisalValue, description, sheetName = config.SHEET_NAME) {
+  console.log(`[setAppraisalValue] Called with id:`, id, `type:`, typeof id, `sheetName:`, sheetName);
 
   if (appraisalValue === undefined || description === undefined) {
     throw new Error('Appraisal Value and description are required.');
@@ -46,10 +46,10 @@ async function setAppraisalValue(sheets, id, appraisalValue, description) {
 
   try {
     // Update the current step in the spreadsheet
-    await updateCurrentStepInSheet(sheets, id, 'Set Appraisal Value');
+    await updateCurrentStepInSheet(sheets, id, 'Set Appraisal Value', sheetName);
 
     // Update columns J and K in Google Sheets
-    const updateRange = `${config.SHEET_NAME}!J${id}:K${id}`;
+    const updateRange = `${sheetName}!J${id}:K${id}`;
     const values = [[appraisalValue, description]];
 
     await sheets.spreadsheets.values.update({
@@ -61,7 +61,7 @@ async function setAppraisalValue(sheets, id, appraisalValue, description) {
       },
     });
 
-    console.log(`[setAppraisalValue] Updated columns J and K for row ${id} with Appraisal Value: ${appraisalValue} and Description: ${description}`);
+    console.log(`[setAppraisalValue] Updated columns J and K for row ${id} with Appraisal
 
     // Get appraisal details to obtain the WordPress URL
     const appraisalResponse = await sheets.spreadsheets.values.get({
@@ -832,8 +832,9 @@ function appraisalSteps(sheets, config = {}) {
       sheetsGlobal = sheets; // Asignar sheets a la variable global
 
  return {
-    setAppraisalValue: (id, appraisalValue, description) =>
-      setAppraisalValue(sheets, id, appraisalValue, description),
+    
+    setAppraisalValue: (id, appraisalValue, description, sheetName) =>
+      setAppraisalValue(sheets, id, appraisalValue, description, sheetName),
     mergeDescriptions: (id, appraiserDescription) =>
       mergeDescriptions(sheets, id, appraiserDescription),
     updatePostTitle: (id) =>
