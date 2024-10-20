@@ -785,7 +785,8 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
   console.log(`[updateShortcodesFlag] ACF flag updated successfully:`, updateFlagData);
 }
 
-// Function: processAppraisal
+// appraisalSteps.js
+
 async function processAppraisal(id, appraisalValue, description) {
   try {
     console.log(`[processAppraisal] Starting process for Appraisal ID: ${id}`);
@@ -798,25 +799,29 @@ async function processAppraisal(id, appraisalValue, description) {
     await mergeDescriptions(sheetsGlobal, id, description);
     console.log(`[processAppraisal] mergeDescriptions completed for ID: ${id}`);
 
-    // Paso 3: Actualizar el título del post en WordPress
-    await updatePostTitle(sheetsGlobal, id);
-    console.log(`[processAppraisal] updatePostTitle completed for ID: ${id}`);
+    // Paso 3: Actualizar el título del post en WordPress y obtener postId
+    const postId = await updatePostTitle(sheetsGlobal, id);
+    console.log(`[processAppraisal] updatePostTitle completed for ID: ${id} with Post ID: ${postId}`);
 
     // Paso 4: Insertar plantillas en WordPress
     await insertTemplate(sheetsGlobal, id);
     console.log(`[processAppraisal] insertTemplate completed for ID: ${id}`);
 
-    // Paso 5: Enviar correo al cliente
+    // Paso 5: Completar la tasación mediante una petición a otro backend
+    await completarTasacion(postId);
+    console.log(`[processAppraisal] completarTasacion completed for Post ID: ${postId}`);
+
+    // Paso 6: Hacer el PDF
+    await buildPDF(id);
+    console.log(`[processAppraisal] buildPDF completed for ID: ${id}`);
+
+    // Paso 7: Enviar correo al cliente
     await sendEmailToCustomer(sheetsGlobal, id);
     console.log(`[processAppraisal] sendEmailToCustomer completed for ID: ${id}`);
 
-    // Paso 6: Marcar la tasación como completada
+    // Paso 8: Marcar la tasación como completada
     await markAppraisalAsCompleted(sheetsGlobal, id, appraisalValue, description);
     console.log(`[processAppraisal] markAppraisalAsCompleted completed for ID: ${id}`);
-
-    // Paso 7: Construir PDF
-    await buildPDF(id);
-    console.log(`[processAppraisal] buildPDF completed for ID: ${id}`);
 
     console.log(`[processAppraisal] Processing completed successfully for Appraisal ID: ${id}`);
   } catch (error) {
@@ -824,6 +829,7 @@ async function processAppraisal(id, appraisalValue, description) {
     throw error; // Propagar el error para manejarlo en el caller
   }
 }
+
 
 // Function: appraisalSteps
 function appraisalSteps(sheets, config = {}) {
