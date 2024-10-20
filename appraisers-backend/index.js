@@ -506,24 +506,26 @@ async function startServer() {
       }
     });
 
-    // **Endpoint: Actualizar appraisalValue y/o description**
-    app.post('/api/appraisals/:id/set-value', authenticate, async (req, res) => {
-      const { id } = req.params;
-      const { appraisalValue, description } = req.body;
+// **Endpoint: Actualizar appraisalValue y/o description**
+router.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, async (req, res) => {
+  const { id } = req.params;
+  const { appraisalValue, description, isEdit } = req.body; // Añadimos isEdit
 
-      // Verificar que al menos uno de los campos esté presente
-      if (appraisalValue === undefined && description === undefined) {
-        return res.status(400).json({ success: false, message: 'At least Appraisal Value or description is required.' });
-      }
+  try {
+    // Determinar el nombre de la hoja basada en isEdit
+    let sheetName = config.SHEET_NAME; // Por defecto
 
-      try {
-        await appraisalSteps.setAppraisalValue(id, appraisalValue, description);
-        res.json({ success: true, message: 'Appraisal updated successfully in Google Sheets and WordPress.' });
-      } catch (error) {
-        console.error('Error in set-value endpoint:', error);
-        res.status(500).json({ success: false, message: error.message });
-      }
-    });
+    if (isEdit) {
+      sheetName = config.EDIT_SHEET_NAME;
+    }
+
+    await appraisalSteps.setAppraisalValue(id, appraisalValue, description, sheetName);
+    res.json({ success: true, message: 'Appraisal updated successfully in Google Sheets and WordPress.' });
+  } catch (error) {
+    console.error('Error in set-value endpoint:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
     // **Endpoint: Completar el Proceso de la Apreciación (Encolado en Pub/Sub)**
     app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) => {
