@@ -699,38 +699,7 @@ app.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, as
       }
     });
 
-    // **Endpoint: Completar el Proceso de la Apreciación**
-    // MODIFICACIÓN PRINCIPAL: Encolar la tarea en Pub/Sub en lugar de procesarla directamente
-    app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) => {
-      const { id } = req.params;
-      const { appraisalValue, description } = req.body;
-
-      if (!appraisalValue || !description) {
-        return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
-      }
-
-      try {
-        // Crear el mensaje para Pub/Sub
-        const task = {
-          id,
-          appraisalValue,
-          description,
-        };
-
-        const dataBuffer = Buffer.from(JSON.stringify(task));
-
-        // Publicar el mensaje en Pub/Sub
-        await pubsub.topic('appraisal-tasks').publish(dataBuffer);
-
-        console.log(`[index.js] Enqueued appraisal task for id: ${id}`);
-
-        // Responder inmediatamente al cliente
-        res.json({ success: true, message: 'Appraisal submitted successfully.' });
-      } catch (error) {
-        console.error(`Error encolando la apreciación ${id}:`, error);
-        res.status(500).json({ success: false, message: `Error submitting appraisal: ${error.message}` });
-      }
-    });
+    
 
     // **Endpoint: Obtener session_ID a partir de postId**
     app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
