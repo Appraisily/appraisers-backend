@@ -1,4 +1,4 @@
-// appraisalSteps.js
+// appraisalSteps.js.
 
 const fetch = require('node-fetch');
 require('dotenv').config(); // Asegurarse de que las variables de entorno están cargadas
