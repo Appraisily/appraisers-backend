@@ -155,22 +155,53 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
 
     // Prepare the request to OpenAI GPT-4 Chat API
     const openAIEndpoint = 'https://api.openai.com/v1/chat/completions';
+const maxTitleLength = 60; // Define el máximo de caracteres para el título en WordPress
 
-    const openAIRequestBody = {
-      model: 'gpt-4',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an assistant that merges appraiser and AI descriptions into a cohesive paragraph.'
-        },
-        {
-          role: 'user',
-          content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a cohesive paragraph.`
-        }
-      ],
-      max_tokens: 150,
-      temperature: 0.7
-    };
+const openAIRequestBody = {
+  model: 'gpt-4',
+  messages: [
+    {
+      role: 'system',
+      content: `You are an assistant that merges appraiser and AI descriptions into a cohesive paragraph. The merged description should emphasize the appraiser's description (70%) and must not exceed ${maxTitleLength} characters, suitable for WordPress titles.
+
+# Steps
+
+1. Analyze both the appraiser description and the AI description.
+2. Determine the key elements that need to be highlighted from the appraiser description.
+3. Integrate essential points from the AI description, maintaining the 70% emphasis on the appraiser’s description.
+4. Ensure the fused paragraph is coherent and concise, not exceeding ${maxTitleLength} characters in length.
+
+# Constraints
+
+- The appraiser description should be 70% of the focus in the final text.
+- The total character count must not exceed ${maxTitleLength} characters.
+
+# Output Format
+
+- The final output should be a single sentence or phrase suitable for a WordPress title, within a ${maxTitleLength}-character limit.
+
+# Examples
+
+- **Input**: 
+  - Description of Appraiser: "Expert in home valuations with 10 years of experience."
+  - Description of AI: "Utilizes advanced algorithms for accurate price predictions."
+  
+- **Expected Output**: 
+  - "Home Valuer with 10yrs & Innovative Algorithm Insights" (Note: An actual output would heavily rely on the input descriptions and stay within 60 characters.)
+
+# Notes
+
+- If the input descriptions together exceed the character limit, prioritize the most essential details from the appraiser followed by IA elements until the character limit is reached.
+`
+    },
+    {
+      role: 'user',
+      content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a cohesive paragraph that emphasizes the appraiser's description by 70% and does not exceed ${maxTitleLength} characters, suitable for a WordPress title.`
+    }
+  ],
+  max_tokens: 60, // Ajustaremos este valor más adelante
+  temperature: 0.7
+};
 
     // Make the request to OpenAI API
     const openAIResponse = await fetch(openAIEndpoint, {
