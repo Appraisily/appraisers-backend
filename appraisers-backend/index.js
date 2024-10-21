@@ -507,7 +507,7 @@ async function startServer() {
     });
 
 // **Endpoint: Actualizar appraisalValue y/o description**
-router.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, async (req, res) => {
+app.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, async (req, res) => {
   const { id } = req.params;
   const { appraisalValue, description, isEdit } = req.body; // Añadimos isEdit
 
