@@ -813,7 +813,7 @@ async function completarTasacion(postId) {
     if (!response.ok) {
       throw new Error(responseData.message || 'Error completing appraisal report.');
     }
-await updateCurrentStepInSheet(sheets, id, 'Appraisal Text Filled');
+  await updateCurrentStepInSheet(sheetsGlobal, id, 'Appraisal Text Filled');
     console.log(`[completarTasacion] Completed appraisal report for Post ID: ${postId}`);
   } catch (error) {
     console.error('Error in completarTasacion:', error);
