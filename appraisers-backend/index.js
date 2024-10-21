@@ -77,6 +77,24 @@ function authenticateMiddleware(JWT_SECRET) {
   };
 }
 
+
+
+function validateSetValueData(req, res, next) {
+  const { appraisalValue, description } = req.body;
+
+  if (appraisalValue === undefined || description === undefined) {
+    return res.status(400).json({ success: false, message: 'Appraisal Value and description are required.' });
+  }
+
+  // Agrega más validaciones según sea necesario
+
+  next();
+}
+
+module.exports = {
+  validateSetValueData,
+};
+
 // Función para inicializar la API de Google Sheets
 async function initializeSheets() {
   try {
