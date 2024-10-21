@@ -577,6 +577,7 @@ async function markAppraisalAsCompleted(sheets, id, appraisalValue, description)
     });
 
     console.log(`[markAppraisalAsCompleted] Appraisal ID ${id} marked as completed.`);
+    await updateCurrentStepInSheet(sheets, id, 'Completed');
 
   } catch (error) {
     console.error('Error in markAppraisalAsCompleted:', error);
@@ -638,7 +639,7 @@ async function buildPDF(id) {
 
     // Update the links in Google Sheets
     await updateLinks(id, postId);
-
+await updateCurrentStepInSheet(sheets, id, 'PDF built and links inserted');
     console.log('[buildPDF] Links updated in Google Sheets successfully.');
 
   } catch (error) {
