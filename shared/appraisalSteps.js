@@ -695,23 +695,22 @@ async function getSessionId(postId) {
   }
 }
 
-// Function: updateLinks
 async function updateLinks(id, postId) {
   if (!postId) {
     throw new Error('postId is required.');
   }
 
   try {
-    // Get the links from the ACF fields in WordPress
+    // Obtener los enlaces desde los campos ACF de WordPress
     const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
     console.log(`[updateLinks] WordPress Endpoint: ${wpEndpoint}`);
 
-    // Authentication with WordPress
+    // Autenticación con WordPress
     const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
     const base64Credentials = Buffer.from(credentialsString).toString('base64');
     const authHeader = 'Basic ' + base64Credentials;
 
-    // Get the post from WordPress
+    // Obtener el post de WordPress
     const wpResponse = await fetch(wpEndpoint, {
       method: 'GET',
       headers: {
@@ -737,11 +736,11 @@ async function updateLinks(id, postId) {
       throw new Error('Links not found in ACF fields of WordPress.');
     }
 
-    // Update columns M and N in Google Sheets
-    const updateRange = `${config.SHEET_NAME}!M${id}:N${id}`; // Columns M and N
+    // Actualizar columnas M y N en Google Sheets
+    const updateRange = `${config.SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
     const values = [[pdfLink, docLink]];
 
-    await sheets.spreadsheets.values.update({
+    await sheetsGlobal.spreadsheets.values.update({
       spreadsheetId: config.SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
@@ -751,12 +750,12 @@ async function updateLinks(id, postId) {
     });
 
     console.log(`[updateLinks] Updated columns M and N for row ${id} with PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
-
   } catch (error) {
     console.error('Error in updateLinks:', error);
     throw error;
   }
 }
+
 
 // Function: updateShortcodesFlag
 async function updateShortcodesFlag(wpPostId, authHeader) {
