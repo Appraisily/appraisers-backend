@@ -505,7 +505,7 @@ async function sendEmailToCustomer(sheets, id) {
     }
 
     // Define your SendGrid template ID
-    const templateId = 'YOUR_SENDGRID_TEMPLATE_ID'; // Reemplaza con tu template ID real de SendGrid
+    const templateId = config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED; // Reemplaza con tu template ID real de SendGrid
 
     // Send Email using SendGrid with the template
     const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
