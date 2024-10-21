@@ -799,18 +799,28 @@ async function completarTasacion(postId) {
       body: JSON.stringify({ postId }),
     });
 
-    const responseData = await response.json();
+    const contentType = response.headers.get('content-type');
+    let responseData;
+
+    if (contentType && contentType.includes('application/json')) {
+      responseData = await response.json();
+    } else {
+      const text = await response.text();
+      console.error('Unexpected response format:', text);
+      throw new Error(`Unexpected response format: ${text}`);
+    }
 
     if (!response.ok) {
       throw new Error(responseData.message || 'Error completing appraisal report.');
     }
-
+await updateCurrentStepInSheet(sheets, id, 'Appraisal Text Filled');
     console.log(`[completarTasacion] Completed appraisal report for Post ID: ${postId}`);
   } catch (error) {
     console.error('Error in completarTasacion:', error);
     throw error;
   }
 }
+
 
 // Function: processAppraisal Actualizada
 async function processAppraisal(id, appraisalValue, description) {
