@@ -12,11 +12,11 @@ const { config } = require('./config'); // Asegúrate de que la ruta es correcta
 let sheetsGlobal; // Declarar la variable global
 
 // Function: updateCurrentStepInSheet
-async function updateCurrentStepInSheet(sheets, id, currentStep) {
-    console.log(`[updateCurrentStepInSheet] Called with id:`, id, `type:`, typeof id);
+async function updateCurrentStepInSheet(sheets, id, currentStep, sheetName = config.SHEET_NAME) {
+  console.log(`[updateCurrentStepInSheet] Called with id:`, id, `type:`, typeof id, `sheetName:`, sheetName);
 
   try {
-    const updateRange = `${config.SHEET_NAME}!F${id}:F${id}`; // Column F
+    const updateRange = `${sheetName}!F${id}:F${id}`; // Column F
     const values = [[currentStep]];
 
     await sheets.spreadsheets.values.update({
@@ -61,9 +61,9 @@ async function setAppraisalValue(sheets, id, appraisalValue, description, sheetN
       },
     });
 
-console.log(`[setAppraisalValue] Updated columns J and K for row ${id} with Appraisal Value: ${appraisalValue} and Description: ${description}`);
+    console.log(`[setAppraisalValue] Updated columns J and K for row ${id} with Appraisal Value: ${appraisalValue} and Description: ${description}`);
 
-    // Get appraisal details to obtain the WordPress URL
+    // Obtener detalles de la tasación para obtener la URL de WordPress
     const appraisalResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: config.SPREADSHEET_ID,
       range: `${config.SHEET_NAME}!A${id}:I${id}`,
@@ -290,6 +290,7 @@ async function updatePostTitle(sheets, id) {
 
     console.log(`[updatePostTitle] WordPress post title updated successfully:`, wpUpdateData);
 
+    return wpPostId; // Asegúrate de que retornas postId
   } catch (error) {
     console.error('Error in updatePostTitle:', error);
     throw error;
@@ -785,37 +786,7 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
   console.log(`[updateShortcodesFlag] ACF flag updated successfully:`, updateFlagData);
 }
 
-async function getPostIdFromSheet(id, sheetName = config.SHEET_NAME) {
-  console.log(`[getPostIdFromSheet] Called for Appraisal ID: ${id} in sheet: ${sheetName}`);
-  
-  try {
-    const range = `${sheetName}!G${id}:G${id}`; // Columna G de la fila correspondiente
-    const response = await sheetsGlobal.spreadsheets.values.get({
-      spreadsheetId: config.SPREADSHEET_ID,
-      range: range,
-    });
-
-    const values = response.data.values;
-    if (!values || !values[0] || !values[0][0]) {
-      throw new Error(`No URL found in column G for Appraisal ID: ${id}`);
-    }
-
-    const url = values[0][0];
-    const postId = extractPostId(url);
-
-    if (!postId) {
-      throw new Error(`Unable to extract postId from URL: ${url}`);
-    }
-
-    console.log(`[getPostIdFromSheet] Extracted postId: ${postId} for Appraisal ID: ${id}`);
-    return postId;
-  } catch (error) {
-    console.error(`[getPostIdFromSheet] Error: ${error.message}`);
-    throw error;
-  }
-}
-
-// Función: completarTasacion (Paso 5)
+// Function: completarTasacion (Paso 5)
 async function completarTasacion(postId) {
   console.log(`[completarTasacion] Called for Post ID: ${postId}`);
 
@@ -841,8 +812,7 @@ async function completarTasacion(postId) {
   }
 }
 
-// appraisalSteps.js
-
+// Function: processAppraisal Actualizada
 async function processAppraisal(id, appraisalValue, description) {
   try {
     console.log(`[processAppraisal] Starting process for Appraisal ID: ${id}`);
@@ -864,8 +834,6 @@ async function processAppraisal(id, appraisalValue, description) {
     console.log(`[processAppraisal] insertTemplate completed for ID: ${id}`);
 
     // Paso 5: Completar la tasación mediante una petición a otro backend
-          const postId = await getPostIdFromSheet(id); // Extraer postId desde la hoja
-
     await completarTasacion(postId);
     console.log(`[processAppraisal] completarTasacion completed for Post ID: ${postId}`);
 
@@ -888,21 +856,19 @@ async function processAppraisal(id, appraisalValue, description) {
   }
 }
 
-
 // Function: appraisalSteps
 function appraisalSteps(sheets, config = {}) {
   const SPREADSHEET_ID = config.SPREADSHEET_ID;
   const SHEET_NAME = config.SHEET_NAME;
-      sheetsGlobal = sheets; // Asignar sheets a la variable global
+  sheetsGlobal = sheets; // Asignar sheets a la variable global
 
- return {
-    
+  return {
     setAppraisalValue: (id, appraisalValue, description, sheetName) =>
       setAppraisalValue(sheets, id, appraisalValue, description, sheetName),
     mergeDescriptions: (id, appraiserDescription) =>
       mergeDescriptions(sheets, id, appraiserDescription),
-     completarTasacion: (postId) =>
-         completarTasacion(postId),
+    completarTasacion: (postId) =>
+      completarTasacion(postId),
     updatePostTitle: (id) =>
       updatePostTitle(sheets, id),
     insertTemplate: (id) =>
