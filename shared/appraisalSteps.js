@@ -199,7 +199,7 @@ const openAIRequestBody = {
       content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a cohesive paragraph that emphasizes the appraiser's description by 70% and does not exceed ${maxTitleLength} characters, suitable for a WordPress title.`
     }
   ],
-  max_tokens: 250, // Ajustaremos este valor más adelante
+  max_tokens: 20, // Ajustado para alinearse con el límite de caracteres
   temperature: 0.7
 };
 
