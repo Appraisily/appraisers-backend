@@ -159,35 +159,24 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
 
     const maxTitleLength = 350; // Define el máximo de caracteres para el título en WordPress
 
-    // Prepare the request to OpenAI GPT-4 Chat API
-    const openAIRequestBody = {
-      model: 'gpt-4',
-      messages: [
-        {
-          role: 'system',
-          content: `You are an assistant that merges appraiser and AI descriptions into a cohesive paragraph. The merged description should emphasize the appraiser's description and must not exceed ${maxTitleLength} characters, suitable for WordPress titles.
-
-# Steps
-
-1. Analyze both the appraiser description and the AI description.
-2. Determine the key elements that need to be highlighted from the appraiser description.
-3. Integrate essential points from the AI description, maintaining the emphasis on the appraiser’s description.
-4. Ensure the fused paragraph is coherent and concise, not exceeding ${maxTitleLength} characters in length. The description has to be as completed and large as possible.
-
-# Constraints
-
-- In case of doubts or contradictions, use the appraiser's description.
-`
-        },
-        {
-          role: 'user',
-          content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a cohesive paragraph that emphasizes the appraiser's description by 70% and does not exceed ${maxTitleLength} characters, suitable for a WordPress title.`
-        }
-      ],
-      max_tokens: 100, // Ajustado para alinearse con el límite de caracteres
-      temperature: 0.7
-    };
-
+// Prepare the request to OpenAI GPT-4 Chat API for Merged Description
+const openAIRequestBody = {
+  model: 'gpt-4',
+  messages: [
+    {
+      role: 'system',
+      content: `You are an assistant that merges appraiser and AI descriptions into a single, cohesive, and concise paragraph suitable for a WordPress title. The merged description should prefer the appraiser's description in case of any contradictions and must not exceed ${maxTitleLength} characters. Provide only the merged description without any additional text, introductions, or explanations.`
+    },
+    {
+      role: 'user',
+      content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a single paragraph that prefers the appraiser's description in case of any contradictions and does not exceed ${maxTitleLength} characters. The output should contain only the merged description without any additional text.`
+    }
+  ],
+  max_tokens: Math.ceil(maxTitleLength / 4) + 10, // Ajuste flexible de tokens
+  temperature: 0.7,
+  n: 1,
+  stop: null // Eliminado según tu preferencia
+};
     // Depurar el Request Body
     console.log('Request Body para OpenAI:', JSON.stringify(openAIRequestBody, null, 2));
 
