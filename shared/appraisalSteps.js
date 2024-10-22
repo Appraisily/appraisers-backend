@@ -258,7 +258,7 @@ async function updatePostTitle(sheets, id) {
       throw new Error('Blended description not available.');
     }
 
-    const newTitle = blendedDescription.substring(0, 50) + '...'; // Example of generating a new title
+const newTitle = blendedDescription; // Usar la descripción completa como título
 
     const parsedWpUrl = new URL(appraisalWordpressUrl);
     const wpPostId = parsedWpUrl.searchParams.get('post');
