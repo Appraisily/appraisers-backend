@@ -1,4 +1,4 @@
-// appraisalSteps.js.
+// appraisalSteps.js
 
 const fetch = require('node-fetch');
 require('dotenv').config(); // Asegurarse de que las variables de entorno están cargadas
@@ -663,7 +663,7 @@ async function buildPDF(id) {
 
     // Update the links in Google Sheets
     await updateLinks(id, postId);
-await updateCurrentStepInSheet(sheets, id, 'PDF built and links inserted');
+    await updateCurrentStepInSheet(sheetsGlobal, id, 'PDF built and links inserted');
     console.log('[buildPDF] Links updated in Google Sheets successfully.');
 
   } catch (error) {
@@ -811,7 +811,7 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
 }
 
 // Function: completarTasacion (Paso 5)
-async function completarTasacion(postId) {
+async function completarTasacion(postId, id) { // Añadido 'id' como parámetro
   console.log(`[completarTasacion] Called for Post ID: ${postId}`);
 
   try {
@@ -837,7 +837,9 @@ async function completarTasacion(postId) {
     if (!response.ok) {
       throw new Error(responseData.message || 'Error completing appraisal report.');
     }
-  await updateCurrentStepInSheet(sheetsGlobal, id, 'Appraisal Text Filled');
+
+    // Utilizar 'id' para actualizar el paso actual en Google Sheets
+    await updateCurrentStepInSheet(sheetsGlobal, id, 'Appraisal Text Filled');
     console.log(`[completarTasacion] Completed appraisal report for Post ID: ${postId}`);
   } catch (error) {
     console.error('Error in completarTasacion:', error);
@@ -868,7 +870,7 @@ async function processAppraisal(id, appraisalValue, description) {
     console.log(`[processAppraisal] insertTemplate completed for ID: ${id}`);
 
     // Paso 5: Completar la tasación mediante una petición a otro backend
-    await completarTasacion(postId);
+    await completarTasacion(postId, id); // Pasar 'id' como segundo parámetro
     console.log(`[processAppraisal] completarTasacion completed for Post ID: ${postId}`);
 
     // Paso 6: Hacer el PDF
@@ -901,8 +903,8 @@ function appraisalSteps(sheets, config = {}) {
       setAppraisalValue(sheets, id, appraisalValue, description, sheetName),
     mergeDescriptions: (id, appraiserDescription) =>
       mergeDescriptions(sheets, id, appraiserDescription),
-    completarTasacion: (postId) =>
-      completarTasacion(postId),
+    completarTasacion: (postId, id) =>
+      completarTasacion(postId, id), // Asegurarse de pasar 'id'
     updatePostTitle: (id) =>
       updatePostTitle(sheets, id),
     insertTemplate: (id) =>
@@ -935,6 +937,7 @@ module.exports = {
   buildPDF,
   getSessionId,
   updateLinks,
+  updateShortcodesFlag,
   updateCurrentStepInSheet,
   processAppraisal, // Exportar si deseas acceder a ella directamente
   appraisalSteps,
