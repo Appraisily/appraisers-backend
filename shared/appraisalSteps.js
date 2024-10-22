@@ -137,6 +137,10 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
     throw new Error('Server configuration error. Please contact support.');
   }
 
+  if (!appraiserDescription) {
+    throw new Error('Appraiser description is required.');
+  }
+
   try {
     // Update the current step in the spreadsheet
     await updateCurrentStepInSheet(sheets, id, 'Merge Descriptions');
@@ -153,58 +157,42 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
       throw new Error('IA description not found in Google Sheets.');
     }
 
-    // Prepare the request to OpenAI GPT-4 Chat API
-    const openAIEndpoint = 'https://api.openai.com/v1/chat/completions';
-const maxTitleLength = 60; // Define el máximo de caracteres para el título en WordPress
+    const maxTitleLength = 350; // Define el máximo de caracteres para el título en WordPress
 
-const openAIRequestBody = {
-  model: 'gpt-4',
-  messages: [
-    {
-      role: 'system',
-      content: `You are an assistant that merges appraiser and AI descriptions into a cohesive paragraph. The merged description should emphasize the appraiser's description (70%) and must not exceed ${maxTitleLength} characters, suitable for WordPress titles.
+    // Prepare the request to OpenAI GPT-4 Chat API
+    const openAIRequestBody = {
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an assistant that merges appraiser and AI descriptions into a cohesive paragraph. The merged description should emphasize the appraiser's description and must not exceed ${maxTitleLength} characters, suitable for WordPress titles.
 
 # Steps
 
 1. Analyze both the appraiser description and the AI description.
 2. Determine the key elements that need to be highlighted from the appraiser description.
-3. Integrate essential points from the AI description, maintaining the 70% emphasis on the appraiser’s description.
-4. Ensure the fused paragraph is coherent and concise, not exceeding ${maxTitleLength} characters in length.
+3. Integrate essential points from the AI description, maintaining the emphasis on the appraiser’s description.
+4. Ensure the fused paragraph is coherent and concise, not exceeding ${maxTitleLength} characters in length. The description has to be as completed and large as possible.
 
 # Constraints
 
-- The appraiser description should be 70% of the focus in the final text.
-- The total character count must not exceed ${maxTitleLength} characters.
-
-# Output Format
-
-- The final output should be a single sentence or phrase suitable for a WordPress title, within a ${maxTitleLength}-character limit.
-
-# Examples
-
-- **Input**: 
-  - Description of Appraiser: "Expert in home valuations with 10 years of experience."
-  - Description of AI: "Utilizes advanced algorithms for accurate price predictions."
-  
-- **Expected Output**: 
-  - "Home Valuer with 10yrs & Innovative Algorithm Insights" (Note: An actual output would heavily rely on the input descriptions and stay within 60 characters.)
-
-# Notes
-
-- If the input descriptions together exceed the character limit, prioritize the most essential details from the appraiser followed by IA elements until the character limit is reached.
+- In case of doubts or contradictions, use the appraiser's description.
 `
-    },
-    {
-      role: 'user',
-      content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a cohesive paragraph that emphasizes the appraiser's description by 70% and does not exceed ${maxTitleLength} characters, suitable for a WordPress title.`
-    }
-  ],
-  max_tokens: 20, // Ajustado para alinearse con el límite de caracteres
-  temperature: 0.7
-};
+        },
+        {
+          role: 'user',
+          content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a cohesive paragraph that emphasizes the appraiser's description by 70% and does not exceed ${maxTitleLength} characters, suitable for a WordPress title.`
+        }
+      ],
+      max_tokens: 100, // Ajustado para alinearse con el límite de caracteres
+      temperature: 0.7
+    };
+
+    // Depurar el Request Body
+    console.log('Request Body para OpenAI:', JSON.stringify(openAIRequestBody, null, 2));
 
     // Make the request to OpenAI API
-    const openAIResponse = await fetch(openAIEndpoint, {
+    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -225,9 +213,15 @@ const openAIRequestBody = {
       throw new Error('Invalid response structure from OpenAI.');
     }
 
-    const blendedDescription = openAIData.choices[0].message.content.trim();
+    let blendedDescription = openAIData.choices[0].message.content.trim();
 
     console.log('Blended Description:', blendedDescription);
+
+    // Validar la longitud de la descripción fusionada
+    if (blendedDescription.length > maxTitleLength) {
+      blendedDescription = blendedDescription.substring(0, maxTitleLength - 3) + '...'; // Añade puntos suspensivos si se excede
+      console.warn(`Blended description truncated to ${maxTitleLength} characters.`);
+    }
 
     // Update column L with blendedDescription
     const updateRange = `${config.SHEET_NAME}!L${id}:L${id}`; // Column L
@@ -237,13 +231,12 @@ const openAIRequestBody = {
       spreadsheetId: config.SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
-      requestBody: {
+      resource: {
         values: updateValues,
       },
     });
 
     console.log(`[mergeDescriptions] Updated column L for row ${id} with blendedDescription.`);
-
   } catch (error) {
     console.error('Error in mergeDescriptions:', error);
     throw error;
