@@ -838,41 +838,77 @@ async function completarTasacion(postId, id) { // Añadido 'id' como parámetro
 
 
 // Function: processAppraisal Actualizada
-async function processAppraisal(id, appraisalValue, description) {
+async function processAppraisal(id, appraisalValue, description, resume = false) {
   try {
     console.log(`[processAppraisal] Starting process for Appraisal ID: ${id}`);
 
-    // Paso 1: Establecer el valor de la tasación
-    await setAppraisalValue(sheetsGlobal, id, appraisalValue, description);
-    console.log(`[processAppraisal] setAppraisalValue completed for ID: ${id}`);
+    // Definir los pasos en orden
+    const steps = [
+      { name: 'Set Appraisal Value', func: setAppraisalValue },
+      { name: 'Merge Descriptions', func: mergeDescriptions },
+      { name: 'Updating Post Title', func: updatePostTitle },
+      { name: 'Template Inserted', func: insertTemplate },
+      { name: 'Appraisal Text Filled', func: completarTasacion },
+      { name: 'PDF built and links inserted', func: buildPDF },
+      { name: 'Email sent', func: sendEmailToCustomer },
+      { name: 'Completed', func: markAppraisalAsCompleted },
+    ];
 
-    // Paso 2: Combinar descripciones
-    await mergeDescriptions(sheetsGlobal, id, description);
-    console.log(`[processAppraisal] mergeDescriptions completed for ID: ${id}`);
+    let startIndex;
 
-    // Paso 3: Actualizar el título del post en WordPress y obtener postId
-    const postId = await updatePostTitle(sheetsGlobal, id);
-    console.log(`[processAppraisal] updatePostTitle completed for ID: ${id} with Post ID: ${postId}`);
+    if (resume) {
+      // Obtener el paso actual desde la hoja
+      let currentStep = await getCurrentStepFromSheet(sheetsGlobal, id);
 
-    // Paso 4: Insertar plantillas en WordPress
-    await insertTemplate(sheetsGlobal, id);
-    console.log(`[processAppraisal] insertTemplate completed for ID: ${id}`);
+      // Si currentStep es null o vacío, empezamos desde el principio
+      if (!currentStep) {
+        currentStep = '';
+      }
 
-    // Paso 5: Completar la tasación mediante una petición a otro backend
-    await completarTasacion(postId, id); // Pasar 'id' como segundo parámetro
-    console.log(`[processAppraisal] completarTasacion completed for Post ID: ${postId}`);
+      // Encontrar el índice del paso actual
+      startIndex = steps.findIndex(step => step.name === currentStep);
 
-    // Paso 6: Hacer el PDF
-    await buildPDF(id);
-    console.log(`[processAppraisal] buildPDF completed for ID: ${id}`);
+      // Si el paso actual no se encuentra, empezamos desde el principio
+      if (startIndex === -1) {
+        startIndex = -1; // Para empezar desde el índice 0
+      }
+    } else {
+      // Si no se debe reanudar, empezamos desde el primer paso
+      startIndex = -1; // Comenzar desde el primer paso (índice 0)
+    }
 
-    // Paso 7: Enviar correo al cliente
-    await sendEmailToCustomer(sheetsGlobal, id);
-    console.log(`[processAppraisal] sendEmailToCustomer completed for ID: ${id}`);
+    // Variable para almacenar postId
+    let postId;
 
-    // Paso 8: Marcar la tasación como completada
-    await markAppraisalAsCompleted(sheetsGlobal, id, appraisalValue, description);
-    console.log(`[processAppraisal] markAppraisalAsCompleted completed for ID: ${id}`);
+    // Ejecutar los pasos restantes
+    for (let i = startIndex + 1; i < steps.length; i++) {
+      const step = steps[i];
+      console.log(`[processAppraisal] Executing step: ${step.name}`);
+
+      // Llamar a la función correspondiente
+      if (step.name === 'Set Appraisal Value') {
+        await step.func(sheetsGlobal, id, appraisalValue, description);
+      } else if (step.name === 'Merge Descriptions') {
+        await step.func(sheetsGlobal, id, description);
+      } else if (step.name === 'Updating Post Title') {
+        postId = await step.func(sheetsGlobal, id); // Almacenar postId para uso posterior
+      } else if (step.name === 'Template Inserted') {
+        await step.func(sheetsGlobal, id);
+      } else if (step.name === 'Appraisal Text Filled') {
+        await step.func(postId, id); // completarTasacion
+      } else if (step.name === 'PDF built and links inserted') {
+        await step.func(id); // buildPDF
+      } else if (step.name === 'Email sent') {
+        await step.func(sheetsGlobal, id);
+      } else if (step.name === 'Completed') {
+        await step.func(sheetsGlobal, id, appraisalValue, description);
+      } else {
+        console.error(`[processAppraisal] Unknown step: ${step.name}`);
+        throw new Error(`Unknown step: ${step.name}`);
+      }
+
+      console.log(`[processAppraisal] ${step.name} completed for ID: ${id}`);
+    }
 
     console.log(`[processAppraisal] Processing completed successfully for Appraisal ID: ${id}`);
   } catch (error) {
@@ -880,6 +916,7 @@ async function processAppraisal(id, appraisalValue, description) {
     throw error; // Propagar el error para manejarlo en el caller
   }
 }
+
 
 // Function: appraisalSteps
 function appraisalSteps(sheets, config = {}) {
