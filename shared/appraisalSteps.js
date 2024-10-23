@@ -207,10 +207,10 @@ const openAIRequestBody = {
     console.log('Blended Description:', blendedDescription);
 
     // Validar la longitud de la descripción fusionada
-    if (blendedDescription.length > maxTitleLength) {
-      blendedDescription = blendedDescription.substring(0, maxTitleLength - 3) + '...'; // Añade puntos suspensivos si se excede
-      console.warn(`Blended description truncated to ${maxTitleLength} characters.`);
-    }
+//    if (blendedDescription.length > maxTitleLength) {
+ //     blendedDescription = blendedDescription.substring(0, maxTitleLength - 3) + '...'; // Añade puntos suspensivos si se excede
+//      console.warn(`Blended description truncated to ${maxTitleLength} characters.`);
+//    }
 
     // Update column L with blendedDescription
     const updateRange = `${config.SHEET_NAME}!L${id}:L${id}`; // Column L
