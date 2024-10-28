@@ -257,6 +257,93 @@ async function startServer() {
       res.json({ authenticated: true, name: req.user.name });
     });
 
+    // index.js (Continuación)
+
+// Endpoint: Actualizar Estado de Apreciación Pendiente
+app.post('/api/update-pending-appraisal', async (req, res) => {
+  try {
+    // Verificar el shared secret
+    const incomingSecret = req.headers['x-shared-secret'];
+    if (incomingSecret !== config.SHARED_SECRET) {
+      console.warn('Autenticación fallida: Shared secret inválido.');
+      return res.status(403).json({ success: false, message: 'Forbidden: Invalid shared secret.' });
+    }
+
+    const { session_id, status, post_edit_url, description } = req.body;
+
+    // Validar campos requeridos
+    if (!session_id || !status || !post_edit_url || !description) {
+      console.warn('Datos incompletos recibidos en el endpoint.');
+      return res.status(400).json({ success: false, message: 'Missing required fields.' });
+    }
+
+    console.log(`Actualizando Google Sheets para session_id: ${session_id}`);
+
+    // Inicializar Google Sheets API
+    const sheets = await initializeSheets();
+
+    const spreadsheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+    const sheetName = config.GOOGLE_SHEET_NAME;
+
+    // Obtener todos los session_ids de la columna C
+    const range = `${sheetName}!C:C`;
+    const responseSheets = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
+    });
+
+    const values = responseSheets.data.values || [];
+    let rowIndex = null;
+
+    for (let i = 0; i < values.length; i++) {
+      const cellValue = values[i][0];
+      if (cellValue === session_id) {
+        rowIndex = i + 1; // Las filas en Google Sheets comienzan en 1
+        break;
+      }
+    }
+
+    if (rowIndex === null) {
+      console.warn(`session_id: ${session_id} no encontrado en la hoja de Apreciaciones Pendientes.`);
+      return res.status(404).json({ success: false, message: 'Session ID not found.' });
+    }
+
+    console.log(`session_id: ${session_id} encontrado en la fila: ${rowIndex}`);
+
+    // Actualizar la columna G (post_edit_url)
+    const updateUrlRange = `${sheetName}!G${rowIndex}`;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: updateUrlRange,
+      valueInputOption: 'USER_ENTERED',
+      resource: {
+        values: [[post_edit_url]],
+      },
+    });
+
+    console.log(`post_edit_url actualizado en la fila ${rowIndex} a: ${post_edit_url}`);
+
+    // Actualizar la columna H (description)
+    const updateDescriptionRange = `${sheetName}!H${rowIndex}`;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: updateDescriptionRange,
+      valueInputOption: 'USER_ENTERED',
+      resource: {
+        values: [[description]],
+      },
+    });
+
+    console.log(`Descripción del cliente actualizada en la fila ${rowIndex} a: ${description}`);
+
+    res.status(200).json({ success: true, message: 'Google Sheets actualizado exitosamente.' });
+  } catch (error) {
+    console.error('Error en /api/update-pending-appraisal:', error);
+    res.status(500).json({ success: false, message: 'Internal Server Error.' });
+  }
+});
+
+
     // **Endpoint: Obtener Apreciaciones Pendientes**
     app.get('/api/appraisals', authenticate, async (req, res) => {
       try {
