@@ -1,4 +1,4 @@
-// config.js
+// shared/config.js
 
 const { getSecret } = require('./secretManager');
 
@@ -20,22 +20,31 @@ async function initializeConfig() {
     config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED = (await getSecret('SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED')).trim();
     console.log('Credenciales de SendGrid obtenidas exitosamente.');
 
-    config.SPREADSHEET_ID = (await getSecret('PENDING_APPRAISALS_SPREADSHEET_ID')).trim();
-    config.SHEET_NAME = 'Pending Appraisals'; // Puedes ajustar esto según necesites
+    config.PENDING_APPRAISALS_SPREADSHEET_ID = (await getSecret('PENDING_APPRAISALS_SPREADSHEET_ID')).trim();
+    config.GOOGLE_SHEET_NAME = (await getSecret('GOOGLE_SHEET_NAME')).trim();
+    console.log('PENDING_APPRAISALS_SPREADSHEET_ID y GOOGLE_SHEET_NAME obtenidos exitosamente.');
 
-    // Añadir GCP_PROJECT_ID directamente
-    config.GCP_PROJECT_ID = 'civil-forge-403609';
-    console.log('GCP_PROJECT_ID configurado.');
-
-        // **Añadir OPENAI_API_KEY**
-        config.OPENAI_API_KEY = (await getSecret('OPENAI_API_KEY')).trim();
-
-        // Obtener EDIT_SHEET_NAME desde Secret Manager
+    config.LOG_SPREADSHEET_ID = (await getSecret('LOG_SPREADSHEET_ID')).trim();
     config.EDIT_SHEET_NAME = (await getSecret('EDIT_SHEET_NAME')).trim();
-    console.log('EDIT_SHEET_NAME obtenido exitosamente.');
+    console.log('LOG_SPREADSHEET_ID y EDIT_SHEET_NAME obtenidos exitosamente.');
 
+    config.GCS_BUCKET_NAME = (await getSecret('GCS_BUCKET_NAME')).trim();
+    config.GOOGLE_CLOUD_PROJECT_ID = (await getSecret('GOOGLE_CLOUD_PROJECT_ID')).trim();
+    config.GOOGLE_DOCS_CREDENTIALS = await getSecret('GOOGLE_DOCS_CREDENTIALS'); // JSON string
+    config.GOOGLE_VISION_CREDENTIALS = await getSecret('GOOGLE_VISION_CREDENTIALS'); // JSON string
 
-    console.log('SPREADSHEET_ID, SHEET_NAME y GCP_PROJECT_ID configurados.');
+    config.OPENAI_API_KEY = (await getSecret('OPENAI_API_KEY')).trim();
+    console.log('OPENAI_API_KEY obtenido exitosamente.');
+
+    config.SHARED_SECRET = await getSecret('SHARED_SECRET').trim();
+    console.log('SHARED_SECRET obtenido exitosamente.');
+
+    config.SALES_SPREADSHEET_ID = (await getSecret('SALES_SPREADSHEET_ID')).trim();
+    console.log('SALES_SPREADSHEET_ID obtenido exitosamente.');
+
+    // Puedes agregar más configuraciones según sea necesario
+
+    console.log('Todas las configuraciones han sido inicializadas correctamente.');
   } catch (error) {
     console.error('Error inicializando la configuración:', error);
     throw error;
