@@ -269,10 +269,14 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
       return res.status(403).json({ success: false, message: 'Forbidden: Invalid shared secret.' });
     }
 
-    const { session_id, status, post_edit_url, description } = req.body;
+    // Obtener los datos del payload
+    const { session_id, description, images } = req.body;
 
     // Validar campos requeridos
-    if (!session_id || !status || !post_edit_url || !description) {
+    if (
+      !session_id ||
+      typeof images !== 'object' // 'description' puede estar vacío
+    ) {
       console.warn('Datos incompletos recibidos en el endpoint.');
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
     }
@@ -310,19 +314,6 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
 
     console.log(`session_id: ${session_id} encontrado en la fila: ${rowIndex}`);
 
-    // Actualizar la columna G (post_edit_url)
-    const updateUrlRange = `${sheetName}!G${rowIndex}`;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: updateUrlRange,
-      valueInputOption: 'USER_ENTERED',
-      resource: {
-        values: [[post_edit_url]],
-      },
-    });
-
-    console.log(`post_edit_url actualizado en la fila ${rowIndex} a: ${post_edit_url}`);
-
     // Actualizar la columna H (description)
     const updateDescriptionRange = `${sheetName}!H${rowIndex}`;
     await sheets.spreadsheets.values.update({
@@ -336,12 +327,26 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
 
     console.log(`Descripción del cliente actualizada en la fila ${rowIndex} a: ${description}`);
 
+    // Actualizar la columna O (images) como JSON
+    const updateImagesRange = `${sheetName}!O${rowIndex}`;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: updateImagesRange,
+      valueInputOption: 'USER_ENTERED',
+      resource: {
+        values: [[JSON.stringify(images)]],
+      },
+    });
+
+    console.log(`images actualizado en la fila ${rowIndex} a: ${JSON.stringify(images)}`);
+
     res.status(200).json({ success: true, message: 'Google Sheets actualizado exitosamente.' });
   } catch (error) {
     console.error('Error en /api/update-pending-appraisal:', error);
     res.status(500).json({ success: false, message: 'Internal Server Error.' });
   }
 });
+
 
 
     // **Endpoint: Obtener Apreciaciones Pendientes**
