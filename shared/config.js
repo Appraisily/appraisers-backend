@@ -36,7 +36,7 @@ async function initializeConfig() {
     config.OPENAI_API_KEY = (await getSecret('OPENAI_API_KEY')).trim();
     console.log('OPENAI_API_KEY obtenido exitosamente.');
 
-    config.SHARED_SECRET = await getSecret('SHARED_SECRET').trim();
+    config.SHARED_SECRET = (await getSecret('SHARED_SECRET')).trim();
     console.log('SHARED_SECRET obtenido exitosamente.');
 
     config.SALES_SPREADSHEET_ID = (await getSecret('SALES_SPREADSHEET_ID')).trim();
