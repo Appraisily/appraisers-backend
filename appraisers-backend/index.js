@@ -270,11 +270,12 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     }
 
     // Obtener los datos del payload
-    const { session_id, description, images } = req.body;
+    const { session_id, description, images, post_id } = req.body;
 
     // Validar campos requeridos
     if (
       !session_id ||
+      !post_id ||
       typeof images !== 'object' // 'description' puede estar vacío
     ) {
       console.warn('Datos incompletos recibidos en el endpoint.');
@@ -314,6 +315,10 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
 
     console.log(`session_id: ${session_id} encontrado en la fila: ${rowIndex}`);
 
+    // Construir la URL de edición del post
+    const wordpressBaseUrl = 'https://www.appraisily.com/wp-admin/post.php'; // Reemplaza con tu URL real de WordPress
+    const post_edit_url = `${wordpressBaseUrl}?post=${post_id}&action=edit`;
+
     // Actualizar la columna H (description)
     const updateDescriptionRange = `${sheetName}!H${rowIndex}`;
     await sheets.spreadsheets.values.update({
@@ -340,12 +345,26 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
 
     console.log(`images actualizado en la fila ${rowIndex} a: ${JSON.stringify(images)}`);
 
+    // Actualizar la columna P (post_edit_url) con la URL construida
+    const updateEditUrlRange = `${sheetName}!P${rowIndex}`; // Asumiendo que la columna P es donde quieres almacenar 'post_edit_url'
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: updateEditUrlRange,
+      valueInputOption: 'USER_ENTERED',
+      resource: {
+        values: [[post_edit_url]],
+      },
+    });
+
+    console.log(`post_edit_url actualizado en la fila ${rowIndex} a: ${post_edit_url}`);
+
     res.status(200).json({ success: true, message: 'Google Sheets actualizado exitosamente.' });
   } catch (error) {
     console.error('Error en /api/update-pending-appraisal:', error);
     res.status(500).json({ success: false, message: 'Internal Server Error.' });
   }
 });
+
 
 
 
