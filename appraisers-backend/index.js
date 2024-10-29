@@ -261,20 +261,34 @@ async function startServer() {
 // Endpoint: Actualizar Estado de Apreciación Pendiente
 app.post('/api/update-pending-appraisal', async (req, res) => {
   try {
+    // Loggear el payload completo recibido
+    console.log('Cloud Run: Payload recibido -', JSON.stringify(req.body));
+
     // Verificar el shared secret
     const incomingSecret = req.headers['x-shared-secret'];
     if (incomingSecret !== config.SHARED_SECRET) {
-      console.warn('Autenticación fallida: Shared secret inválido.');
+      console.warn('Cloud Run: Autenticación fallida - Shared secret inválido.');
       return res.status(403).json({ success: false, message: 'Forbidden: Invalid shared secret.' });
     }
+    console.log('Cloud Run: Shared secret verificado correctamente.');
 
     // Obtener los datos del payload
     const { session_id, description, images, post_id, post_edit_url, customer_email } = req.body;
 
+    // Loggear cada campo individualmente
+    console.log(`Cloud Run: session_id - ${session_id}`);
+    console.log(`Cloud Run: description - ${description}`);
+    console.log(`Cloud Run: images - ${JSON.stringify(images)}`);
+    console.log(`Cloud Run: post_id - ${post_id}`);
+    console.log(`Cloud Run: post_edit_url - ${post_edit_url}`);
+    console.log(`Cloud Run: customer_email - ${customer_email}`);
+
     // Validar campos requeridos
     if (!session_id || !post_id || typeof images !== 'object' || !post_edit_url || !customer_email) {
-      console.warn('Datos incompletos recibidos en el endpoint.');
+      console.warn('Cloud Run: Datos incompletos recibidos en el endpoint.');
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
+    } else {
+      console.log('Cloud Run: Todos los campos requeridos están presentes.');
     }
 
     // Enviar respuesta inmediatamente al cliente
@@ -314,7 +328,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
           },
         ];
 
-        console.log('Enviando solicitud a OpenAI para generar descripción.');
+        console.log('Cloud Run: Enviando solicitud a OpenAI para generar descripción.');
 
         // Llamar a la API de Chat Completion de OpenAI para obtener la descripción
         const openaiResponse = await openai.chat.completions.create({
@@ -325,7 +339,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
         });
 
         const aiDescription = openaiResponse.choices[0].message.content.trim();
-        console.log(`Descripción generada por IA: ${aiDescription}`);
+        console.log(`Cloud Run: Descripción generada por IA - ${aiDescription}`);
 
         // Inicializar Google Sheets
         const sheets = await initializeSheets();
@@ -352,11 +366,11 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
         }
 
         if (rowIndex === null) {
-          console.error(`No se encontró la sesión con ID ${session_id} en Google Sheets.`);
+          console.error(`Cloud Run: No se encontró la sesión con ID ${session_id} en Google Sheets.`);
           return;
         }
 
-        console.log(`Fila encontrada en Google Sheets: ${rowIndex}`);
+        console.log(`Cloud Run: Fila encontrada en Google Sheets - ${rowIndex}`);
 
         // Construir la URL de edición del post
         const wordpressBaseUrl = 'https://www.appraisily.com/wp-admin/post.php'; // Reemplaza con tu URL real de WordPress
@@ -373,7 +387,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
           },
         });
 
-        console.log(`URL de WordPress actualizada en la fila ${rowIndex}, columna G.`);
+        console.log(`Cloud Run: URL de WordPress actualizada en la fila ${rowIndex}, columna G.`);
 
         // Actualizar la columna H con la descripción de IA
         const updateDescriptionRange = `${sheetName}!H${rowIndex}`;
@@ -386,7 +400,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
           },
         });
 
-        console.log(`Descripción de IA actualizada en la fila ${rowIndex}, columna H.`);
+        console.log(`Cloud Run: Descripción de IA actualizada en la fila ${rowIndex}, columna H.`);
 
         // Actualizar la descripción del cliente en la columna I
         const updateCustomerDescriptionRange = `${sheetName}!I${rowIndex}`;
@@ -399,7 +413,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
           },
         });
 
-        console.log(`Descripción del cliente actualizada en la fila ${rowIndex}, columna I.`);
+        console.log(`Cloud Run: Descripción del cliente actualizada en la fila ${rowIndex}, columna I.`);
 
         // Actualizar el estado a "Pending" en la columna F
         const updateStatusRange = `${sheetName}!F${rowIndex}`;
@@ -412,22 +426,19 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
           },
         });
 
-        console.log(`Estado actualizado a 'Pending' en la fila ${rowIndex}, columna F.`);
+        console.log(`Cloud Run: Estado actualizado a 'Pending' en la fila ${rowIndex}, columna F.`);
 
       } catch (error) {
-        console.error('Error en las tareas de fondo de /api/update-pending-appraisal:', error);
+        console.error('Cloud Run: Error en las tareas de fondo de /api/update-pending-appraisal:', error);
       }
     })();
 
   } catch (error) {
-    console.error('Error en /api/update-pending-appraisal:', error);
+    console.error('Cloud Run: Error en /api/update-pending-appraisal:', error);
     // Si hay un error antes de enviar la respuesta, responde con error
     res.status(500).json({ success: false, message: 'Internal Server Error.' });
   }
 });
-
-
-
 
 
     // **Endpoint: Obtener Apreciaciones Pendientes**
