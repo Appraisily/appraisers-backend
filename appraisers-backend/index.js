@@ -286,6 +286,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     // Validar campos requeridos
     if (!session_id || !post_id || typeof images !== 'object' || !post_edit_url || !customer_email) {
       console.warn('Cloud Run: Datos incompletos recibidos en el endpoint.');
+      console.log('Cloud Run: Enviando respuesta 400 al cliente.');
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
     } else {
       console.log('Cloud Run: Todos los campos requeridos están presentes.');
@@ -293,6 +294,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
 
     // Enviar respuesta inmediatamente al cliente
     res.json({ success: true, message: 'Appraisal status updated successfully.' });
+    console.log('Cloud Run: Respuesta 200 enviada al cliente.');
 
     // Ejecutar tareas en segundo plano sin esperar a que finalicen
     (async () => {
@@ -303,43 +305,92 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
           apiKey: openaiApiKey
         });
 
-        // Prompt para OpenAI
+        // Preparar el nuevo prompt detallado para GPT-4 siguiendo la estructura del ejemplo
         const condensedInstructions = `
-          Please condense the following detailed artwork description into a synthetic, concise summary of around 50 words, retaining as much key information as possible. Follow the example format below:
+Please condense the following detailed artwork description into a synthetic, concise summary of around 50 words, retaining as much key information as possible. Follow the example format below:
 
-          Example Format: "[Style] [Medium] ([Date]), [Size]. [Color Palette]. [Composition details]. [Brushwork/Texture]. [Mood]. [Condition/details]."
+Example Format: "[Style] [Medium] ([Date]), [Size]. [Color Palette]. [Composition details]. [Brushwork/Texture]. [Mood]. [Condition/details]."
 
-          Tips for Effective Condensation:
-          - Identify Key Elements (Style, Medium, Date, Size, Color Palette, Composition, Brushwork/Texture, Mood, Condition)
-          - Use Concise Language
-          - Maintain Essential Information
+Description: "[Insert the detailed artwork description here]"
+
+Tips for Effective Condensation:
+
+Identify Key Elements:
+
+- Style: Impressionist, Realist, etc.
+- Medium: Oil on canvas, watercolor, etc.
+- Date: Century or specific year if available.
+- Size: Medium, large, specific dimensions if known.
+- Color Palette: Dominant colors used.
+- Composition: Main elements and their arrangement.
+- Brushwork/Texture: Loose, expressive, dynamic, etc.
+- Mood: Serene, tranquil, contemplative, etc.
+- Condition/Details: Missing views, signature, age, etc.
+
+Use Concise Language:
+
+- Combine related information into single phrases.
+- Use commas to separate different attributes.
+
+Maintain Essential Information:
+
+- Ensure that the summary includes all critical aspects without unnecessary details.
         `;
 
-        // Preparar el mensaje para OpenAI con la imagen principal
+        // Asegurarse de que las URLs de las imágenes están definidas
+        const mainImageUrl = images.main || '';
+        const signatureImageUrl = images.signature || '';
+        const ageImageUrl = images.back || ''; // Asumiendo que 'back' corresponde a 'ageImageUrl'
+
+        // Construir el contenido del mensaje con las instrucciones detalladas y las imágenes siguiendo la estructura del ejemplo
         const messagesWithRoles = [
           {
             role: "user",
             content: `
-              ${condensedInstructions}
+${condensedInstructions}
 
-              Description: 
-              <img src="${images.main}" alt="Main Artwork" />
+Description: "${description}"
             `,
           },
         ];
 
-        console.log('Cloud Run: Enviando solicitud a OpenAI para generar descripción.');
+        // Agregar imágenes si están disponibles
+        if (mainImageUrl) {
+          messagesWithRoles[0].content += `\n<img src="${mainImageUrl}" alt="Main Artwork" />`;
+        }
+        if (signatureImageUrl) {
+          messagesWithRoles[0].content += `\n<img src="${signatureImageUrl}" alt="Signature Artwork" />`;
+        }
+        if (ageImageUrl) {
+          messagesWithRoles[0].content += `\n<img src="${ageImageUrl}" alt="Age Artwork" />`;
+        }
+
+        if (executionId) {
+          console.info(`Execution ID: ${executionId} - Sending data to OpenAI's GPT-4o-mini API for description generation.`);
+        } else {
+          console.info("Sending data to OpenAI's GPT-4o-mini API for description generation.");
+        }
 
         // Llamar a la API de Chat Completion de OpenAI para obtener la descripción
-        const openaiResponse = await openai.chat.completions.create({
-          model: 'gpt-4', // Asegúrate de que el modelo esté correctamente nombrado y disponible
-          messages: messagesWithRoles,
-          temperature: 0.7, // Ajusta según sea necesario
-          max_tokens: 300
-        });
+        let responseContent;
+        try {
+          const openaiResponse = await openai.chat.completions.create({
+            model: 'gpt-4o-mini', // Reemplaza con el nombre correcto del modelo que soporta tus requerimientos
+            messages: messagesWithRoles,
+            temperature: 0.7, // Ajusta según sea necesario
+          });
 
-        const aiDescription = openaiResponse.choices[0].message.content.trim();
-        console.log(`Cloud Run: Descripción generada por IA - ${aiDescription}`);
+          responseContent = openaiResponse.choices[0].message.content.trim();
+        } catch (openAIError) {
+          console.error(`Execution ID: ${executionId} - OpenAI API Error:`, openAIError.response ? openAIError.response.data : openAIError.message);
+          return; // No enviar respuesta 500 ya que ya se envió la respuesta 200 al cliente
+        }
+
+        if (executionId) {
+          console.info(`Execution ID: ${executionId} - Received Response: ${responseContent}`);
+        } else {
+          console.info(`Received Response: ${responseContent}`);
+        }
 
         // Inicializar Google Sheets
         const sheets = await initializeSheets();
@@ -389,20 +440,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
 
         console.log(`Cloud Run: URL de WordPress actualizada en la fila ${rowIndex}, columna G.`);
 
-        // Actualizar la columna H con la descripción de IA
-        const updateDescriptionRange = `${sheetName}!H${rowIndex}`;
-        await sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range: updateDescriptionRange,
-          valueInputOption: 'USER_ENTERED',
-          resource: {
-            values: [[aiDescription]],
-          },
-        });
-
-        console.log(`Cloud Run: Descripción de IA actualizada en la fila ${rowIndex}, columna H.`);
-
-        // Actualizar la descripción del cliente en la columna I
+        // Actualizar la columna I con la descripción del cliente
         const updateCustomerDescriptionRange = `${sheetName}!I${rowIndex}`;
         await sheets.spreadsheets.values.update({
           spreadsheetId,
@@ -412,8 +450,19 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
             values: [[description]],
           },
         });
-
         console.log(`Cloud Run: Descripción del cliente actualizada en la fila ${rowIndex}, columna I.`);
+
+        // Actualizar la columna O con la imagen principal
+        const updateImageRange = `${sheetName}!O${rowIndex}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: updateImageRange,
+          valueInputOption: 'USER_ENTERED',
+          resource: {
+            values: [[images.main]],
+          },
+        });
+        console.log(`Cloud Run: Imagen principal actualizada en la fila ${rowIndex}, columna O.`);
 
         // Actualizar el estado a "Pending" en la columna F
         const updateStatusRange = `${sheetName}!F${rowIndex}`;
@@ -425,20 +474,14 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
             values: [['Pending']],
           },
         });
-
         console.log(`Cloud Run: Estado actualizado a 'Pending' en la fila ${rowIndex}, columna F.`);
 
       } catch (error) {
-        console.error('Cloud Run: Error en las tareas de fondo de /api/update-pending-appraisal:', error);
+        console.error('Cloud Run: Error en /api/update-pending-appraisal:', error);
+        // Si hay un error antes de enviar la respuesta, responde con error
+        res.status(500).json({ success: false, message: 'Internal Server Error.' });
       }
-    })();
-
-  } catch (error) {
-    console.error('Cloud Run: Error en /api/update-pending-appraisal:', error);
-    // Si hay un error antes de enviar la respuesta, responde con error
-    res.status(500).json({ success: false, message: 'Internal Server Error.' });
-  }
-});
+    });
 
 
     // **Endpoint: Obtener Apreciaciones Pendientes**
