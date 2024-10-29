@@ -279,133 +279,151 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
     }
 
-    // Inicializar OpenAI con la API key desde config
-    const openaiApiKey = config.OPENAI_API_KEY; // Usar la clave desde config
-    const openai = new OpenAI({
-      apiKey: openaiApiKey
-    });
-
-    // Prompt para OpenAI
-    const condensedInstructions = `
-      Please condense the following detailed artwork description into a synthetic, concise summary of around 50 words, retaining as much key information as possible. Follow the example format below:
-
-      Example Format: "[Style] [Medium] ([Date]), [Size]. [Color Palette]. [Composition details]. [Brushwork/Texture]. [Mood]. [Condition/details]."
-
-      Tips for Effective Condensation:
-      - Identify Key Elements (Style, Medium, Date, Size, Color Palette, Composition, Brushwork/Texture, Mood, Condition)
-      - Use Concise Language
-      - Maintain Essential Information
-    `;
-
-    // Preparar el mensaje para OpenAI con la imagen principal
-    const messagesWithRoles = [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: condensedInstructions },
-          { type: "image_url", image_url: { url: images.main, detail: "high" } }
-        ],
-      },
-    ];
-
-    // Obtener descripción de OpenAI usando el modelo 'gpt-4o-mini'
-    const openaiResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini', // Cambiar el modelo aquí
-      messages: messagesWithRoles,
-      temperature: 0.7,
-      max_tokens: 300
-    });
-
-    const aiDescription = openaiResponse.choices[0].message.content.trim();
-    console.log(`Descripción generada por IA: ${aiDescription}`);
-
-    // Inicializar Google Sheets
-    const sheets = await initializeSheets();
-
-    // Definir el nombre de la hoja y el ID de la hoja
-    const spreadsheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
-    const sheetName = config.GOOGLE_SHEET_NAME;
-
-    // Encontrar la fila en Google Sheets que coincide con el session_id
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `${sheetName}!A2:I`, // Asegúrate de que el rango incluye todas las filas y columnas necesarias
-    });
-
-    const rows = response.data.values || [];
-    let rowIndex = -1;
-
-    for (let i = 0; i < rows.length; i++) {
-      const rowSessionId = rows[i][3]; // Suponiendo que el session_id está en la columna D (índice 3)
-      if (rowSessionId === session_id) {
-        rowIndex = i + 2; // +2 porque las filas en Sheets empiezan en 1, y hemos excluido la fila de encabezado (A2)
-        break;
-      }
-    }
-
-    if (rowIndex === -1) {
-      console.error(`No se encontró la sesión con ID ${session_id} en Google Sheets.`);
-      return res.status(404).json({ success: false, message: 'Session ID not found in Google Sheets.' });
-    }
-
-    console.log(`Fila encontrada en Google Sheets: ${rowIndex}`);
-
-    // Actualizar la columna H con la descripción de IA
-    const updateDescriptionRange = `${sheetName}!H${rowIndex}`;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: updateDescriptionRange,
-      valueInputOption: 'USER_ENTERED',
-      resource: {
-        values: [[aiDescription]],
-      },
-    });
-
-    console.log(`Descripción de IA actualizada en la fila ${rowIndex}, columna H.`);
-
-    // Actualizar la descripción del cliente en la columna I
-    const updateCustomerDescriptionRange = `${sheetName}!I${rowIndex}`;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: updateCustomerDescriptionRange,
-      valueInputOption: 'USER_ENTERED',
-      resource: {
-        values: [[description]],
-      },
-    });
-
-    console.log(`Descripción del cliente actualizada en la fila ${rowIndex}, columna I.`);
-
-    // Actualizar el estado a "Pending"
-    const updateStatusRange = `${sheetName}!F${rowIndex}`;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: updateStatusRange,
-      valueInputOption: 'USER_ENTERED',
-      resource: {
-        values: [['Pending']],
-      },
-    });
-
-    console.log(`Estado actualizado a 'Pending' en la fila ${rowIndex}, columna F.`);
-
-    // Actualizar la URL de WordPress en la columna G
-    const updateWordpressUrlRange = `${sheetName}!G${rowIndex}`;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: updateWordpressUrlRange,
-      valueInputOption: 'USER_ENTERED',
-      resource: {
-        values: [[`https://www.appraisily.com/wp-admin/post.php?post=${post_id}&action=edit`]],
-      },
-    });
-
-    console.log(`URL de WordPress actualizada en la fila ${rowIndex}, columna G.`);
-
-    // Enviar respuesta exitosa
+    // Enviar respuesta inmediatamente al cliente
     res.json({ success: true, message: 'Appraisal status updated successfully.' });
+
+    // Ejecutar tareas en segundo plano sin esperar a que finalicen
+    (async () => {
+      try {
+        // Inicializar OpenAI con la API key desde config
+        const openaiApiKey = config.OPENAI_API_KEY; // Usar la clave desde config
+        const openai = new OpenAI({
+          apiKey: openaiApiKey
+        });
+
+        // Prompt para OpenAI
+        const condensedInstructions = `
+          Please condense the following detailed artwork description into a synthetic, concise summary of around 50 words, retaining as much key information as possible. Follow the example format below:
+
+          Example Format: "[Style] [Medium] ([Date]), [Size]. [Color Palette]. [Composition details]. [Brushwork/Texture]. [Mood]. [Condition/details]."
+
+          Tips for Effective Condensation:
+          - Identify Key Elements (Style, Medium, Date, Size, Color Palette, Composition, Brushwork/Texture, Mood, Condition)
+          - Use Concise Language
+          - Maintain Essential Information
+        `;
+
+        // Preparar el mensaje para OpenAI con la imagen principal
+        const messagesWithRoles = [
+          {
+            role: "user",
+            content: `
+              ${condensedInstructions}
+
+              Description: 
+              <img src="${images.main}" alt="Main Artwork" />
+            `,
+          },
+        ];
+
+        console.log('Enviando solicitud a OpenAI para generar descripción.');
+
+        // Llamar a la API de Chat Completion de OpenAI para obtener la descripción
+        const openaiResponse = await openai.chat.completions.create({
+          model: 'gpt-4o-mini', // Asegúrate de que el modelo esté correctamente nombrado y disponible
+          messages: messagesWithRoles,
+          temperature: 0.7, // Ajusta según sea necesario
+          max_tokens: 300
+        });
+
+        const aiDescription = openaiResponse.choices[0].message.content.trim();
+        console.log(`Descripción generada por IA: ${aiDescription}`);
+
+        // Inicializar Google Sheets
+        const sheets = await initializeSheets();
+
+        // Definir el nombre de la hoja y el ID de la hoja
+        const spreadsheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+        const sheetName = config.GOOGLE_SHEET_NAME;
+
+        // Encontrar la fila en Google Sheets que coincide con el session_id
+        const responseSheets = await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: `${sheetName}!C:C`, // Suponiendo que session_id está en la columna C
+        });
+
+        const values = responseSheets.data.values || [];
+        let rowIndex = null;
+
+        for (let i = 0; i < values.length; i++) {
+          const rowSessionId = values[i][0];
+          if (rowSessionId === session_id) {
+            rowIndex = i + 1; // Las filas en Sheets comienzan en 1
+            break;
+          }
+        }
+
+        if (rowIndex === null) {
+          console.error(`No se encontró la sesión con ID ${session_id} en Google Sheets.`);
+          return;
+        }
+
+        console.log(`Fila encontrada en Google Sheets: ${rowIndex}`);
+
+        // Construir la URL de edición del post
+        const wordpressBaseUrl = 'https://www.appraisily.com/wp-admin/post.php'; // Reemplaza con tu URL real de WordPress
+        const post_edit_url = `${wordpressBaseUrl}?post=${post_id}&action=edit`;
+
+        // Actualizar la columna G (post_edit_url) con la URL construida
+        const updateWordpressUrlRange = `${sheetName}!G${rowIndex}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: updateWordpressUrlRange,
+          valueInputOption: 'USER_ENTERED',
+          resource: {
+            values: [[post_edit_url]],
+          },
+        });
+
+        console.log(`URL de WordPress actualizada en la fila ${rowIndex}, columna G.`);
+
+        // Actualizar la columna H con la descripción de IA
+        const updateDescriptionRange = `${sheetName}!H${rowIndex}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: updateDescriptionRange,
+          valueInputOption: 'USER_ENTERED',
+          resource: {
+            values: [[aiDescription]],
+          },
+        });
+
+        console.log(`Descripción de IA actualizada en la fila ${rowIndex}, columna H.`);
+
+        // Actualizar la descripción del cliente en la columna I
+        const updateCustomerDescriptionRange = `${sheetName}!I${rowIndex}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: updateCustomerDescriptionRange,
+          valueInputOption: 'USER_ENTERED',
+          resource: {
+            values: [[description]],
+          },
+        });
+
+        console.log(`Descripción del cliente actualizada en la fila ${rowIndex}, columna I.`);
+
+        // Actualizar el estado a "Pending" en la columna F
+        const updateStatusRange = `${sheetName}!F${rowIndex}`;
+        await sheets.spreadsheets.values.update({
+          spreadsheetId,
+          range: updateStatusRange,
+          valueInputOption: 'USER_ENTERED',
+          resource: {
+            values: [['Pending']],
+          },
+        });
+
+        console.log(`Estado actualizado a 'Pending' en la fila ${rowIndex}, columna F.`);
+
+      } catch (error) {
+        console.error('Error en las tareas de fondo de /api/update-pending-appraisal:', error);
+      }
+    })();
+
   } catch (error) {
     console.error('Error en /api/update-pending-appraisal:', error);
+    // Si hay un error antes de enviar la respuesta, responde con error
     res.status(500).json({ success: false, message: 'Internal Server Error.' });
   }
 });
