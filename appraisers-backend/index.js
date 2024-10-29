@@ -258,7 +258,6 @@ async function startServer() {
       res.json({ authenticated: true, name: req.user.name });
     });
 
-    // index.js (Continuación)
 // Endpoint: Actualizar Estado de Apreciación Pendiente
 app.post('/api/update-pending-appraisal', async (req, res) => {
   try {
@@ -426,6 +425,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error.' });
   }
 });
+
 
 
 
