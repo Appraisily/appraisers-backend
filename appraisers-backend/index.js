@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const fetch = require('node-fetch');
 const { PubSub } = require('@google-cloud/pubsub');
+const { OpenAI } = require('openai');
 
 const authorizedUsers = require('./shared/authorizedUsers'); // Ruta actualizada
 const { getSecret } = require('./shared/secretManager'); // Ruta actualizada
@@ -273,92 +274,69 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     const { session_id, description, images, post_id } = req.body;
 
     // Validar campos requeridos
-    if (
-      !session_id ||
-      !post_id ||
-      typeof images !== 'object' // 'description' puede estar vacío
-    ) {
+    if (!session_id || !post_id || typeof images !== 'object') {
       console.warn('Datos incompletos recibidos en el endpoint.');
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
     }
 
-    console.log(`Actualizando Google Sheets para session_id: ${session_id}`);
-
-    // Inicializar Google Sheets API
-    const sheets = await initializeSheets();
-
-    const spreadsheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
-    const sheetName = config.GOOGLE_SHEET_NAME;
-
-    // Obtener todos los session_ids de la columna C
-    const range = `${sheetName}!C:C`;
-    const responseSheets = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
+    // Inicializar OpenAI con la API key desde secret manager
+    const openaiApiKey = await getSecret('openai-api-key');
+    const openai = new OpenAI({
+      apiKey: openaiApiKey
     });
 
-    const values = responseSheets.data.values || [];
-    let rowIndex = null;
+    // Prompt para OpenAI
+    const condensedInstructions = `
+      Please condense the following detailed artwork description into a synthetic, concise summary of around 50 words, retaining as much key information as possible. Follow the example format below:
 
-    for (let i = 0; i < values.length; i++) {
-      const cellValue = values[i][0];
-      if (cellValue === session_id) {
-        rowIndex = i + 1; // Las filas en Google Sheets comienzan en 1
-        break;
-      }
-    }
+      Example Format: "[Style] [Medium] ([Date]), [Size]. [Color Palette]. [Composition details]. [Brushwork/Texture]. [Mood]. [Condition/details]."
 
-    if (rowIndex === null) {
-      console.warn(`session_id: ${session_id} no encontrado en la hoja de Apreciaciones Pendientes.`);
-      return res.status(404).json({ success: false, message: 'Session ID not found.' });
-    }
+      Tips for Effective Condensation:
+      - Identify Key Elements (Style, Medium, Date, Size, Color Palette, Composition, Brushwork/Texture, Mood, Condition)
+      - Use Concise Language
+      - Maintain Essential Information
+    `;
 
-    console.log(`session_id: ${session_id} encontrado en la fila: ${rowIndex}`);
+    // Preparar el mensaje para OpenAI con la imagen principal
+    const messagesWithRoles = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: condensedInstructions },
+          { type: "image_url", image_url: { url: images.main, detail: "high" } }
+        ],
+      },
+    ];
 
-    // Construir la URL de edición del post
-    const wordpressBaseUrl = 'https://www.appraisily.com/wp-admin/post.php'; // Reemplaza con tu URL real de WordPress
-    const post_edit_url = `${wordpressBaseUrl}?post=${post_id}&action=edit`;
+    // Obtener descripción de OpenAI
+    const openaiResponse = await openai.chat.completions.create({
+      model: 'gpt-4-vision-preview',
+      messages: messagesWithRoles,
+      temperature: 0.7,
+      max_tokens: 300
+    });
 
-    // Actualizar la columna H (description)
+    const aiDescription = openaiResponse.choices[0].message.content.trim();
+    console.log(`Descripción generada por IA: ${aiDescription}`);
+
+    // Inicializar Google Sheets API y continuar con el proceso existente...
+    const sheets = await initializeSheets();
+    
+    // ... resto del código existente para encontrar la fila ...
+
+    // Actualizar la columna H con la descripción de IA
     const updateDescriptionRange = `${sheetName}!H${rowIndex}`;
     await sheets.spreadsheets.values.update({
       spreadsheetId,
       range: updateDescriptionRange,
       valueInputOption: 'USER_ENTERED',
       resource: {
-        values: [[description]],
+        values: [[aiDescription]],
       },
     });
 
-    console.log(`Descripción del cliente actualizada en la fila ${rowIndex} a: ${description}`);
+    // ... resto del código existente ...
 
-    // Actualizar la columna O (images) como JSON
-    const updateImagesRange = `${sheetName}!O${rowIndex}`;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: updateImagesRange,
-      valueInputOption: 'USER_ENTERED',
-      resource: {
-        values: [[JSON.stringify(images)]],
-      },
-    });
-
-    console.log(`images actualizado en la fila ${rowIndex} a: ${JSON.stringify(images)}`);
-
-    // Actualizar la columna P (post_edit_url) con la URL construida
-    const updateEditUrlRange = `${sheetName}!P${rowIndex}`; // Asumiendo que la columna P es donde quieres almacenar 'post_edit_url'
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: updateEditUrlRange,
-      valueInputOption: 'USER_ENTERED',
-      resource: {
-        values: [[post_edit_url]],
-      },
-    });
-
-    console.log(`post_edit_url actualizado en la fila ${rowIndex} a: ${post_edit_url}`);
-
-    res.status(200).json({ success: true, message: 'Google Sheets actualizado exitosamente.' });
   } catch (error) {
     console.error('Error en /api/update-pending-appraisal:', error);
     res.status(500).json({ success: false, message: 'Internal Server Error.' });
