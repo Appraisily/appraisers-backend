@@ -259,7 +259,6 @@ async function startServer() {
     });
 
     // index.js (Continuación)
-
 // Endpoint: Actualizar Estado de Apreciación Pendiente
 app.post('/api/update-pending-appraisal', async (req, res) => {
   try {
@@ -271,10 +270,10 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     }
 
     // Obtener los datos del payload
-    const { session_id, description, images, post_id } = req.body;
+    const { session_id, description, images, post_id, post_edit_url, customer_email } = req.body;
 
     // Validar campos requeridos
-    if (!session_id || !post_id || typeof images !== 'object') {
+    if (!session_id || !post_id || typeof images !== 'object' || !post_edit_url || !customer_email) {
       console.warn('Datos incompletos recibidos en el endpoint.');
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
     }
@@ -320,7 +319,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
 
         // Llamar a la API de Chat Completion de OpenAI para obtener la descripción
         const openaiResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini', // Asegúrate de que el modelo esté correctamente nombrado y disponible
+          model: 'gpt-4', // Asegúrate de que el modelo esté correctamente nombrado y disponible
           messages: messagesWithRoles,
           temperature: 0.7, // Ajusta según sea necesario
           max_tokens: 300
@@ -362,7 +361,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
 
         // Construir la URL de edición del post
         const wordpressBaseUrl = 'https://www.appraisily.com/wp-admin/post.php'; // Reemplaza con tu URL real de WordPress
-        const post_edit_url = `${wordpressBaseUrl}?post=${post_id}&action=edit`;
+        const post_edit_url_final = `${wordpressBaseUrl}?post=${post_id}&action=edit`;
 
         // Actualizar la columna G (post_edit_url) con la URL construida
         const updateWordpressUrlRange = `${sheetName}!G${rowIndex}`;
@@ -371,7 +370,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
           range: updateWordpressUrlRange,
           valueInputOption: 'USER_ENTERED',
           resource: {
-            values: [[post_edit_url]],
+            values: [[post_edit_url_final]],
           },
         });
 
@@ -427,6 +426,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal Server Error.' });
   }
 });
+
 
 
 
