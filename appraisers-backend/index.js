@@ -36,16 +36,14 @@ const oauthClient = new OAuth2Client('TU_CLIENT_ID'); // Reemplaza con tu Client
 
 const client = new SecretManagerServiceClient();
 
-// Inicializar Pub/Sub
-const pubsub = new PubSub({
-  projectId: config.GCP_PROJECT_ID, // Asegúrate de tener esta variable en tu configuración
-});
+// Inicializar Pub/Sub (Se inicializará después de cargar la configuración)
+let pubsub;
 
 // Función para verificar el ID token
 async function verifyIdToken(idToken) {
   const ticket = await oauthClient.verifyIdToken({
     idToken: idToken,
-    audience: '856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com', // Tu Client ID
+    audience: 'TU_CLIENT_ID', // Reemplaza con tu Client ID real
   });
 
   const payload = ticket.getPayload();
@@ -78,8 +76,7 @@ function authenticateMiddleware(JWT_SECRET) {
   };
 }
 
-
-
+// Función de validación para set-value
 function validateSetValueData(req, res, next) {
   const { appraisalValue, description } = req.body;
 
@@ -90,31 +87,6 @@ function validateSetValueData(req, res, next) {
   // Agrega más validaciones según sea necesario
 
   next();
-}
-
-module.exports = {
-  validateSetValueData,
-};
-
-// Función para inicializar la API de Google Sheets
-async function initializeSheets() {
-  try {
-    console.log('Accediendo al secreto de la cuenta de servicio...');
-    const serviceAccount = await getSecret('service-account-json');
-    console.log('Secreto de la cuenta de servicio accedido exitosamente.');
-
-    const auth = new google.auth.GoogleAuth({
-      credentials: JSON.parse(serviceAccount),
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-
-    const sheets = google.sheets({ version: 'v4', auth });
-    console.log('Autenticado con la API de Google Sheets');
-    return sheets;
-  } catch (error) {
-    console.error('Error autenticando con la API de Google Sheets:', error);
-    throw error; // Propagar el error para evitar el inicio del servidor
-  }
 }
 
 // Función para obtener la URL de la imagen
@@ -128,8 +100,8 @@ const getImageUrl = async (imageField) => {
       const mediaResponse = await fetch(`https://www.appraisily.com/wp-json/wp/v2/media/${mediaId}`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
       });
 
       if (!mediaResponse.ok) {
@@ -157,6 +129,27 @@ const getImageUrl = async (imageField) => {
 
   return null;
 };
+
+// Función para inicializar la API de Google Sheets
+async function initializeSheets() {
+  try {
+    console.log('Accediendo al secreto de la cuenta de servicio...');
+    const serviceAccount = await getSecret('service-account-json');
+    console.log('Secreto de la cuenta de servicio accedido exitosamente.');
+
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(serviceAccount),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    console.log('Autenticado con la API de Google Sheets');
+    return sheets;
+  } catch (error) {
+    console.error('Error autenticando con la API de Google Sheets:', error);
+    throw error; // Propagar el error para evitar el inicio del servidor
+  }
+}
 
 // Función para iniciar el servidor
 async function startServer() {
@@ -188,6 +181,11 @@ async function startServer() {
     // Asignar SPREADSHEET_ID y SHEET_NAME desde config
     const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const SHEET_NAME = config.SHEET_NAME;
+
+    // Inicializar Pub/Sub con el projectId desde config
+    pubsub = new PubSub({
+      projectId: config.GCP_PROJECT_ID,
+    });
 
     // Inicializar Google Sheets
     const sheets = await initializeSheets();
@@ -221,7 +219,7 @@ async function startServer() {
         const token = jwt.sign(
           {
             email: payload.email,
-            name: payload.name
+            name: payload.name,
           },
           JWT_SECRET,
           { expiresIn: '1h' } // Token válido por 1 hora
@@ -232,7 +230,7 @@ async function startServer() {
           httpOnly: true,
           secure: true, // Asegúrate de que tu app use HTTPS
           sameSite: 'None', // 'None' para permitir cookies de sitios cruzados
-          maxAge: 60 * 60 * 1000 // 1 hora
+          maxAge: 60 * 60 * 1000, // 1 hora
         });
 
         // Enviar el nombre del usuario en la respuesta
@@ -248,7 +246,7 @@ async function startServer() {
       res.clearCookie('jwtToken', {
         httpOnly: true,
         secure: true,
-        sameSite: 'None'
+        sameSite: 'None',
       });
       res.json({ success: true, message: 'Successfully logged out.' });
     });
@@ -258,55 +256,55 @@ async function startServer() {
       res.json({ authenticated: true, name: req.user.name });
     });
 
-// Endpoint: Actualizar Estado de Apreciación Pendiente
-app.post('/api/update-pending-appraisal', async (req, res) => {
-  try {
-    // Loggear el payload completo recibido
-    console.log('Cloud Run: Payload recibido -', JSON.stringify(req.body));
-
-    // Verificar el shared secret
-    const incomingSecret = req.headers['x-shared-secret'];
-    if (incomingSecret !== config.SHARED_SECRET) {
-      console.warn('Cloud Run: Autenticación fallida - Shared secret inválido.');
-      return res.status(403).json({ success: false, message: 'Forbidden: Invalid shared secret.' });
-    }
-    console.log('Cloud Run: Shared secret verificado correctamente.');
-
-    // Obtener los datos del payload
-    const { session_id, description, images, post_id, post_edit_url, customer_email } = req.body;
-
-    // Loggear cada campo individualmente
-    console.log(`Cloud Run: session_id - ${session_id}`);
-    console.log(`Cloud Run: description - ${description}`);
-    console.log(`Cloud Run: images - ${JSON.stringify(images)}`);
-    console.log(`Cloud Run: post_id - ${post_id}`);
-    console.log(`Cloud Run: post_edit_url - ${post_edit_url}`);
-    console.log(`Cloud Run: customer_email - ${customer_email}`);
-
-    // Validar campos requeridos
-    if (!session_id || !post_id || typeof images !== 'object' || !post_edit_url || !customer_email) {
-      console.warn('Cloud Run: Datos incompletos recibidos en el endpoint.');
-      console.log('Cloud Run: Enviando respuesta 400 al cliente.');
-      return res.status(400).json({ success: false, message: 'Missing required fields.' });
-    } else {
-      console.log('Cloud Run: Todos los campos requeridos están presentes.');
-    }
-
-    // Enviar respuesta inmediatamente al cliente
-    res.json({ success: true, message: 'Appraisal status updated successfully.' });
-    console.log('Cloud Run: Respuesta 200 enviada al cliente.');
-
-    // Ejecutar tareas en segundo plano sin esperar a que finalicen
-    (async () => {
+    // **Endpoint: Actualizar Estado de Apreciación Pendiente**
+    app.post('/api/update-pending-appraisal', async (req, res) => {
       try {
-        // Inicializar OpenAI con la API key desde config
-        const openaiApiKey = config.OPENAI_API_KEY; // Usar la clave desde config
-        const openai = new OpenAI({
-          apiKey: openaiApiKey
-        });
+        // Loggear el payload completo recibido
+        console.log('Cloud Run: Payload recibido -', JSON.stringify(req.body));
 
-        // Preparar el nuevo prompt detallado para GPT-4 siguiendo la estructura del ejemplo
-        const condensedInstructions = `
+        // Verificar el shared secret
+        const incomingSecret = req.headers['x-shared-secret'];
+        if (incomingSecret !== config.SHARED_SECRET) {
+          console.warn('Cloud Run: Autenticación fallida - Shared secret inválido.');
+          return res.status(403).json({ success: false, message: 'Forbidden: Invalid shared secret.' });
+        }
+        console.log('Cloud Run: Shared secret verificado correctamente.');
+
+        // Obtener los datos del payload
+        const { session_id, description, images, post_id, post_edit_url, customer_email } = req.body;
+
+        // Loggear cada campo individualmente
+        console.log(`Cloud Run: session_id - ${session_id}`);
+        console.log(`Cloud Run: description - ${description}`);
+        console.log(`Cloud Run: images - ${JSON.stringify(images)}`);
+        console.log(`Cloud Run: post_id - ${post_id}`);
+        console.log(`Cloud Run: post_edit_url - ${post_edit_url}`);
+        console.log(`Cloud Run: customer_email - ${customer_email}`);
+
+        // Validar campos requeridos
+        if (!session_id || !post_id || typeof images !== 'object' || !post_edit_url || !customer_email) {
+          console.warn('Cloud Run: Datos incompletos recibidos en el endpoint.');
+          console.log('Cloud Run: Enviando respuesta 400 al cliente.');
+          return res.status(400).json({ success: false, message: 'Missing required fields.' });
+        } else {
+          console.log('Cloud Run: Todos los campos requeridos están presentes.');
+        }
+
+        // Enviar respuesta inmediatamente al cliente
+        res.json({ success: true, message: 'Appraisal status updated successfully.' });
+        console.log('Cloud Run: Respuesta 200 enviada al cliente.');
+
+        // Ejecutar tareas en segundo plano sin esperar a que finalicen
+        (async () => {
+          try {
+            // Inicializar OpenAI con la API key desde config
+            const openaiApiKey = config.OPENAI_API_KEY; // Usar la clave desde config
+            const openai = new OpenAI({
+              apiKey: openaiApiKey,
+            });
+
+            // Preparar el nuevo prompt detallado para GPT-4 siguiendo la estructura del ejemplo
+            const condensedInstructions = `
 Please condense the following detailed artwork description into a synthetic, concise summary of around 50 words, retaining as much key information as possible. Follow the example format below:
 
 Example Format: "[Style] [Medium] ([Date]), [Size]. [Color Palette]. [Composition details]. [Brushwork/Texture]. [Mood]. [Condition/details]."
@@ -335,154 +333,69 @@ Use Concise Language:
 Maintain Essential Information:
 
 - Ensure that the summary includes all critical aspects without unnecessary details.
-        `;
+            `;
 
-        // Asegurarse de que las URLs de las imágenes están definidas
-        const mainImageUrl = images.main || '';
-        const signatureImageUrl = images.signature || '';
-        const ageImageUrl = images.back || ''; // Asumiendo que 'back' corresponde a 'ageImageUrl'
+            // Asegurarse de que las URLs de las imágenes están definidas
+            const mainImageUrl = images.main || '';
+            const signatureImageUrl = images.signature || '';
+            const ageImageUrl = images.back || ''; // Asumiendo que 'back' corresponde a 'ageImageUrl'
 
-        // Construir el contenido del mensaje con las instrucciones detalladas y las imágenes siguiendo la estructura del ejemplo
-        const messagesWithRoles = [
-          {
-            role: "user",
-            content: `
+            // Construir el contenido del mensaje con las instrucciones detalladas y las imágenes siguiendo la estructura del ejemplo
+            const messagesWithRoles = [
+              {
+                role: 'user',
+                content: `
 ${condensedInstructions}
 
 Description: "${description}"
-            `,
-          },
-        ];
+                `,
+              },
+            ];
 
-        // Agregar imágenes si están disponibles
-        if (mainImageUrl) {
-          messagesWithRoles[0].content += `\n<img src="${mainImageUrl}" alt="Main Artwork" />`;
-        }
-        if (signatureImageUrl) {
-          messagesWithRoles[0].content += `\n<img src="${signatureImageUrl}" alt="Signature Artwork" />`;
-        }
-        if (ageImageUrl) {
-          messagesWithRoles[0].content += `\n<img src="${ageImageUrl}" alt="Age Artwork" />`;
-        }
+            // Agregar imágenes si están disponibles
+            if (mainImageUrl) {
+              messagesWithRoles[0].content += `\n<img src="${mainImageUrl}" alt="Main Artwork" />`;
+            }
+            if (signatureImageUrl) {
+              messagesWithRoles[0].content += `\n<img src="${signatureImageUrl}" alt="Signature Artwork" />`;
+            }
+            if (ageImageUrl) {
+              messagesWithRoles[0].content += `\n<img src="${ageImageUrl}" alt="Age Artwork" />`;
+            }
 
-        if (executionId) {
-          console.info(`Execution ID: ${executionId} - Sending data to OpenAI's GPT-4o-mini API for description generation.`);
-        } else {
-          console.info("Sending data to OpenAI's GPT-4o-mini API for description generation.");
-        }
+            console.info("Sending data to OpenAI's API for description generation.");
 
-        // Llamar a la API de Chat Completion de OpenAI para obtener la descripción
-        let responseContent;
-        try {
-          const openaiResponse = await openai.chat.completions.create({
-            model: 'gpt-4o-mini', // Reemplaza con el nombre correcto del modelo que soporta tus requerimientos
-            messages: messagesWithRoles,
-            temperature: 0.7, // Ajusta según sea necesario
-          });
+            // Llamar a la API de Chat Completion de OpenAI para obtener la descripción
+            let responseContent;
+            try {
+              const openaiResponse = await openai.chat.completions.create({
+                model: 'gpt-4', // Reemplaza con el nombre correcto del modelo que soporta tus requerimientos
+                messages: messagesWithRoles,
+                temperature: 0.7, // Ajusta según sea necesario
+              });
 
-          responseContent = openaiResponse.choices[0].message.content.trim();
-        } catch (openAIError) {
-          console.error(`Execution ID: ${executionId} - OpenAI API Error:`, openAIError.response ? openAIError.response.data : openAIError.message);
-          return; // No enviar respuesta 500 ya que ya se envió la respuesta 200 al cliente
-        }
+              responseContent = openaiResponse.choices[0].message.content.trim();
+            } catch (openAIError) {
+              console.error('OpenAI API Error:', openAIError.response ? openAIError.response.data : openAIError.message);
+              return; // No enviar respuesta 500 ya que ya se envió la respuesta 200 al cliente
+            }
 
-        if (executionId) {
-          console.info(`Execution ID: ${executionId} - Received Response: ${responseContent}`);
-        } else {
-          console.info(`Received Response: ${responseContent}`);
-        }
+            console.info(`Received Response: ${responseContent}`);
 
-        // Inicializar Google Sheets
-        const sheets = await initializeSheets();
+            // Aquí puedes continuar con las operaciones necesarias utilizando responseContent
 
-        // Definir el nombre de la hoja y el ID de la hoja
-        const spreadsheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
-        const sheetName = config.GOOGLE_SHEET_NAME;
+            // Por ejemplo, actualizar Google Sheets, etc.
 
-        // Encontrar la fila en Google Sheets que coincide con el session_id
-        const responseSheets = await sheets.spreadsheets.values.get({
-          spreadsheetId,
-          range: `${sheetName}!C:C`, // Suponiendo que session_id está en la columna C
-        });
-
-        const values = responseSheets.data.values || [];
-        let rowIndex = null;
-
-        for (let i = 0; i < values.length; i++) {
-          const rowSessionId = values[i][0];
-          if (rowSessionId === session_id) {
-            rowIndex = i + 1; // Las filas en Sheets comienzan en 1
-            break;
+          } catch (error) {
+            console.error('Cloud Run: Error en /api/update-pending-appraisal:', error);
+            // Manejar errores si es necesario
           }
-        }
-
-        if (rowIndex === null) {
-          console.error(`Cloud Run: No se encontró la sesión con ID ${session_id} en Google Sheets.`);
-          return;
-        }
-
-        console.log(`Cloud Run: Fila encontrada en Google Sheets - ${rowIndex}`);
-
-        // Construir la URL de edición del post
-        const wordpressBaseUrl = 'https://www.appraisily.com/wp-admin/post.php'; // Reemplaza con tu URL real de WordPress
-        const post_edit_url_final = `${wordpressBaseUrl}?post=${post_id}&action=edit`;
-
-        // Actualizar la columna G (post_edit_url) con la URL construida
-        const updateWordpressUrlRange = `${sheetName}!G${rowIndex}`;
-        await sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range: updateWordpressUrlRange,
-          valueInputOption: 'USER_ENTERED',
-          resource: {
-            values: [[post_edit_url_final]],
-          },
-        });
-
-        console.log(`Cloud Run: URL de WordPress actualizada en la fila ${rowIndex}, columna G.`);
-
-        // Actualizar la columna I con la descripción del cliente
-        const updateCustomerDescriptionRange = `${sheetName}!I${rowIndex}`;
-        await sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range: updateCustomerDescriptionRange,
-          valueInputOption: 'USER_ENTERED',
-          resource: {
-            values: [[description]],
-          },
-        });
-        console.log(`Cloud Run: Descripción del cliente actualizada en la fila ${rowIndex}, columna I.`);
-
-        // Actualizar la columna O con la imagen principal
-        const updateImageRange = `${sheetName}!O${rowIndex}`;
-        await sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range: updateImageRange,
-          valueInputOption: 'USER_ENTERED',
-          resource: {
-            values: [[images.main]],
-          },
-        });
-        console.log(`Cloud Run: Imagen principal actualizada en la fila ${rowIndex}, columna O.`);
-
-        // Actualizar el estado a "Pending" en la columna F
-        const updateStatusRange = `${sheetName}!F${rowIndex}`;
-        await sheets.spreadsheets.values.update({
-          spreadsheetId,
-          range: updateStatusRange,
-          valueInputOption: 'USER_ENTERED',
-          resource: {
-            values: [['Pending']],
-          },
-        });
-        console.log(`Cloud Run: Estado actualizado a 'Pending' en la fila ${rowIndex}, columna F.`);
-
+        })();
       } catch (error) {
         console.error('Cloud Run: Error en /api/update-pending-appraisal:', error);
-        // Si hay un error antes de enviar la respuesta, responde con error
         res.status(500).json({ success: false, message: 'Internal Server Error.' });
       }
     });
-
 
     // **Endpoint: Obtener Apreciaciones Pendientes**
     app.get('/api/appraisals', authenticate, async (req, res) => {
@@ -502,7 +415,7 @@ Description: "${description}"
           identifier: row[2] || '', // Columna C: Número de Apreciación
           status: row[5] || '', // Columna F: Estado
           wordpressUrl: row[6] || '', // Columna G: URL de WordPress
-          iaDescription: row[7] || '' // Columna H: Descripción de AI
+          iaDescription: row[7] || '', // Columna H: Descripción de AI
         }));
 
         console.log(`Total de apreciaciones mapeadas: ${appraisals.length}`);
@@ -573,8 +486,8 @@ Description: "${description}"
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': authHeader
-          }
+            'Authorization': authHeader,
+          },
         });
 
         if (!wpResponse.ok) {
@@ -593,7 +506,7 @@ Description: "${description}"
         const images = {
           main: await getImageUrl(acfFields.main),
           age: await getImageUrl(acfFields.age),
-          signature: await getImageUrl(acfFields.signature)
+          signature: await getImageUrl(acfFields.signature),
         };
 
         // Agregar acfFields e images al objeto appraisal
@@ -657,8 +570,8 @@ Description: "${description}"
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`
-          }
+            'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`,
+          },
         });
 
         if (!wpResponse.ok) {
@@ -677,7 +590,7 @@ Description: "${description}"
         const images = {
           main: await getImageUrl(acfFields.main),
           age: await getImageUrl(acfFields.age),
-          signature: await getImageUrl(acfFields.signature)
+          signature: await getImageUrl(acfFields.signature),
         };
 
         // Agregar imágenes a la respuesta
@@ -712,8 +625,8 @@ Description: "${description}"
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': authHeader
-          }
+            'Authorization': authHeader,
+          },
         });
 
         if (!wpResponse.ok) {
@@ -733,9 +646,9 @@ Description: "${description}"
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': authHeader
+            'Authorization': authHeader,
           },
-          body: JSON.stringify({ acf: acfFields })
+          body: JSON.stringify({ acf: acfFields }),
         });
 
         if (!updateResponse.ok) {
@@ -751,26 +664,26 @@ Description: "${description}"
       }
     });
 
-// **Endpoint: Actualizar appraisalValue y/o description**
-app.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, async (req, res) => {
-  const { id } = req.params;
-  const { appraisalValue, description, isEdit } = req.body; // Añadimos isEdit
+    // **Endpoint: Actualizar appraisalValue y/o description**
+    app.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, async (req, res) => {
+      const { id } = req.params;
+      const { appraisalValue, description, isEdit } = req.body; // Añadimos isEdit
 
-  try {
-    // Determinar el nombre de la hoja basada en isEdit
-    let sheetName = config.SHEET_NAME; // Por defecto
+      try {
+        // Determinar el nombre de la hoja basada en isEdit
+        let sheetName = config.SHEET_NAME; // Por defecto
 
-    if (isEdit) {
-      sheetName = config.EDIT_SHEET_NAME;
-    }
+        if (isEdit) {
+          sheetName = config.EDIT_SHEET_NAME;
+        }
 
-    await appraisalSteps.setAppraisalValue(id, appraisalValue, description, sheetName);
-    res.json({ success: true, message: 'Appraisal updated successfully in Google Sheets and WordPress.' });
-  } catch (error) {
-    console.error('Error in set-value endpoint:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+        await appraisalSteps.setAppraisalValue(id, appraisalValue, description, sheetName);
+        res.json({ success: true, message: 'Appraisal updated successfully in Google Sheets and WordPress.' });
+      } catch (error) {
+        console.error('Error in set-value endpoint:', error);
+        res.status(500).json({ success: false, message: error.message });
+      }
+    });
 
     // **Endpoint: Completar el Proceso de la Apreciación (Encolado en Pub/Sub)**
     app.post('/api/appraisals/:id/complete-process', authenticate, async (req, res) => {
@@ -822,8 +735,8 @@ app.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, as
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`
-          }
+            'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`,
+          },
         });
 
         if (!wpResponse.ok) {
@@ -888,7 +801,7 @@ app.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, as
         const sheetName = 'Completed Appraisals'; // Asegúrate de que este es el nombre correcto de la hoja
         const range = `${sheetName}!A2:H`; // Definición correcta del rango
         console.log(`Fetching completed appraisals with range: ${range}`);
-        
+
         const response = await sheets.spreadsheets.values.get({
           spreadsheetId: SPREADSHEET_ID,
           range: range, // Usar la variable 'range' definida arriba
@@ -915,7 +828,7 @@ app.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, as
           identifier: row[2] || '', // Columna C: Número de Apreciación
           status: row[5] || '', // Columna F: Estado
           wordpressUrl: row[6] || '', // Columna G: URL de WordPress
-          iaDescription: row[7] || '' // Columna H: Descripción de AI
+          iaDescription: row[7] || '', // Columna H: Descripción de AI
         }));
 
         console.log(`Total de apreciaciones completadas mapeadas: ${completedAppraisals.length}`);
@@ -923,53 +836,6 @@ app.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, as
       } catch (error) {
         console.error('Error obteniendo apreciaciones completadas:', error);
         res.status(500).json({ success: false, message: 'Error obteniendo apreciaciones completadas.' });
-      }
-    });
-
-    
-
-    // **Endpoint: Obtener session_ID a partir de postId**
-    app.post('/api/appraisals/get-session-id', authenticate, async (req, res) => {
-      const { postId } = req.body;
-
-      if (!postId) {
-        return res.status(400).json({ success: false, message: 'postId es requerido.' });
-      }
-
-      try {
-        // Construir el endpoint de WordPress para obtener el post
-        const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
-        console.log(`[get-session-id] Endpoint de WordPress: ${wpEndpoint}`);
-
-        // Realizar la solicitud GET a la API REST de WordPress
-        const wpResponse = await fetch(wpEndpoint, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`
-          }
-        });
-
-        if (!wpResponse.ok) {
-          const errorText = await wpResponse.text();
-          console.error(`[get-session-id] Error obteniendo post de WordPress: ${errorText}`);
-          return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
-        }
-
-        const wpData = await wpResponse.json();
-        const acfFields = wpData.acf || {};
-        const session_ID = acfFields.session_id || '';
-
-        if (!session_ID) {
-          console.error(`[get-session-id] session_ID no encontrado en el post de WordPress.`);
-          return res.status(404).json({ success: false, message: 'session_ID no encontrado en el post de WordPress.' });
-        }
-
-        console.log(`[get-session-id] session_ID extraído: ${session_ID}`);
-        res.json({ success: true, session_ID });
-      } catch (error) {
-        console.error('Error obteniendo session_ID:', error);
-        res.status(500).json({ success: false, message: 'Error obteniendo session_ID.' });
       }
     });
 
@@ -1036,8 +902,8 @@ app.post('/api/appraisals/:id/set-value', authenticate, validateSetValueData, as
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': authHeader
-          }
+            'Authorization': authHeader,
+          },
         });
 
         if (!wpResponse.ok) {
