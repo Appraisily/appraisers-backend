@@ -279,8 +279,8 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
     }
 
-    // Inicializar OpenAI con la API key desde secret manager
-    const openaiApiKey = await getSecret('openai-api-key');
+    // Inicializar OpenAI con la API key desde config
+    const openaiApiKey = config.OPENAI_API_KEY; // Usar la clave desde config
     const openai = new OpenAI({
       apiKey: openaiApiKey
     });
@@ -308,9 +308,9 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
       },
     ];
 
-    // Obtener descripción de OpenAI
+    // Obtener descripción de OpenAI usando el modelo 'gpt-4o-mini'
     const openaiResponse = await openai.chat.completions.create({
-      model: 'gpt-4-vision-preview',
+      model: 'gpt-4o-mini', // Cambiar el modelo aquí
       messages: messagesWithRoles,
       temperature: 0.7,
       max_tokens: 300
@@ -319,23 +319,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     const aiDescription = openaiResponse.choices[0].message.content.trim();
     console.log(`Descripción generada por IA: ${aiDescription}`);
 
-    // Inicializar Google Sheets API y continuar con el proceso existente...
-    const sheets = await initializeSheets();
-    
-    // ... resto del código existente para encontrar la fila ...
-
-    // Actualizar la columna H con la descripción de IA
-    const updateDescriptionRange = `${sheetName}!H${rowIndex}`;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: updateDescriptionRange,
-      valueInputOption: 'USER_ENTERED',
-      resource: {
-        values: [[aiDescription]],
-      },
-    });
-
-    // ... resto del código existente ...
+    // Aquí continúa el resto de tu código para actualizar Google Sheets y otros procesos...
 
   } catch (error) {
     console.error('Error en /api/update-pending-appraisal:', error);
