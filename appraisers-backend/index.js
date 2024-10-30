@@ -428,10 +428,10 @@ Maintain Essential Information:
           let rowIndex = null;
 
           for (let i = 0; i < values.length; i++) {
-            const rowSessionId = values[i][2]; // Suponiendo que session_id está en la columna C (índice 2)
+            const rowSessionId = values[i][2]; // session_id en columna C (índice 2)
             if (rowSessionId === session_id) {
               rowIndex = i + 1; // Las filas en Sheets comienzan en 1
-              customer_name = values[i][4] || ''; // Suponiendo que customer_name está en la columna E (índice 4)
+              customer_name = values[i][4] || ''; // customer_name en columna E (índice 4)
               break;
             }
           }
@@ -500,15 +500,17 @@ Maintain Essential Information:
             templateId: config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE, // Asegúrate de usar el template ID correcto
             dynamic_template_data: {
               customer_name: customer_name,
-              description: iaDescription,
-              preliminary_description: description || '',
+              description: description || '',
+              preliminary_description: iaDescription, // Aquí asignamos iaDescription a preliminary_description
               customer_email: customer_email,
               current_year: currentYear,
             },
+            // Programar el email para que se envíe con un retraso
+            sendAt: Math.floor((Date.now() + (2 * 60 * 60 * 1000)) / 1000), // Retraso de 2 horas (en segundos)
           };
 
           await sendGridMail.send(emailContent);
-          console.log(`Email enviado exitosamente a ${customer_email} con la descripción.`);
+          console.log(`Email programado exitosamente para enviar a ${customer_email} con la descripción.`);
         } catch (error) {
           console.error('Error enviando email al cliente:', error);
           // Manejar el error según sea necesario
@@ -526,6 +528,7 @@ Maintain Essential Information:
     res.status(500).json({ success: false, message: 'Internal Server Error.' });
   }
 });
+
 
 
 
