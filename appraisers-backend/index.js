@@ -271,10 +271,10 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     console.log('Cloud Run: Shared secret verificado correctamente.');
 
     // Obtener los datos del payload
-    let { session_id, description, images, post_id, post_edit_url, customer_email } = req.body;
+    let { description, images, post_id, post_edit_url, customer_email } = req.body;
+    let customer_name = ''; // Inicializamos customer_name
 
     // Loggear cada campo individualmente
-    console.log(`Cloud Run: session_id - ${session_id}`);
     console.log(`Cloud Run: description - ${description}`);
     console.log(`Cloud Run: images - ${JSON.stringify(images)}`);
     console.log(`Cloud Run: post_id - ${post_id}`);
@@ -282,7 +282,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     console.log(`Cloud Run: customer_email - ${customer_email}`);
 
     // Validar campos requeridos
-    if (!session_id || !post_id || typeof images !== 'object' || !post_edit_url || !customer_email) {
+    if (!customer_email || !post_id || typeof images !== 'object' || !post_edit_url) {
       console.warn('Cloud Run: Datos incompletos recibidos en el endpoint.');
       console.log('Cloud Run: Enviando respuesta 400 al cliente.');
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
@@ -325,7 +325,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
             description = acfFields.description || wpData.content.rendered || '';
             console.log(`[update-pending-appraisal] Descripción obtenida de WordPress: ${description}`);
           } catch (error) {
-            console.error('Error obteniendo descripción de WordPress:', error);
+            console.error('Error obteniendo datos de WordPress:', error);
             return;
           }
         }
@@ -374,12 +374,7 @@ Maintain Essential Information:
 - Ensure that the summary includes all critical aspects without unnecessary details.
                 `;
 
-        // Asegurarse de que las URLs de las imágenes están definidas
-        const mainImageUrl = images.main || '';
-        const signatureImageUrl = images.signature || '';
-        const ageImageUrl = images.back || ''; // Asumiendo que 'back' corresponde a 'ageImageUrl'
-
-        // Construir el contenido del mensaje con las instrucciones detalladas y las imágenes siguiendo la estructura del ejemplo
+        // Construir el contenido del mensaje con las instrucciones detalladas
         const messagesWithRoles = [
           {
             role: 'user',
@@ -390,9 +385,6 @@ Description: "${description}"
                     `,
           },
         ];
-
-        // Agregar imágenes si están disponibles (si tu modelo y política lo permiten)
-        // En este caso, vamos a omitir las imágenes ya que OpenAI no procesa imágenes en este contexto
 
         console.info("Sending data to OpenAI's API for description generation.");
 
@@ -442,50 +434,65 @@ Description: "${description}"
           // Manejar el error según sea necesario
         }
 
-        // Guardar el array de imágenes en la columna O del spreadsheet
+        // Guardar el array de imágenes y la descripción en el spreadsheet, y obtener 'customer_name' de columna E
         try {
-          // Encontrar la fila en Google Sheets que coincide con el session_id
+          // Encontrar la fila en Google Sheets que coincide con el customer_email
           const spreadsheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
           const sheetName = config.GOOGLE_SHEET_NAME;
 
           const responseSheets = await sheets.spreadsheets.values.get({
             spreadsheetId,
-            range: `${sheetName}!C:C`, // Suponiendo que session_id está en la columna C
+            range: `${sheetName}!A:O`, // Obtener columnas A hasta O
           });
 
           const values = responseSheets.data.values || [];
           let rowIndex = null;
 
           for (let i = 0; i < values.length; i++) {
-            const rowSessionId = values[i][0];
-            if (rowSessionId === session_id) {
+            const rowCustomerEmail = values[i][3]; // Suponiendo que customer_email está en la columna D (índice 3)
+            if (rowCustomerEmail === customer_email) {
               rowIndex = i + 1; // Las filas en Sheets comienzan en 1
+              customer_name = values[i][4] || ''; // Suponiendo que customer_name está en la columna E (índice 4)
               break;
             }
           }
 
           if (rowIndex === null) {
-            console.error(`Cloud Run: No se encontró la sesión con ID ${session_id} en Google Sheets.`);
+            console.error(`Cloud Run: No se encontró el email del cliente ${customer_email} en Google Sheets.`);
             return;
           }
+
+          // Loguear el nombre del cliente obtenido
+          console.log(`Cloud Run: Nombre del cliente obtenido de Google Sheets: ${customer_name}`);
 
           // Convertir el array de imágenes a una cadena JSON
           const imagesString = JSON.stringify(images);
 
-          // Escribir el array de imágenes en la columna O
-          const updateRange = `${sheetName}!O${rowIndex}`;
+          // Escribir la descripción en la columna H
+          const descriptionRange = `${sheetName}!H${rowIndex}`;
           await sheets.spreadsheets.values.update({
             spreadsheetId,
-            range: updateRange,
+            range: descriptionRange,
+            valueInputOption: 'USER_ENTERED',
+            resource: {
+              values: [[responseContent]],
+            },
+          });
+          console.log(`Cloud Run: Descripción guardada en la fila ${rowIndex}, columna H.`);
+
+          // Escribir el array de imágenes en la columna O
+          const imagesRange = `${sheetName}!O${rowIndex}`;
+          await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: imagesRange,
             valueInputOption: 'USER_ENTERED',
             resource: {
               values: [[imagesString]],
             },
           });
-
           console.log(`Cloud Run: Array de imágenes guardado en la fila ${rowIndex}, columna O.`);
         } catch (error) {
-          console.error('Error guardando el array de imágenes en Google Sheets:', error);
+          console.error('Error guardando datos en Google Sheets:', error);
           // Manejar el error según sea necesario
         }
 
@@ -499,9 +506,12 @@ Description: "${description}"
             from: process.env.SENDGRID_EMAIL,
             templateId: process.env.SENDGRID_TEMPLATE_ID, // Asegúrate de definir este ID en tu configuración
             dynamic_template_data: {
-              description: responseContent,
-              customer_email: customer_email,
-              // Puedes agregar más datos dinámicos si tu plantilla los requiere
+              customer_name: customer_name,             // Coincide con {{customer_name}}
+              description: responseContent,             // Coincide con {{description}}
+              preliminary_description: description,     // Coincide con {{preliminary_description}}
+              customer_email: customer_email,           // Coincide con {{customer_email}}
+              current_year: new Date().getFullYear(),   // Coincide con {{current_year}}
+              // Otros datos dinámicos si tu plantilla los requiere
             },
           };
 
@@ -524,6 +534,7 @@ Description: "${description}"
     res.status(500).json({ success: false, message: 'Internal Server Error.' });
   }
 });
+
 
 
     
