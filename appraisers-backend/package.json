@@ -16,7 +16,7 @@
     "node-fetch": "^2.6.7",
     "@google-cloud/pubsub": "^3.0.0",
     "openai": "^4.0.0",
-
-    "dotenv": "^16.0.3" 
+    "dotenv": "^16.0.3",
+    "@sendgrid/mail": "^7.7.0" 
   }
 }
