@@ -274,7 +274,7 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     console.log('Cloud Run: Shared secret verificado correctamente.');
 
     // Obtener los datos del payload
-    let { description, images, post_id, post_edit_url, customer_email } = req.body;
+    let { description, images, post_id, post_edit_url, customer_email, session_id } = req.body;
     let customer_name = ''; // Inicializamos customer_name
 
     // Loggear cada campo individualmente
@@ -283,9 +283,10 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     console.log(`Cloud Run: post_id - ${post_id}`);
     console.log(`Cloud Run: post_edit_url - ${post_edit_url}`);
     console.log(`Cloud Run: customer_email - ${customer_email}`);
+    console.log(`Cloud Run: session_id - ${session_id}`);
 
     // Validar campos requeridos
-    if (!customer_email || !post_id || typeof images !== 'object' || !post_edit_url) {
+    if (!session_id || !customer_email || !post_id || typeof images !== 'object' || !post_edit_url) {
       console.warn('Cloud Run: Datos incompletos recibidos en el endpoint.');
       console.log('Cloud Run: Enviando respuesta 400 al cliente.');
       return res.status(400).json({ success: false, message: 'Missing required fields.' });
@@ -412,9 +413,9 @@ Maintain Essential Information:
           // Manejar el error según sea necesario
         }
 
-        // Guardar el array de imágenes y la descripción en el spreadsheet, y obtener 'customer_name' de columna E
+        // Guardar los datos en el spreadsheet, y obtener 'customer_name' de columna E basándose en session_id (columna C)
         try {
-          // Encontrar la fila en Google Sheets que coincide con el customer_email
+          // Encontrar la fila en Google Sheets que coincide con el session_id
           const spreadsheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
           const sheetName = config.GOOGLE_SHEET_NAME;
 
@@ -427,8 +428,8 @@ Maintain Essential Information:
           let rowIndex = null;
 
           for (let i = 0; i < values.length; i++) {
-            const rowCustomerEmail = values[i][3]; // Suponiendo que customer_email está en la columna D (índice 3)
-            if (rowCustomerEmail === customer_email) {
+            const rowSessionId = values[i][2]; // Suponiendo que session_id está en la columna C (índice 2)
+            if (rowSessionId === session_id) {
               rowIndex = i + 1; // Las filas en Sheets comienzan en 1
               customer_name = values[i][4] || ''; // Suponiendo que customer_name está en la columna E (índice 4)
               break;
@@ -436,7 +437,7 @@ Maintain Essential Information:
           }
 
           if (rowIndex === null) {
-            console.error(`Cloud Run: No se encontró el email del cliente ${customer_email} en Google Sheets.`);
+            console.error(`Cloud Run: No se encontró el session_id ${session_id} en Google Sheets.`);
             return;
           }
 
@@ -488,24 +489,25 @@ Maintain Essential Information:
 
         // Enviar email al cliente con la descripción
         try {
-          const sgMail = require('@sendgrid/mail');
-          sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+          const sendGridMail = require('@sendgrid/mail');
+          sendGridMail.setApiKey(config.SENDGRID_API_KEY);
 
-          const msg = {
+          const currentYear = new Date().getFullYear();
+
+          const emailContent = {
             to: customer_email,
-            from: process.env.SENDGRID_EMAIL,
-            templateId: process.env.SENDGRID_TEMPLATE_ID, // Asegúrate de definir este ID en tu configuración
+            from: config.SENDGRID_EMAIL, // Verified email
+            templateId: config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE, // Asegúrate de usar el template ID correcto
             dynamic_template_data: {
-              customer_name: customer_name,             // Coincide con {{customer_name}}
-              description: iaDescription,               // Coincide con {{description}}
-              preliminary_description: description,     // Coincide con {{preliminary_description}}
-              customer_email: customer_email,           // Coincide con {{customer_email}}
-              current_year: new Date().getFullYear(),   // Coincide con {{current_year}}
-              // Otros datos dinámicos si tu plantilla los requiere
+              customer_name: customer_name,
+              description: iaDescription,
+              preliminary_description: description || '',
+              customer_email: customer_email,
+              current_year: currentYear,
             },
           };
 
-          await sgMail.send(msg);
+          await sendGridMail.send(emailContent);
           console.log(`Email enviado exitosamente a ${customer_email} con la descripción.`);
         } catch (error) {
           console.error('Error enviando email al cliente:', error);
