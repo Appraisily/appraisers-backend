@@ -256,7 +256,10 @@ async function startServer() {
       res.json({ authenticated: true, name: req.user.name });
     });
 
-    // **Endpoint: Actualizar Estado de Apreciación Pendiente**
+
+    
+
+// **Endpoint: Actualizar Estado de Apreciación Pendiente**
 app.post('/api/update-pending-appraisal', async (req, res) => {
   try {
     // Loggear el payload completo recibido
@@ -336,13 +339,23 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
           return;
         }
 
+        // Asegurarse de que las URLs de las imágenes están definidas
+        const mainImageUrl = images.main || '';
+        const signatureImageUrl = images.signature || '';
+        const backImageUrl = images.back || '';
+
+        if (!mainImageUrl) {
+          console.error('La imagen principal (mainImageUrl) es requerida para generar la descripción.');
+          return;
+        }
+
         // Inicializar OpenAI con la API key desde config
         const openaiApiKey = config.OPENAI_API_KEY; // Usar la clave desde config
         const openai = new OpenAI({
           apiKey: openaiApiKey,
         });
 
-        // Preparar el nuevo prompt detallado para GPT-4 siguiendo la estructura del ejemplo
+        // Preparar el prompt que prefieres
         const condensedInstructions = `
 Please condense the following detailed artwork description into a synthetic, concise summary of around 50 words, retaining as much key information as possible. Follow the example format below:
 
@@ -372,38 +385,42 @@ Use Concise Language:
 Maintain Essential Information:
 
 - Ensure that the summary includes all critical aspects without unnecessary details.
-                `;
+        `;
 
-        // Construir el contenido del mensaje con las instrucciones detalladas
+        // Construir el contenido del mensaje con las instrucciones detalladas y la imagen
         const messagesWithRoles = [
           {
-            role: 'user',
-            content: `
-${condensedInstructions}
-
-Description: "${description}"
-                    `,
+            role: "user",
+            content: [
+              { type: "text", text: `${condensedInstructions}\n\nDescription: "[Insert the detailed artwork description here]"` },
+              {
+                type: "image_url",
+                image_url: {
+                  "url": mainImageUrl,
+                },
+              }
+            ],
           },
         ];
 
-        console.info("Sending data to OpenAI's API for description generation.");
+        console.info("Enviando imagen y prompt a la API de OpenAI para la generación de la descripción.");
 
-        // Llamar a la API de Chat Completion de OpenAI para obtener la descripción
-        let responseContent;
+        // Llamar a la API de OpenAI para obtener la descripción
+        let iaDescription;
         try {
+          // **No cambiar el modelo 'gpt-4o' a 'gpt-4', ya que 'gpt-4o' es necesario para procesar imágenes**
           const openaiResponse = await openai.chat.completions.create({
-            model: 'gpt-4', // Reemplaza con el nombre correcto del modelo que soporta tus requerimientos
+            model: 'gpt-4o', // NO cambiar este modelo
             messages: messagesWithRoles,
-            temperature: 0.7, // Ajusta según sea necesario
           });
 
-          responseContent = openaiResponse.choices[0].message.content.trim();
+          iaDescription = openaiResponse.choices[0].message.content.trim();
         } catch (openAIError) {
           console.error('OpenAI API Error:', openAIError.response ? openAIError.response.data : openAIError.message);
           return; // No enviar respuesta 500 ya que ya se envió la respuesta 200 al cliente
         }
 
-        console.info(`Received Response: ${responseContent}`);
+        console.info(`Descripción generada por IA: ${iaDescription}`);
 
         // Actualizar el título del post en WordPress
         try {
@@ -418,7 +435,7 @@ Description: "${description}"
               'Authorization': authHeader,
             },
             body: JSON.stringify({
-              title: responseContent,
+              title: iaDescription,
             }),
           });
 
@@ -468,17 +485,29 @@ Description: "${description}"
           // Convertir el array de imágenes a una cadena JSON
           const imagesString = JSON.stringify(images);
 
-          // Escribir la descripción en la columna H
+          // Escribir la descripción generada por IA en la columna H
           const descriptionRange = `${sheetName}!H${rowIndex}`;
           await sheets.spreadsheets.values.update({
             spreadsheetId,
             range: descriptionRange,
             valueInputOption: 'USER_ENTERED',
             resource: {
-              values: [[responseContent]],
+              values: [[iaDescription]],
             },
           });
-          console.log(`Cloud Run: Descripción guardada en la fila ${rowIndex}, columna H.`);
+          console.log(`Cloud Run: Descripción generada por IA guardada en la fila ${rowIndex}, columna H.`);
+
+          // Escribir la descripción del cliente en la columna I (si existe)
+          const clientDescriptionRange = `${sheetName}!I${rowIndex}`;
+          await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: clientDescriptionRange,
+            valueInputOption: 'USER_ENTERED',
+            resource: {
+              values: [[description || '']],
+            },
+          });
+          console.log(`Cloud Run: Descripción del cliente guardada en la fila ${rowIndex}, columna I.`);
 
           // Escribir el array de imágenes en la columna O
           const imagesRange = `${sheetName}!O${rowIndex}`;
@@ -507,7 +536,7 @@ Description: "${description}"
             templateId: process.env.SENDGRID_TEMPLATE_ID, // Asegúrate de definir este ID en tu configuración
             dynamic_template_data: {
               customer_name: customer_name,             // Coincide con {{customer_name}}
-              description: responseContent,             // Coincide con {{description}}
+              description: iaDescription,               // Coincide con {{description}}
               preliminary_description: description,     // Coincide con {{preliminary_description}}
               customer_email: customer_email,           // Coincide con {{customer_email}}
               current_year: new Date().getFullYear(),   // Coincide con {{current_year}}
