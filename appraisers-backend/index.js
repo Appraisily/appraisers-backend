@@ -389,7 +389,7 @@ Maintain Essential Information:
           const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${post_id}`;
           const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
 
-          // Actualizar el título del post
+        // Actualizar el título del post
           const updateResponse = await fetch(wpEndpoint, {
             method: 'PUT',
             headers: {
@@ -397,10 +397,11 @@ Maintain Essential Information:
               'Authorization': authHeader,
             },
             body: JSON.stringify({
-              title: iaDescription,
+              title: `Preliminary Analysis: ${iaDescription}`, // Aquí concatenamos el prefijo con la descripción
             }),
           });
 
+          
           if (!updateResponse.ok) {
             const errorText = await updateResponse.text();
             console.error(`[update-pending-appraisal] Error actualizando título del post en WordPress: ${errorText}`);
