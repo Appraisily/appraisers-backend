@@ -257,7 +257,7 @@ async function startServer() {
     });
 
     // **Endpoint: Actualizar Estado de Apreciación Pendiente**
-    app.post('/api/update-pending-appraisal', async (req, res) => {
+app.post('/api/update-pending-appraisal', async (req, res) => {
   try {
     // Loggear el payload completo recibido
     console.log('Cloud Run: Payload recibido -', JSON.stringify(req.body));
@@ -391,16 +391,8 @@ Description: "${description}"
           },
         ];
 
-        // Agregar imágenes si están disponibles
-        if (mainImageUrl) {
-          messagesWithRoles[0].content += `\n<img src="${mainImageUrl}" alt="Main Artwork" />`;
-        }
-        if (signatureImageUrl) {
-          messagesWithRoles[0].content += `\n<img src="${signatureImageUrl}" alt="Signature Artwork" />`;
-        }
-        if (ageImageUrl) {
-          messagesWithRoles[0].content += `\n<img src="${ageImageUrl}" alt="Age Artwork" />`;
-        }
+        // Agregar imágenes si están disponibles (si tu modelo y política lo permiten)
+        // En este caso, vamos a omitir las imágenes ya que OpenAI no procesa imágenes en este contexto
 
         console.info("Sending data to OpenAI's API for description generation.");
 
@@ -421,9 +413,106 @@ Description: "${description}"
 
         console.info(`Received Response: ${responseContent}`);
 
-        // Continuar con las operaciones necesarias utilizando responseContent
+        // Actualizar el título del post en WordPress
+        try {
+          const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${post_id}`;
+          const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
 
-        // Por ejemplo, actualizar Google Sheets, etc.
+          // Actualizar el título del post
+          const updateResponse = await fetch(wpEndpoint, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': authHeader,
+            },
+            body: JSON.stringify({
+              title: responseContent,
+            }),
+          });
+
+          if (!updateResponse.ok) {
+            const errorText = await updateResponse.text();
+            console.error(`[update-pending-appraisal] Error actualizando título del post en WordPress: ${errorText}`);
+            // Manejar el error según sea necesario
+          } else {
+            console.log(`Título del post de WordPress actualizado exitosamente con la descripción generada.`);
+          }
+        } catch (error) {
+          console.error('Error actualizando el título del post en WordPress:', error);
+          // Manejar el error según sea necesario
+        }
+
+        // Guardar el array de imágenes en la columna O del spreadsheet
+        try {
+          // Encontrar la fila en Google Sheets que coincide con el session_id
+          const spreadsheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+          const sheetName = config.GOOGLE_SHEET_NAME;
+
+          const responseSheets = await sheets.spreadsheets.values.get({
+            spreadsheetId,
+            range: `${sheetName}!C:C`, // Suponiendo que session_id está en la columna C
+          });
+
+          const values = responseSheets.data.values || [];
+          let rowIndex = null;
+
+          for (let i = 0; i < values.length; i++) {
+            const rowSessionId = values[i][0];
+            if (rowSessionId === session_id) {
+              rowIndex = i + 1; // Las filas en Sheets comienzan en 1
+              break;
+            }
+          }
+
+          if (rowIndex === null) {
+            console.error(`Cloud Run: No se encontró la sesión con ID ${session_id} en Google Sheets.`);
+            return;
+          }
+
+          // Convertir el array de imágenes a una cadena JSON
+          const imagesString = JSON.stringify(images);
+
+          // Escribir el array de imágenes en la columna O
+          const updateRange = `${sheetName}!O${rowIndex}`;
+          await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: updateRange,
+            valueInputOption: 'USER_ENTERED',
+            resource: {
+              values: [[imagesString]],
+            },
+          });
+
+          console.log(`Cloud Run: Array de imágenes guardado en la fila ${rowIndex}, columna O.`);
+        } catch (error) {
+          console.error('Error guardando el array de imágenes en Google Sheets:', error);
+          // Manejar el error según sea necesario
+        }
+
+        // Enviar email al cliente con la descripción
+        try {
+          const sgMail = require('@sendgrid/mail');
+          sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+          const msg = {
+            to: customer_email,
+            from: process.env.SENDGRID_EMAIL,
+            templateId: process.env.SENDGRID_TEMPLATE_ID, // Asegúrate de definir este ID en tu configuración
+            dynamic_template_data: {
+              description: responseContent,
+              customer_email: customer_email,
+              // Puedes agregar más datos dinámicos si tu plantilla los requiere
+            },
+          };
+
+          await sgMail.send(msg);
+          console.log(`Email enviado exitosamente a ${customer_email} con la descripción.`);
+        } catch (error) {
+          console.error('Error enviando email al cliente:', error);
+          // Manejar el error según sea necesario
+        }
+
+        // Continuar con otras operaciones si es necesario
 
       } catch (error) {
         console.error('Cloud Run: Error en /api/update-pending-appraisal:', error);
@@ -436,88 +525,8 @@ Description: "${description}"
   }
 });
 
-    // **Endpoint: Obtener Detalles de una Apreciación Específica**
-    app.get('/api/appraisals/:id/list', authenticate, async (req, res) => {
-      const { id } = req.params; // Número de fila
 
-      try {
-        // Actualizar el rango para incluir la columna I
-        const response = await sheets.spreadsheets.values.get({
-          spreadsheetId: SPREADSHEET_ID,
-          range: `${SHEET_NAME}!A${id}:I${id}`, // Ahora incluye hasta la columna I
-        });
-
-        const row = response.data.values ? response.data.values[0] : null;
-
-        if (!row) {
-          return res.status(404).json({ success: false, message: 'Apreciación no encontrada.' });
-        }
-
-        // Incluir descripción del cliente (columna I)
-        const appraisal = {
-          id: id,
-          date: row[0] || '',
-          appraisalType: row[1] || '',
-          identifier: row[2] || '',
-          status: row[5] || '',
-          wordpressUrl: row[6] || '',
-          iaDescription: row[7] || '',
-          customerDescription: row[8] || '', // Nueva propiedad
-        };
-
-        // Extraer el post ID de la URL de WordPress
-        const wordpressUrl = appraisal.wordpressUrl;
-        const parsedUrl = new URL(wordpressUrl);
-        const postId = parsedUrl.searchParams.get('post');
-
-        if (!postId) {
-          return res.status(400).json({ success: false, message: 'No se pudo extraer el ID del post de WordPress.' });
-        }
-
-        console.log(`[api/appraisals/${id}] Post ID extraído: ${postId}`);
-
-        // Construir el endpoint para obtener el post
-        const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${postId}`;
-        console.log(`[api/appraisals/${id}] Endpoint de WordPress: ${wpEndpoint}`);
-
-        // Realizar la solicitud a la API REST de WordPress
-        const wpResponse = await fetch(wpEndpoint, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64')}`,
-          },
-        });
-
-        if (!wpResponse.ok) {
-          const errorText = await wpResponse.text();
-          console.error(`[api/appraisals/${id}] Error obteniendo post de WordPress: ${errorText}`);
-          return res.status(500).json({ success: false, message: 'Error obteniendo datos de WordPress.' });
-        }
-
-        const wpData = await wpResponse.json();
-        console.log(`[api/appraisals/${id}] Datos de WordPress obtenidos:`, wpData);
-
-        // Obtener los campos ACF
-        const acfFields = wpData.acf || {};
-
-        // Obtener URLs de imágenes
-        const images = {
-          main: await getImageUrl(acfFields.main),
-          age: await getImageUrl(acfFields.age),
-          signature: await getImageUrl(acfFields.signature),
-        };
-
-        // Agregar imágenes a la respuesta
-        appraisal.images = images;
-
-        // Enviar la respuesta con la descripción del cliente incluida
-        res.json(appraisal);
-      } catch (error) {
-        console.error('Error obteniendo detalles de la apreciación:', error);
-        res.status(500).json({ success: false, message: 'Error obteniendo detalles de la apreciación.' });
-      }
-    });
+    
 
     // **Endpoint: Actualizar un Campo ACF Específico**
     app.put('/api/appraisals/:id/update-acf-field', authenticate, async (req, res) => {
