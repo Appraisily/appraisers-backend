@@ -317,44 +317,18 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
           apiKey: openaiApiKey,
         });
 
-        // Preparar el prompt que prefieres
-        const condensedInstructions = `
-Please condense the following detailed artwork description into a synthetic, concise summary of around 50 words, retaining as much key information as possible. Follow the example format below:
+// Preparar el prompt que prefieres
+const condensedInstructions = `
+Describe the artwork's style, medium, color palette, and composition as accurately as possible. If any part cannot be completed, simply skip it. Provide the description in formal language, assuming you are an expert in art. The description should be less than 50 words, including only the text of the description.
+`;
 
-Example Format: "[Style] [Medium] ([Date]), [Size]. [Color Palette]. [Composition details]. [Brushwork/Texture]. [Mood]. [Condition/details]."
-
-Description: "[Insert the detailed artwork description here]"
-
-Tips for Effective Condensation:
-
-Identify Key Elements:
-
-- Style: Impressionist, Realist, etc.
-- Medium: Oil on canvas, watercolor, etc.
-- Date: Century or specific year if available.
-- Size: Medium, large, specific dimensions if known.
-- Color Palette: Dominant colors used.
-- Composition: Main elements and their arrangement.
-- Brushwork/Texture: Loose, expressive, dynamic, etc.
-- Mood: Serene, tranquil, contemplative, etc.
-- Condition/Details: Missing views, signature, age, etc.
-
-Use Concise Language:
-
-- Combine related information into single phrases.
-- Use commas to separate different attributes.
-
-Maintain Essential Information:
-
-- Ensure that the summary includes all critical aspects without unnecessary details.
-        `;
 
        // Construir el contenido del mensaje con las instrucciones detalladas y la imagen
 const messagesWithRoles = [
   {
     role: "user",
     content: [
-      { type: "text", text: `${condensedInstructions}\n\nDescription: "[Insert the detailed artwork description here]"` },
+      { type: "text", text: `${condensedInstructions}"` },
       {
         type: "image_url",
         image_url: {
