@@ -300,45 +300,6 @@ app.post('/api/update-pending-appraisal', async (req, res) => {
     // Ejecutar tareas en segundo plano sin esperar a que finalicen
     (async () => {
       try {
-        // Si 'description' es undefined, obtenerla desde WordPress
-        if (!description) {
-          console.log('Cloud Run: Description no proporcionada, obteniendo desde WordPress...');
-          try {
-            const wpEndpoint = `${process.env.WORDPRESS_API_URL}/appraisals/${post_id}`;
-            console.log(`[update-pending-appraisal] Endpoint de WordPress: ${wpEndpoint}`);
-
-            const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(process.env.WORDPRESS_USERNAME)}:${process.env.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
-
-            const wpResponse = await fetch(wpEndpoint, {
-              method: 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': authHeader,
-              },
-            });
-
-            if (!wpResponse.ok) {
-              const errorText = await wpResponse.text();
-              console.error(`[update-pending-appraisal] Error obteniendo post de WordPress: ${errorText}`);
-              return; // O manejar el error apropiadamente
-            }
-
-            const wpData = await wpResponse.json();
-            const acfFields = wpData.acf || {};
-            description = acfFields.description || wpData.content.rendered || '';
-            console.log(`[update-pending-appraisal] Descripción obtenida de WordPress: ${description}`);
-          } catch (error) {
-            console.error('Error obteniendo datos de WordPress:', error);
-            return;
-          }
-        }
-
-        // Continuar con el procesamiento si tenemos una descripción válida
-        if (!description) {
-          console.error('No se pudo obtener una descripción válida.');
-          return;
-        }
-
         // Asegurarse de que las URLs de las imágenes están definidas
         const mainImageUrl = images.main || '';
         const signatureImageUrl = images.signature || '';
