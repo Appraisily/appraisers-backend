@@ -349,21 +349,22 @@ Maintain Essential Information:
 - Ensure that the summary includes all critical aspects without unnecessary details.
         `;
 
-        // Construir el contenido del mensaje con las instrucciones detalladas y la imagen
-        const messagesWithRoles = [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: `${condensedInstructions}\n\nDescription: "[Insert the detailed artwork description here]"` },
-              {
-                type: "image_url",
-                image_url: {
-                  "url": mainImageUrl,
-                },
-              }
-            ],
-          },
-        ];
+       // Construir el contenido del mensaje con las instrucciones detalladas y la imagen
+const messagesWithRoles = [
+  {
+    role: "user",
+    content: [
+      { type: "text", text: `${condensedInstructions}\n\nDescription: "[Insert the detailed artwork description here]"` },
+      {
+        type: "image_url",
+        image_url: {
+          "url": mainImageUrl,
+          "detail": "high", // Añadimos el nivel de detalle "high"
+        },
+      },
+    ],
+  },
+];
 
         console.info("Enviando imagen y prompt a la API de OpenAI para la generación de la descripción.");
 
