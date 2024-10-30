@@ -494,6 +494,10 @@ Maintain Essential Information:
 
           const currentYear = new Date().getFullYear();
 
+ const delayInMinutes = 1; // Retraso de 1 minuto
+          const sendAtTimestamp = Math.floor((Date.now() + (delayInMinutes * 60 * 1000)) / 1000); // Convertir a segundos
+
+          
           const emailContent = {
             to: customer_email,
             from: config.SENDGRID_EMAIL, // Verified email
@@ -506,7 +510,7 @@ Maintain Essential Information:
               current_year: currentYear,
             },
             // Programar el email para que se envíe con un retraso
-            sendAt: Math.floor((Date.now() + (2 * 60 * 60 * 1000)) / 1000), // Retraso de 2 horas (en segundos)
+            sendAt: sendAtTimestamp, // Retraso de 1 minuto
           };
 
           await sendGridMail.send(emailContent);
