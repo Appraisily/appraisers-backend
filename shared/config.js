@@ -18,6 +18,8 @@ async function initializeConfig() {
     config.SENDGRID_API_KEY = (await getSecret('SENDGRID_API_KEY')).trim();
     config.SENDGRID_EMAIL = (await getSecret('SENDGRID_EMAIL')).trim();
     config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED = (await getSecret('SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED')).trim();
+    config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE = (await getSecret('SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE')).trim();
+
     console.log('Credenciales de SendGrid obtenidas exitosamente.');
 
     config.PENDING_APPRAISALS_SPREADSHEET_ID = (await getSecret('PENDING_APPRAISALS_SPREADSHEET_ID')).trim();
