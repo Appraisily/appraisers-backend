@@ -15,8 +15,8 @@ app.use(cookieParser());
 app.use('/api', authRoutes);
 app.use('/api', appraisalsRoutes);
 
-// Iniciar el servidor
-const PORT = config.PORT || 3000;
+// Iniciar el servidor en el puerto proporcionado por Cloud Run
+const PORT = process.env.PORT || 8080; // Usa 8080 como valor predeterminado
 app.listen(PORT, () => {
   console.log(`Servidor ejecutándose en el puerto ${PORT}`);
 });
