@@ -2,27 +2,42 @@
 
 const express = require('express');
 const app = express();
-const cors = require('cors'); // Importar cors
 const cookieParser = require('cookie-parser');
-const authRoutes = require('./routes/auth');
-const appraisalsRoutes = require('./routes/appraisals');
+const cors = require('cors');
+const { initializeConfig } = require('./shared/config'); // Importar initializeConfig
 
-// Middlewares
-app.use(express.json());
-app.use(cookieParser());
+// Otras importaciones
 
-// Configurar CORS
-app.use(cors({
-  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // Reemplaza con la URL de tu frontend
-  credentials: true, // Permitir el envío de cookies y cabeceras de autorización
-}));
+(async () => {
+  try {
+    // Inicializar la configuración antes de continuar
+    await initializeConfig();
+    console.log('Configuración inicializada correctamente.');
 
-// Rutas
-app.use('/api', authRoutes);
-app.use('/api', appraisalsRoutes);
+    // Importar rutas y controladores después de que config esté inicializado
+    const authRoutes = require('./routes/auth');
+    const appraisalsRoutes = require('./routes/appraisals');
 
-// Iniciar el servidor
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`Servidor ejecutándose en el puerto ${PORT}`);
-});
+    // Middlewares
+    app.use(express.json());
+    app.use(cookieParser());
+    app.use(cors({
+      origin: 'https://appraisers-frontend-856401495068.us-central1.run.app', // URL de tu frontend
+      credentials: true, // Permitir envío de cookies y cabeceras de autorización
+    }));
+
+    // Rutas
+    app.use('/api', authRoutes);
+    app.use('/api', appraisalsRoutes);
+
+    // Iniciar el servidor
+    const PORT = process.env.PORT || 8080;
+    app.listen(PORT, () => {
+      console.log(`Servidor ejecutándose en el puerto ${PORT}`);
+    });
+
+  } catch (error) {
+    console.error('Error inicializando la configuración:', error);
+    process.exit(1); // Salir del proceso si no se puede inicializar la configuración
+  }
+})();
