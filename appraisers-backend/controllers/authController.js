@@ -1,73 +1,48 @@
 // controllers/authController.js
 
-const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
-const authorizedUsers = require('../shared/authorizedUsers');
+const { OAuth2Client } = require('google-auth-library');
 const { config } = require('../shared/config');
+const authorizedUsers = require('../shared/authorizedUsers');
 
-// Configurar cliente OAuth2 con tu Client ID
-const oauthClient = new OAuth2Client('TU_CLIENT_ID'); // Reemplaza con tu Client ID real
+const client = new OAuth2Client(config.GOOGLE_CLIENT_ID);
 
-// Función para verificar el ID token
-async function verifyIdToken(idToken) {
-  const ticket = await oauthClient.verifyIdToken({
-    idToken: idToken,
-    audience: 'TU_CLIENT_ID', // Reemplaza con tu Client ID real
-  });
-  const payload = ticket.getPayload();
-  return payload;
-}
-
-exports.authenticate = async (req, res) => {
+exports.authenticateUser = async (req, res) => {
   const { idToken } = req.body;
 
   if (!idToken) {
-    return res.status(400).json({ success: false, message: 'ID Token is required.' });
+    return res.status(400).json({ success: false, message: 'idToken es requerido.' });
   }
 
   try {
-    const payload = await verifyIdToken(idToken);
-    console.log('Authenticated user:', payload.email);
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: config.GOOGLE_CLIENT_ID,
+    });
 
-    // Verificar si el usuario está en la lista de autorizados
-    if (!authorizedUsers.includes(payload.email)) {
-      return res.status(403).json({ success: false, message: 'Access denied: User not authorized.' });
+    const payload = ticket.getPayload();
+    const email = payload.email;
+    const name = payload.name;
+
+    // Verificar si el usuario está autorizado
+    if (!authorizedUsers.includes(email)) {
+      return res.status(403).json({ success: false, message: 'Usuario no autorizado.' });
     }
 
     // Generar JWT
-    const token = jwt.sign(
-      {
-        email: payload.email,
-        name: payload.name,
-      },
-      config.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
+    const token = jwt.sign({ email }, config.JWT_SECRET, { expiresIn: '1h' });
 
-    // Enviar el JWT como una cookie httpOnly
-    res.cookie('jwtToken', token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'None',
-      maxAge: 60 * 60 * 1000,
-    });
+    // Establecer el token en una cookie HTTP-only
+    res.cookie('jwtToken', token, { httpOnly: true, secure: true });
 
-    res.json({ success: true, name: payload.name });
+    res.json({ success: true, name });
   } catch (error) {
-    console.error('Error verifying ID Token:', error);
-    res.status(401).json({ success: false, message: 'Authentication failed.' });
+    console.error('Error al verificar idToken:', error);
+    res.status(401).json({ success: false, message: 'idToken inválido.' });
   }
 };
 
-exports.logout = (req, res) => {
-  res.clearCookie('jwtToken', {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'None',
-  });
-  res.json({ success: true, message: 'Successfully logged out.' });
-};
-
-exports.checkAuth = (req, res) => {
-  res.json({ authenticated: true, name: req.user.name });
+exports.logoutUser = (req, res) => {
+  res.clearCookie('jwtToken');
+  res.json({ success: true, message: 'Logout exitoso.' });
 };
