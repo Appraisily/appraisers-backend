@@ -32,7 +32,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 // Configurar cliente OAuth2 con tu Client ID
-const oauthClient = new OAuth2Client('TU_CLIENT_ID'); // Reemplaza con tu Client ID real
+const oauthClient = new OAuth2Client('856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com'); // Reemplaza con tu Client ID real
 
 const client = new SecretManagerServiceClient();
 
@@ -43,7 +43,7 @@ let pubsub;
 async function verifyIdToken(idToken) {
   const ticket = await oauthClient.verifyIdToken({
     idToken: idToken,
-    audience: 'TU_CLIENT_ID', // Reemplaza con tu Client ID real
+    audience: '856401495068-ica4bncmu5t8i0muugrn9t8t25nt1hb4.apps.googleusercontent.com', // Reemplaza con tu Client ID real
   });
 
   const payload = ticket.getPayload();
