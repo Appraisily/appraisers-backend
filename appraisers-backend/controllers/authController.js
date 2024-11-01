@@ -34,7 +34,12 @@ exports.authenticateUser = async (req, res) => {
     const token = jwt.sign({ email }, config.JWT_SECRET, { expiresIn: '1h' });
 
     // Establecer el token en una cookie HTTP-only
-    res.cookie('jwtToken', token, { httpOnly: true, secure: true });
+
+    res.cookie('jwtToken', token, {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'None', // Importante para cookies en solicitudes cross-origin
+});
 
     res.json({ success: true, name });
   } catch (error) {
