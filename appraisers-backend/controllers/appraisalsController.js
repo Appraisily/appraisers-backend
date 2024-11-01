@@ -3,26 +3,31 @@
 const { google } = require('googleapis');
 const fetch = require('node-fetch');
 const appraisalStepsModule = require('../shared/appraisalSteps');
-const { config } = require('../shared/config');
+// No acceder a config aquí
+// const { config } = require('../shared/config');
 const sheets = require('../shared/googleSheets');
 const getImageUrl = require('../utils/getImageUrl');
 const { PubSub } = require('@google-cloud/pubsub');
 const validateSetValueData = require('../utils/validateSetValueData');
 
-// Inicializar appraisalSteps
-const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
+// No inicializar appraisalSteps aquí
+// const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
-// Inicializar Pub/Sub
-const pubsub = new PubSub({
-  projectId: config.GCP_PROJECT_ID,
-});
+// No inicializar Pub/Sub aquí
+// const pubsub = new PubSub({
+//   projectId: config.GCP_PROJECT_ID,
+// });
 
-// Obtener SPREADSHEET_ID y SHEET_NAME desde config
-const SPREADSHEET_ID = config.SPREADSHEET_ID;
-const SHEET_NAME = config.SHEET_NAME;
+// No obtener SPREADSHEET_ID y SHEET_NAME en el nivel superior
+// const SPREADSHEET_ID = config.SPREADSHEET_ID;
+// const SHEET_NAME = config.SHEET_NAME;
 
 exports.getAppraisals = async (req, res) => {
   try {
+    const { config } = require('../shared/config');
+    const SPREADSHEET_ID = config.SPREADSHEET_ID;
+    const SHEET_NAME = config.SHEET_NAME;
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A2:H`,
@@ -53,6 +58,10 @@ exports.getAppraisalDetails = async (req, res) => {
   const { id } = req.params; // Número de fila
 
   try {
+    const { config } = require('../shared/config');
+    const SPREADSHEET_ID = config.SPREADSHEET_ID;
+    const SHEET_NAME = config.SHEET_NAME;
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A${id}:I${id}`, // Incluye hasta la columna I
@@ -91,14 +100,18 @@ exports.getAppraisalDetails = async (req, res) => {
     console.log(`[getAppraisalDetails] Endpoint de WordPress: ${wpEndpoint}`);
 
     // Autenticación con WordPress
-    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
+    const authHeader =
+      'Basic ' +
+      Buffer.from(
+        `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`
+      ).toString('base64');
 
     // Realizar la solicitud a la API REST de WordPress
     const wpResponse = await fetch(wpEndpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader,
+        Authorization: authHeader,
       },
     });
 
@@ -136,6 +149,10 @@ exports.getAppraisalDetailsForEdit = async (req, res) => {
   const { id } = req.params; // Número de fila
 
   try {
+    const { config } = require('../shared/config');
+    const SPREADSHEET_ID = config.SPREADSHEET_ID;
+    const SHEET_NAME = config.SHEET_NAME;
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A${id}:I${id}`, // Incluye hasta la columna I
@@ -172,8 +189,12 @@ exports.getAppraisalDetailsForEdit = async (req, res) => {
     }
 
     if (!postId || isNaN(postId)) {
-      console.error(`[getAppraisalDetailsForEdit] Post ID de WordPress no proporcionado o inválido en la URL.`);
-      return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
+      console.error(
+        `[getAppraisalDetailsForEdit] Post ID de WordPress no proporcionado o inválido en la URL.`
+      );
+      return res
+        .status(400)
+        .json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
     }
 
     // Construir el endpoint para obtener el post de WordPress
@@ -181,14 +202,18 @@ exports.getAppraisalDetailsForEdit = async (req, res) => {
     console.log(`[getAppraisalDetailsForEdit] Endpoint de WordPress: ${wpEndpoint}`);
 
     // Autenticación con WordPress
-    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
+    const authHeader =
+      'Basic ' +
+      Buffer.from(
+        `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`
+      ).toString('base64');
 
     // Realizar la solicitud a la API REST de WordPress
     const wpResponse = await fetch(wpEndpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader,
+        Authorization: authHeader,
       },
     });
 
@@ -232,18 +257,24 @@ exports.updateAcfField = async (req, res) => {
   }
 
   try {
+    const { config } = require('../shared/config');
+
     // Construir el endpoint de WordPress
     const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${id}`;
 
     // Autenticación con WordPress
-    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
+    const authHeader =
+      'Basic ' +
+      Buffer.from(
+        `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`
+      ).toString('base64');
 
     // Obtener el post actual para mantener otros campos ACF
     const wpResponse = await fetch(wpEndpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader,
+        Authorization: authHeader,
       },
     });
 
@@ -264,7 +295,7 @@ exports.updateAcfField = async (req, res) => {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader,
+        Authorization: authHeader,
       },
       body: JSON.stringify({ acf: acfFields }),
     });
@@ -287,6 +318,9 @@ exports.setAppraisalValue = async (req, res) => {
   const { appraisalValue, description, isEdit } = req.body;
 
   try {
+    const { config } = require('../shared/config');
+    const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
+
     // Determinar el nombre de la hoja basada en isEdit
     let sheetName = config.SHEET_NAME; // Por defecto
 
@@ -311,6 +345,11 @@ exports.completeProcess = async (req, res) => {
   }
 
   try {
+    const { config } = require('../shared/config');
+    const pubsub = new PubSub({
+      projectId: config.GCP_PROJECT_ID,
+    });
+
     // Crear el mensaje para Pub/Sub
     const task = {
       id,
@@ -341,19 +380,25 @@ exports.getSessionId = async (req, res) => {
   }
 
   try {
+    const { config } = require('../shared/config');
+
     // Construir el endpoint de WordPress para obtener el post
     const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
     console.log(`[getSessionId] Endpoint de WordPress: ${wpEndpoint}`);
 
     // Autenticación con WordPress
-    const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
+    const authHeader =
+      'Basic ' +
+      Buffer.from(
+        `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`
+      ).toString('base64');
 
     // Realizar la solicitud GET a la API REST de WordPress
     const wpResponse = await fetch(wpEndpoint, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader,
+        Authorization: authHeader,
       },
     });
 
@@ -369,7 +414,9 @@ exports.getSessionId = async (req, res) => {
 
     if (!session_ID) {
       console.error(`[getSessionId] session_ID no encontrado en el post de WordPress.`);
-      return res.status(404).json({ success: false, message: 'session_ID no encontrado en el post de WordPress.' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'session_ID no encontrado en el post de WordPress.' });
     }
 
     console.log(`[getSessionId] session_ID extraído: ${session_ID}`);
@@ -390,6 +437,10 @@ exports.saveLinks = async (req, res) => {
   }
 
   try {
+    const { config } = require('../shared/config');
+    const SPREADSHEET_ID = config.SPREADSHEET_ID;
+    const SHEET_NAME = config.SHEET_NAME;
+
     // Actualizar las columnas M y N en Google Sheets
     const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
     const values = [[pdfLink, docLink]];
@@ -403,7 +454,9 @@ exports.saveLinks = async (req, res) => {
       },
     });
 
-    console.log(`[saveLinks] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
+    console.log(
+      `[saveLinks] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`
+    );
 
     res.json({ success: true, message: 'PDF Link y Doc Link guardados exitosamente en Google Sheets.' });
   } catch (error) {
@@ -414,6 +467,8 @@ exports.saveLinks = async (req, res) => {
 
 exports.getCompletedAppraisals = async (req, res) => {
   try {
+    const { config } = require('../shared/config');
+    const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const sheetName = 'Completed Appraisals'; // Asegúrate de que este es el nombre correcto de la hoja
     const range = `${sheetName}!A2:H`; // Definición correcta del rango
     console.log(`Fetching completed appraisals with range: ${range}`);
@@ -457,6 +512,9 @@ exports.insertTemplate = async (req, res) => {
   const { id } = req.params;
 
   try {
+    const { config } = require('../shared/config');
+    const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
+
     await appraisalSteps.insertTemplate(id);
     res.json({ success: true, message: 'Shortcodes inserted successfully in WordPress post.' });
   } catch (error) {
@@ -469,6 +527,9 @@ exports.updatePostTitle = async (req, res) => {
   const { id } = req.params;
 
   try {
+    const { config } = require('../shared/config');
+    const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
+
     await appraisalSteps.updatePostTitle(id);
     res.json({ success: true, message: 'WordPress post title updated successfully.' });
   } catch (error) {
@@ -481,6 +542,9 @@ exports.sendEmailToCustomer = async (req, res) => {
   const { id } = req.params;
 
   try {
+    const { config } = require('../shared/config');
+    const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
+
     await appraisalSteps.sendEmailToCustomer(id);
     res.json({ success: true, message: 'Email sent to customer successfully.' });
   } catch (error) {
@@ -498,6 +562,10 @@ exports.updateLinks = async (req, res) => {
   }
 
   try {
+    const { config } = require('../shared/config');
+    const SPREADSHEET_ID = config.SPREADSHEET_ID;
+    const SHEET_NAME = config.SHEET_NAME;
+
     // Obtener los enlaces desde los campos ACF de WordPress
     const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
     console.log(`[updateLinks] Endpoint de WordPress: ${wpEndpoint}`);
@@ -512,7 +580,7 @@ exports.updateLinks = async (req, res) => {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader,
+        Authorization: authHeader,
       },
     });
 
@@ -530,7 +598,10 @@ exports.updateLinks = async (req, res) => {
 
     if (!pdfLink || !docLink) {
       console.error(`[updateLinks] Enlaces no encontrados en los campos ACF de WordPress.`);
-      return res.status(404).json({ success: false, message: 'Enlaces no encontrados en los campos ACF de WordPress.' });
+      return res.status(404).json({
+        success: false,
+        message: 'Enlaces no encontrados en los campos ACF de WordPress.',
+      });
     }
 
     // Actualizar las columnas M y N en Google Sheets
@@ -546,7 +617,9 @@ exports.updateLinks = async (req, res) => {
       },
     });
 
-    console.log(`[updateLinks] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
+    console.log(
+      `[updateLinks] Actualizadas las columnas M y N para la fila ${id} con PDF Link: ${pdfLink} y Doc Link: ${docLink}`
+    );
 
     res.json({ success: true, message: 'Enlaces actualizados exitosamente en Google Sheets.' });
   } catch (error) {
@@ -564,6 +637,9 @@ exports.completeAppraisal = async (req, res) => {
   }
 
   try {
+    const { config } = require('../shared/config');
+    const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
+
     await appraisalSteps.markAppraisalAsCompleted(id, appraisalValue, description);
     res.json({ success: true, message: 'Appraisal completed successfully.' });
   } catch (error) {
