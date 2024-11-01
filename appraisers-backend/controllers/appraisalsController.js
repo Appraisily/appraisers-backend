@@ -28,6 +28,9 @@ exports.getAppraisals = async (req, res) => {
     const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const SHEET_NAME = config.SHEET_NAME;
 
+      // Obtener la instancia de sheets
+    const sheets = await initializeSheets();
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A2:H`,
