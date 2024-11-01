@@ -2,11 +2,11 @@
 
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
-const { config } = require('../shared/config');
+// No acceder a config aquí
 const authorizedUsers = require('../shared/authorizedUsers');
 
-// Mover la creación del cliente dentro de la función handler
 exports.authenticateUser = async (req, res) => {
+  const { config } = require('../shared/config'); // Importar config dentro de la función
   const { idToken } = req.body;
 
   if (!idToken) {
@@ -14,7 +14,6 @@ exports.authenticateUser = async (req, res) => {
   }
 
   try {
-    // Crear el cliente OAuth2 después de que config esté inicializado
     const client = new OAuth2Client(config.GOOGLE_CLIENT_ID);
 
     const ticket = await client.verifyIdToken({
@@ -42,4 +41,9 @@ exports.authenticateUser = async (req, res) => {
     console.error('Error al verificar idToken:', error);
     res.status(401).json({ success: false, message: 'idToken inválido.' });
   }
+};
+
+exports.logoutUser = (req, res) => {
+  res.clearCookie('jwtToken');
+  res.json({ success: true, message: 'Logout exitoso.' });
 };
