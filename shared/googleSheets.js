@@ -1,12 +1,13 @@
 // googleSheets.js
 
 const { google } = require('googleapis');
-const { config } = require('./config'); // Importa el objeto config
+// Eliminar la importación de config
+// const { config } = require('./config');
 const { getSecret } = require('./secretManager'); // Import getSecret from secretManager.js
 
 async function initializeSheets() {
   try {
-    // Si necesitas credenciales de servicio, obténlas desde config
+    // Obtener las credenciales del servicio
     const serviceAccount = await getSecret('service-account-json');
 
     const auth = new google.auth.GoogleAuth({
