@@ -3,12 +3,11 @@
 const fetch = require('node-fetch');
 require('dotenv').config(); // Asegurarse de que las variables de entorno están cargadas
 
-// Importar Google Sheets API si es necesario
+// Importar Google Sheets API
 const { google } = require('googleapis');
+const { config, initializeConfig } = require('./config'); // Asegúrate de que la ruta es correcta
 
-const { config } = require('./config'); // Asegúrate de que la ruta es correcta
-
-// Variable global para sheets (si es necesario)
+// Variable global para sheets
 let sheetsGlobal; // Declarar la variable global
 
 // Función para inicializar Google Sheets y configuración
@@ -27,17 +26,16 @@ async function initialize() {
   }
 }
 
-
 // Function: updateCurrentStepInSheet
-async function updateCurrentStepInSheet(sheets, id, currentStep, sheetName = config.GOOGLE_SHEET_NAME) {
+async function updateCurrentStepInSheet(id, currentStep, sheetName = config.GOOGLE_SHEET_NAME) {
   console.log(`[updateCurrentStepInSheet] Called with id:`, id, `type:`, typeof id, `sheetName:`, sheetName);
 
   try {
     const updateRange = `${sheetName}!F${id}:F${id}`; // Column F
     const values = [[currentStep]];
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID, // Usar config.PENDING_APPRAISALS_SPREADSHEET_ID
+    await sheetsGlobal.spreadsheets.values.update({
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -48,13 +46,12 @@ async function updateCurrentStepInSheet(sheets, id, currentStep, sheetName = con
     console.log(`[updateCurrentStepInSheet] Updated column F for row ${id} with current step: ${currentStep}`);
   } catch (error) {
     console.error('Error updating current step in Google Sheets:', error);
-    // Opcional: lanzar el error si deseas manejarlo en el caller
     throw error;
   }
 }
 
 // Function: setAppraisalValue
-async function setAppraisalValue(sheets, id, appraisalValue, description, sheetName = config.GOOGLE_SHEET_NAME) {
+async function setAppraisalValue(id, appraisalValue, description, sheetName = config.GOOGLE_SHEET_NAME) {
   console.log(`[setAppraisalValue] Called with id:`, id, `type:`, typeof id, `sheetName:`, sheetName);
 
   if (appraisalValue === undefined || description === undefined) {
@@ -63,13 +60,13 @@ async function setAppraisalValue(sheets, id, appraisalValue, description, sheetN
 
   try {
     // Update the current step in the spreadsheet
-    await updateCurrentStepInSheet(sheets, id, 'Set Appraisal Value', sheetName);
+    await updateCurrentStepInSheet(id, 'Set Appraisal Value', sheetName);
 
     // Update columns J and K in Google Sheets
     const updateRange = `${sheetName}!J${id}:K${id}`;
     const values = [[appraisalValue, description]];
 
-    await sheets.spreadsheets.values.update({
+    await sheetsGlobal.spreadsheets.values.update({
       spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
@@ -78,10 +75,12 @@ async function setAppraisalValue(sheets, id, appraisalValue, description, sheetN
       },
     });
 
-    console.log(`[setAppraisalValue] Updated columns J and K for row ${id} with Appraisal Value: ${appraisalValue} and Description: ${description}`);
+    console.log(
+      `[setAppraisalValue] Updated columns J and K for row ${id} with Appraisal Value: ${appraisalValue} and Description: ${description}`
+    );
 
     // Obtener detalles de la tasación para obtener la URL de WordPress
-    const appraisalResponse = await sheets.spreadsheets.values.get({
+    const appraisalResponse = await sheetsGlobal.spreadsheets.values.get({
       spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`,
     });
@@ -113,8 +112,8 @@ async function setAppraisalValue(sheets, id, appraisalValue, description, sheetN
 
     const updateData = {
       acf: {
-        value: appraisalValue // Ensure 'value' is the correct ACF field name
-      }
+        value: appraisalValue, // Ensure 'value' is the correct ACF field name
+      },
     };
 
     const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
@@ -126,9 +125,9 @@ async function setAppraisalValue(sheets, id, appraisalValue, description, sheetN
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader
+        Authorization: authHeader,
       },
-      body: JSON.stringify(updateData)
+      body: JSON.stringify(updateData),
     });
 
     if (!wpUpdateResponse.ok) {
@@ -138,7 +137,6 @@ async function setAppraisalValue(sheets, id, appraisalValue, description, sheetN
     }
 
     console.log(`[setAppraisalValue] WordPress updated successfully.`);
-
   } catch (error) {
     console.error('Error in setAppraisalValue:', error);
     throw error;
@@ -146,7 +144,7 @@ async function setAppraisalValue(sheets, id, appraisalValue, description, sheetN
 }
 
 // Function: mergeDescriptions
-async function mergeDescriptions(sheets, id, appraiserDescription) {
+async function mergeDescriptions(id, appraiserDescription) {
   const OPENAI_API_KEY = config.OPENAI_API_KEY;
 
   if (!OPENAI_API_KEY) {
@@ -160,10 +158,10 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
 
   try {
     // Update the current step in the spreadsheet
-    await updateCurrentStepInSheet(sheets, id, 'Merge Descriptions');
+    await updateCurrentStepInSheet(id, 'Merge Descriptions');
 
     // Retrieve iaDescription from Google Sheets (Column H)
-    const response = await sheets.spreadsheets.values.get({
+    const response = await sheetsGlobal.spreadsheets.values.get({
       spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: `${config.GOOGLE_SHEET_NAME}!H${id}:H${id}`, // Column H: iaDescription
     });
@@ -176,24 +174,24 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
 
     const maxTitleLength = 350; // Define el máximo de caracteres para el título en WordPress
 
-// Prepare the request to OpenAI GPT-4 Chat API for Merged Description
-const openAIRequestBody = {
-  model: 'gpt-4',
-  messages: [
-    {
-      role: 'system',
-      content: `You are an assistant that merges appraiser and AI descriptions into a single, cohesive, and concise paragraph suitable for a WordPress title. The merged description should prefer the appraiser's description in case of any contradictions and must not exceed ${maxTitleLength} characters. Provide only the merged description without any additional text, introductions, or explanations.`
-    },
-    {
-      role: 'user',
-      content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a single paragraph that prefers the appraiser's description in case of any contradictions and does not exceed ${maxTitleLength} characters. The output should contain only the merged description without any additional text.`
-    }
-  ],
-  max_tokens: Math.ceil(maxTitleLength / 4) + 10, // Ajuste flexible de tokens
-  temperature: 0.7,
-  n: 1,
-  stop: null // Eliminado según tu preferencia
-};
+    // Prepare the request to OpenAI GPT-4 Chat API for Merged Description
+    const openAIRequestBody = {
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an assistant that merges appraiser and AI descriptions into a single, cohesive, and concise paragraph suitable for a WordPress title. The merged description should prefer the appraiser's description in case of any contradictions and must not exceed ${maxTitleLength} characters. Provide only the merged description without any additional text, introductions, or explanations.`,
+        },
+        {
+          role: 'user',
+          content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a single paragraph that prefers the appraiser's description in case of any contradictions and does not exceed ${maxTitleLength} characters. The output should contain only the merged description without any additional text.`,
+        },
+      ],
+      max_tokens: Math.ceil(maxTitleLength / 4) + 10, // Ajuste flexible de tokens
+      temperature: 0.7,
+      n: 1,
+      stop: null,
+    };
     // Depurar el Request Body
     console.log('Request Body para OpenAI:', JSON.stringify(openAIRequestBody, null, 2));
 
@@ -202,9 +200,9 @@ const openAIRequestBody = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
-      body: JSON.stringify(openAIRequestBody)
+      body: JSON.stringify(openAIRequestBody),
     });
 
     if (!openAIResponse.ok) {
@@ -223,17 +221,11 @@ const openAIRequestBody = {
 
     console.log('Blended Description:', blendedDescription);
 
-    // Validar la longitud de la descripción fusionada
-//    if (blendedDescription.length > maxTitleLength) {
- //     blendedDescription = blendedDescription.substring(0, maxTitleLength - 3) + '...'; // Añade puntos suspensivos si se excede
-//      console.warn(`Blended description truncated to ${maxTitleLength} characters.`);
-//    }
-
     // Update column L with blendedDescription
     const updateRange = `${config.GOOGLE_SHEET_NAME}!L${id}:L${id}`; // Column L
     const updateValues = [[blendedDescription]];
 
-    await sheets.spreadsheets.values.update({
+    await sheetsGlobal.spreadsheets.values.update({
       spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
@@ -250,10 +242,10 @@ const openAIRequestBody = {
 }
 
 // Function: updatePostTitle
-async function updatePostTitle(sheets, id) {
+async function updatePostTitle(id) {
   try {
     // Get appraisal details to obtain the WordPress URL and new title from Google Sheets
-    const appraisalResponse = await sheets.spreadsheets.values.get({
+    const appraisalResponse = await sheetsGlobal.spreadsheets.values.get({
       spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: `${config.GOOGLE_SHEET_NAME}!A${id}:L${id}`, // Adjust the range as needed
     });
@@ -275,7 +267,7 @@ async function updatePostTitle(sheets, id) {
       throw new Error('Blended description not available.');
     }
 
-const newTitle = blendedDescription; // Usar la descripción completa como título
+    const newTitle = blendedDescription; // Usar la descripción completa como título
 
     const parsedWpUrl = new URL(appraisalWordpressUrl);
     const wpPostId = parsedWpUrl.searchParams.get('post');
@@ -291,7 +283,7 @@ const newTitle = blendedDescription; // Usar la descripción completa como títu
     console.log(`[updatePostTitle] WordPress update endpoint: ${updateWpEndpoint}`);
 
     const updateData = {
-      title: newTitle
+      title: newTitle,
     };
 
     const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
@@ -304,9 +296,9 @@ const newTitle = blendedDescription; // Usar la descripción completa como títu
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader
+        Authorization: authHeader,
       },
-      body: JSON.stringify(updateData)
+      body: JSON.stringify(updateData),
     });
 
     if (!wpUpdateResponse.ok) {
@@ -316,7 +308,7 @@ const newTitle = blendedDescription; // Usar la descripción completa como títu
     }
 
     const wpUpdateData = await wpUpdateResponse.json();
-    await updateCurrentStepInSheet(sheets, id, 'Updating Post Title');
+    await updateCurrentStepInSheet(id, 'Updating Post Title');
 
     console.log(`[updatePostTitle] WordPress post title updated successfully:`, wpUpdateData);
 
@@ -328,17 +320,17 @@ const newTitle = blendedDescription; // Usar la descripción completa como títu
 }
 
 // Function: insertTemplate
-async function insertTemplate(sheets, id) {
+async function insertTemplate(id) {
   try {
     // Define the mapping of 'type' to 'template_id'
     const typeToTemplateIdMap = {
-      'RegularArt': 114984,
-      'PremiumArt': 137078,
+      RegularArt: 114984,
+      PremiumArt: 137078,
       // Add more types as needed
     };
 
     // Get appraisal details to obtain the WordPress URL and Type
-    const appraisalResponse = await sheets.spreadsheets.values.get({
+    const appraisalResponse = await sheetsGlobal.spreadsheets.values.get({
       spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: `${config.GOOGLE_SHEET_NAME}!A${id}:K${id}`, // Adjust the range as needed
     });
@@ -385,8 +377,8 @@ async function insertTemplate(sheets, id) {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
+        Authorization: authHeader,
+      },
     });
 
     if (!currentPostResponse.ok) {
@@ -422,11 +414,11 @@ async function insertTemplate(sheets, id) {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader
+        Authorization: authHeader,
       },
       body: JSON.stringify({
-        content: updatedContent
-      })
+        content: updatedContent,
+      }),
     });
 
     if (!updatePostResponse.ok) {
@@ -434,24 +426,262 @@ async function insertTemplate(sheets, id) {
       console.error(`[insertTemplate] Error updating WordPress post: ${errorText}`);
       throw new Error('Error updating WordPress post.');
     }
-    await updateCurrentStepInSheet(sheets, id, 'Template Inserted');
+    await updateCurrentStepInSheet(id, 'Template Inserted');
 
     console.log(`[insertTemplate] Shortcodes inserted successfully in WordPress post.`);
 
     // Update the ACF flag
     await updateShortcodesFlag(wpPostId, authHeader);
-
   } catch (error) {
     console.error('Error in insertTemplate:', error);
     throw error;
   }
 }
 
+// Function: updateShortcodesFlag
+async function updateShortcodesFlag(wpPostId, authHeader) {
+  const updateWpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
+  console.log(`[updateShortcodesFlag] Updating ACF flag for post ID: ${wpPostId}`);
+
+  const updateFlagResponse = await fetch(updateWpEndpoint, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: authHeader,
+    },
+    body: JSON.stringify({
+      acf: {
+        shortcodes_inserted: true,
+      },
+    }),
+  });
+
+  if (!updateFlagResponse.ok) {
+    const errorText = await updateFlagResponse.text();
+    console.error(`[updateShortcodesFlag] Error updating ACF flag: ${errorText}`);
+    throw new Error('Error updating ACF flag.');
+  }
+
+  const updateFlagData = await updateFlagResponse.json();
+  console.log(`[updateShortcodesFlag] ACF flag updated successfully:`, updateFlagData);
+}
+
+// Function: completarTasacion (Paso 5)
+async function completarTasacion(postId, id) {
+  console.log(`[completarTasacion] Called for Post ID: ${postId}`);
+
+  try {
+    const response = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/complete-appraisal-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ postId }),
+    });
+
+    const contentType = response.headers.get('content-type');
+    let responseData;
+
+    if (contentType && contentType.includes('application/json')) {
+      responseData = await response.json();
+    } else {
+      const text = await response.text();
+      console.error('Unexpected response format:', text);
+      throw new Error(`Unexpected response format: ${text}`);
+    }
+
+    if (!response.ok) {
+      throw new Error(responseData.message || 'Error completing appraisal report.');
+    }
+
+    // Utilizar 'id' para actualizar el paso actual en Google Sheets
+    await updateCurrentStepInSheet(id, 'Appraisal Text Filled');
+    console.log(`[completarTasacion] Completed appraisal report for Post ID: ${postId}`);
+  } catch (error) {
+    console.error('Error in completarTasacion:', error);
+    throw error;
+  }
+}
+
+// Function: buildPDF
+async function buildPDF(id) {
+  try {
+    // Get appraisal details from Google Sheets to obtain the WordPress URL
+    const appraisalResponse = await sheetsGlobal.spreadsheets.values.get({
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      range: `${config.GOOGLE_SHEET_NAME}!A${id}:N${id}`, // Adjust the range as needed
+    });
+
+    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
+
+    if (!appraisalRow) {
+      throw new Error('Appraisal not found for PDF generation.');
+    }
+
+    const wordpressUrl = appraisalRow[6]?.trim() || ''; // Column G: WordPress URL
+
+    if (!wordpressUrl) {
+      throw new Error('WordPress URL is missing.');
+    }
+
+    // Extract postId from the WordPress URL
+    const parsedUrl = new URL(wordpressUrl);
+    const postId = parsedUrl.searchParams.get('post');
+
+    if (!postId) {
+      throw new Error('Invalid WordPress URL: Post ID not found.');
+    }
+
+    // Get session_ID
+    const session_ID = await getSessionId(postId);
+
+    if (!session_ID) {
+      throw new Error('session_ID not found.');
+    }
+
+    // Request PDF generation with postId and session_ID
+    console.log(`[buildPDF] Requesting PDF generation with postId: ${postId} and session_ID: ${session_ID}`);
+    const buildPdfResponse = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ postId: postId, session_ID: session_ID }),
+    });
+
+    const buildPdfData = await buildPdfResponse.json();
+
+    if (!buildPdfData.success) {
+      throw new Error(buildPdfData.message || 'Error building PDF.');
+    }
+
+    // Update the links in Google Sheets
+    await updateLinks(id, postId);
+    await updateCurrentStepInSheet(id, 'PDF built and links inserted');
+    console.log('[buildPDF] Links updated in Google Sheets successfully.');
+  } catch (error) {
+    console.error('Error in buildPDF:', error);
+    throw error;
+  }
+}
+
+// Function: getSessionId
+async function getSessionId(postId) {
+  if (!postId) {
+    throw new Error('postId is required.');
+  }
+
+  try {
+    // Build WordPress endpoint to get the post
+    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
+    console.log(`[getSessionId] WordPress Endpoint: ${wpEndpoint}`);
+
+    // Authentication with WordPress
+    const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
+    const base64Credentials = Buffer.from(credentialsString).toString('base64');
+    const authHeader = 'Basic ' + base64Credentials;
+
+    // Make GET request to WordPress REST API
+    const wpResponse = await fetch(wpEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: authHeader,
+      },
+    });
+
+    if (!wpResponse.ok) {
+      const errorText = await wpResponse.text();
+      console.error(`[getSessionId] Error fetching post from WordPress: ${errorText}`);
+      throw new Error('Error fetching data from WordPress.');
+    }
+
+    const wpData = await wpResponse.json();
+    const acfFields = wpData.acf || {};
+    const session_ID = acfFields.session_id || '';
+
+    if (!session_ID) {
+      console.error(`[getSessionId] session_ID not found in WordPress post.`);
+      throw new Error('session_ID not found in WordPress post.');
+    }
+
+    console.log(`[getSessionId] Extracted session_ID: ${session_ID}`);
+    return session_ID;
+  } catch (error) {
+    console.error('Error in getSessionId:', error);
+    throw error;
+  }
+}
+
+// Function: updateLinks
+async function updateLinks(id, postId) {
+  if (!postId) {
+    throw new Error('postId is required.');
+  }
+
+  try {
+    // Obtener los enlaces desde los campos ACF de WordPress
+    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
+    console.log(`[updateLinks] WordPress Endpoint: ${wpEndpoint}`);
+
+    // Autenticación con WordPress
+    const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
+    const base64Credentials = Buffer.from(credentialsString).toString('base64');
+    const authHeader = 'Basic ' + base64Credentials;
+
+    // Obtener el post de WordPress
+    const wpResponse = await fetch(wpEndpoint, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: authHeader,
+      },
+    });
+
+    if (!wpResponse.ok) {
+      const errorText = await wpResponse.text();
+      console.error(`[updateLinks] Error fetching post from WordPress: ${errorText}`);
+      throw new Error('Error fetching data from WordPress.');
+    }
+
+    const wpData = await wpResponse.json();
+    const acfFields = wpData.acf || {};
+
+    const pdfLink = acfFields.pdflink || '';
+    const docLink = acfFields.doclink || '';
+
+    if (!pdfLink || !docLink) {
+      console.error(`[updateLinks] Links not found in ACF fields of WordPress.`);
+      throw new Error('Links not found in ACF fields of WordPress.');
+    }
+
+    // Actualizar columnas M y N en Google Sheets
+    const updateRange = `${config.GOOGLE_SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
+    const values = [[pdfLink, docLink]];
+
+    await sheetsGlobal.spreadsheets.values.update({
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      range: updateRange,
+      valueInputOption: 'RAW',
+      resource: {
+        values: values,
+      },
+    });
+
+    console.log(
+      `[updateLinks] Updated columns M and N for row ${id} with PDF Link: ${pdfLink} y Doc Link: ${docLink}`
+    );
+  } catch (error) {
+    console.error('Error in updateLinks:', error);
+    throw error;
+  }
+}
+
 // Function: sendEmailToCustomer
-async function sendEmailToCustomer(sheets, id) {
+async function sendEmailToCustomer(id) {
   try {
     // Get appraisal details from Google Sheets
-    const appraisalResponse = await sheets.spreadsheets.values.get({
+    const appraisalResponse = await sheetsGlobal.spreadsheets.values.get({
       spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: `${config.GOOGLE_SHEET_NAME}!A${id}:N${id}`, // Include columns up to N to get PDF link
     });
@@ -506,8 +736,8 @@ async function sendEmailToCustomer(sheets, id) {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
+        Authorization: authHeader,
+      },
     });
 
     if (!wpResponse.ok) {
@@ -535,28 +765,30 @@ async function sendEmailToCustomer(sheets, id) {
     }
 
     // Define your SendGrid template ID
-    const templateId = config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED; // Reemplaza con tu template ID real de SendGrid
+    const templateId = config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED;
 
     // Send Email using SendGrid with the template
     const sendGridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SENDGRID_API_KEY}`
+        Authorization: `Bearer ${SENDGRID_API_KEY}`,
       },
       body: JSON.stringify({
-        personalizations: [{
-          to: [{ email: customerEmail }],
-          dynamic_template_data: {
-            appraisal_link: publicUrl,
-            pdf_link: pdfLink,
-            dashboard_link: customerDashboardLink,
-            // Include other dynamic data as needed
+        personalizations: [
+          {
+            to: [{ email: customerEmail }],
+            dynamic_template_data: {
+              appraisal_link: publicUrl,
+              pdf_link: pdfLink,
+              dashboard_link: customerDashboardLink,
+              // Include other dynamic data as needed
+            },
           },
-        }],
+        ],
         from: { email: SENDGRID_EMAIL, name: 'Appraisily' },
-        template_id: templateId
-      })
+        template_id: templateId,
+      }),
     });
 
     if (!sendGridResponse.ok) {
@@ -564,10 +796,9 @@ async function sendEmailToCustomer(sheets, id) {
       console.error(`[sendEmailToCustomer] Error sending email via SendGrid: ${errorText}`);
       throw new Error('Error sending email to customer.');
     }
-    await updateCurrentStepInSheet(sheets, id, 'Email sent');
+    await updateCurrentStepInSheet(id, 'Email sent');
 
     console.log(`[sendEmailToCustomer] Email successfully sent to: ${customerEmail}`);
-
   } catch (error) {
     console.error('Error in sendEmailToCustomer:', error);
     throw error;
@@ -575,16 +806,16 @@ async function sendEmailToCustomer(sheets, id) {
 }
 
 // Function: markAppraisalAsCompleted
-async function markAppraisalAsCompleted(sheets, id, appraisalValue, description) {
+async function markAppraisalAsCompleted(id, appraisalValue, description) {
   try {
     // Update the current step in the spreadsheet
-    await updateCurrentStepInSheet(sheets, id, 'Completed');
+    await updateCurrentStepInSheet(id, 'Completed');
 
     // Update columns J and K with the provided data
     const updateRange = `${config.GOOGLE_SHEET_NAME}!J${id}:K${id}`;
     const values = [[appraisalValue, description]];
 
-    await sheets.spreadsheets.values.update({
+    await sheetsGlobal.spreadsheets.values.update({
       spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
@@ -597,7 +828,7 @@ async function markAppraisalAsCompleted(sheets, id, appraisalValue, description)
     const statusUpdateRange = `${config.GOOGLE_SHEET_NAME}!F${id}:F${id}`;
     const statusValues = [['Completed']];
 
-    await sheets.spreadsheets.values.update({
+    await sheetsGlobal.spreadsheets.values.update({
       spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: statusUpdateRange,
       valueInputOption: 'RAW',
@@ -607,254 +838,14 @@ async function markAppraisalAsCompleted(sheets, id, appraisalValue, description)
     });
 
     console.log(`[markAppraisalAsCompleted] Appraisal ID ${id} marked as completed.`);
-    await updateCurrentStepInSheet(sheets, id, 'Completed');
-
+    await updateCurrentStepInSheet(id, 'Completed');
   } catch (error) {
     console.error('Error in markAppraisalAsCompleted:', error);
     throw error;
   }
 }
 
-// Function: buildPDF
-async function buildPDF(id) {
-  try {
-    // Get appraisal details from Google Sheets to obtain the WordPress URL
-    const appraisalResponse = await sheetsGlobal.spreadsheets.values.get({
-      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      range: `${config.GOOGLE_SHEET_NAME}!A${id}:N${id}`, // Adjust the range as needed
-    });
-
-    const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
-
-    if (!appraisalRow) {
-      throw new Error('Appraisal not found for PDF generation.');
-    }
-
-    const wordpressUrl = appraisalRow[6]?.trim() || ''; // Column G: WordPress URL
-
-    if (!wordpressUrl) {
-      throw new Error('WordPress URL is missing.');
-    }
-
-    // Extract postId from the WordPress URL
-    const parsedUrl = new URL(wordpressUrl);
-    const postId = parsedUrl.searchParams.get('post');
-
-    if (!postId) {
-      throw new Error('Invalid WordPress URL: Post ID not found.');
-    }
-
-    // Get session_ID
-    const session_ID = await getSessionId(postId);
-
-    if (!session_ID) {
-      throw new Error('session_ID not found.');
-    }
-
-    // Request PDF generation with postId and session_ID
-    console.log(`[buildPDF] Requesting PDF generation with postId: ${postId} and session_ID: ${session_ID}`);
-    const buildPdfResponse = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ postId: postId, session_ID: session_ID })
-    });
-
-    const buildPdfData = await buildPdfResponse.json();
-
-    if (!buildPdfData.success) {
-      throw new Error(buildPdfData.message || 'Error building PDF.');
-    }
-
-    // Update the links in Google Sheets
-    await updateLinks(id, postId);
-    await updateCurrentStepInSheet(sheetsGlobal, id, 'PDF built and links inserted');
-    console.log('[buildPDF] Links updated in Google Sheets successfully.');
-
-  } catch (error) {
-    console.error('Error in buildPDF:', error);
-    throw error;
-  }
-}
-
-// Function: getSessionId
-async function getSessionId(postId) {
-  if (!postId) {
-    throw new Error('postId is required.');
-  }
-
-  try {
-    // Build WordPress endpoint to get the post
-    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
-    console.log(`[getSessionId] WordPress Endpoint: ${wpEndpoint}`);
-
-    // Authentication with WordPress
-    const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
-    const base64Credentials = Buffer.from(credentialsString).toString('base64');
-    const authHeader = 'Basic ' + base64Credentials;
-
-    // Make GET request to WordPress REST API
-    const wpResponse = await fetch(wpEndpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
-    });
-
-    if (!wpResponse.ok) {
-      const errorText = await wpResponse.text();
-      console.error(`[getSessionId] Error fetching post from WordPress: ${errorText}`);
-      throw new Error('Error fetching data from WordPress.');
-    }
-
-    const wpData = await wpResponse.json();
-    const acfFields = wpData.acf || {};
-    const session_ID = acfFields.session_id || '';
-
-    if (!session_ID) {
-      console.error(`[getSessionId] session_ID not found in WordPress post.`);
-      throw new Error('session_ID not found in WordPress post.');
-    }
-
-    console.log(`[getSessionId] Extracted session_ID: ${session_ID}`);
-    return session_ID;
-  } catch (error) {
-    console.error('Error in getSessionId:', error);
-    throw error;
-  }
-}
-
-async function updateLinks(id, postId) {
-  if (!postId) {
-    throw new Error('postId is required.');
-  }
-
-  try {
-    // Obtener los enlaces desde los campos ACF de WordPress
-    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
-    console.log(`[updateLinks] WordPress Endpoint: ${wpEndpoint}`);
-
-    // Autenticación con WordPress
-    const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
-    const base64Credentials = Buffer.from(credentialsString).toString('base64');
-    const authHeader = 'Basic ' + base64Credentials;
-
-    // Obtener el post de WordPress
-    const wpResponse = await fetch(wpEndpoint, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
-    });
-
-    if (!wpResponse.ok) {
-      const errorText = await wpResponse.text();
-      console.error(`[updateLinks] Error fetching post from WordPress: ${errorText}`);
-      throw new Error('Error fetching data from WordPress.');
-    }
-
-    const wpData = await wpResponse.json();
-    const acfFields = wpData.acf || {};
-
-    const pdfLink = acfFields.pdflink || '';
-    const docLink = acfFields.doclink || '';
-
-    if (!pdfLink || !docLink) {
-      console.error(`[updateLinks] Links not found in ACF fields of WordPress.`);
-      throw new Error('Links not found in ACF fields of WordPress.');
-    }
-
-    // Actualizar columnas M y N en Google Sheets
-    const updateRange = `${config.GOOGLE_SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
-    const values = [[pdfLink, docLink]];
-
-    await sheetsGlobal.spreadsheets.values.update({
-      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      range: updateRange,
-      valueInputOption: 'RAW',
-      resource: {
-        values: values,
-      },
-    });
-
-    console.log(`[updateLinks] Updated columns M and N for row ${id} with PDF Link: ${pdfLink} y Doc Link: ${docLink}`);
-  } catch (error) {
-    console.error('Error in updateLinks:', error);
-    throw error;
-  }
-}
-
-
-// Function: updateShortcodesFlag
-async function updateShortcodesFlag(wpPostId, authHeader) {
-  const updateWpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${wpPostId}`;
-  console.log(`[updateShortcodesFlag] Updating ACF flag for post ID: ${wpPostId}`);
-
-  const updateFlagResponse = await fetch(updateWpEndpoint, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': authHeader
-    },
-    body: JSON.stringify({
-      acf: {
-        shortcodes_inserted: true
-      }
-    })
-  });
-
-  if (!updateFlagResponse.ok) {
-    const errorText = await updateFlagResponse.text();
-    console.error(`[updateShortcodesFlag] Error updating ACF flag: ${errorText}`);
-    throw new Error('Error updating ACF flag.');
-  }
-
-  const updateFlagData = await updateFlagResponse.json();
-  console.log(`[updateShortcodesFlag] ACF flag updated successfully:`, updateFlagData);
-}
-
-// Function: completarTasacion (Paso 5)
-async function completarTasacion(postId, id) { // Añadido 'id' como parámetro
-  console.log(`[completarTasacion] Called for Post ID: ${postId}`);
-
-  try {
-    const response = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/complete-appraisal-report', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ postId }),
-    });
-
-    const contentType = response.headers.get('content-type');
-    let responseData;
-
-    if (contentType && contentType.includes('application/json')) {
-      responseData = await response.json();
-    } else {
-      const text = await response.text();
-      console.error('Unexpected response format:', text);
-      throw new Error(`Unexpected response format: ${text}`);
-    }
-
-    if (!response.ok) {
-      throw new Error(responseData.message || 'Error completing appraisal report.');
-    }
-
-    // Utilizar 'id' para actualizar el paso actual en Google Sheets
-    await updateCurrentStepInSheet(sheetsGlobal, id, 'Appraisal Text Filled');
-    console.log(`[completarTasacion] Completed appraisal report for Post ID: ${postId}`);
-  } catch (error) {
-    console.error('Error in completarTasacion:', error);
-    throw error;
-  }
-}
-
-
-// Function: processAppraisal Actualizada
+// Function: processAppraisal
 async function processAppraisal(id, appraisalValue, description, resume = false) {
   try {
     console.log(`[processAppraisal] Starting process for Appraisal ID: ${id}`);
@@ -871,28 +862,7 @@ async function processAppraisal(id, appraisalValue, description, resume = false)
       { name: 'Completed', func: markAppraisalAsCompleted },
     ];
 
-    let startIndex;
-
-    if (resume) {
-      // Obtener el paso actual desde la hoja
-      let currentStep = await getCurrentStepFromSheet(sheetsGlobal, id);
-
-      // Si currentStep es null o vacío, empezamos desde el principio
-      if (!currentStep) {
-        currentStep = '';
-      }
-
-      // Encontrar el índice del paso actual
-      startIndex = steps.findIndex(step => step.name === currentStep);
-
-      // Si el paso actual no se encuentra, empezamos desde el principio
-      if (startIndex === -1) {
-        startIndex = -1; // Para empezar desde el índice 0
-      }
-    } else {
-      // Si no se debe reanudar, empezamos desde el primer paso
-      startIndex = -1; // Comenzar desde el primer paso (índice 0)
-    }
+    let startIndex = -1;
 
     // Variable para almacenar postId
     let postId;
@@ -904,21 +874,21 @@ async function processAppraisal(id, appraisalValue, description, resume = false)
 
       // Llamar a la función correspondiente
       if (step.name === 'Set Appraisal Value') {
-        await step.func(sheetsGlobal, id, appraisalValue, description);
+        await step.func(id, appraisalValue, description);
       } else if (step.name === 'Merge Descriptions') {
-        await step.func(sheetsGlobal, id, description);
+        await step.func(id, description);
       } else if (step.name === 'Updating Post Title') {
-        postId = await step.func(sheetsGlobal, id); // Almacenar postId para uso posterior
+        postId = await step.func(id); // Almacenar postId para uso posterior
       } else if (step.name === 'Template Inserted') {
-        await step.func(sheetsGlobal, id);
+        await step.func(id);
       } else if (step.name === 'Appraisal Text Filled') {
         await step.func(postId, id); // completarTasacion
       } else if (step.name === 'PDF built and links inserted') {
         await step.func(id); // buildPDF
       } else if (step.name === 'Email sent') {
-        await step.func(sheetsGlobal, id);
+        await step.func(id);
       } else if (step.name === 'Completed') {
-        await step.func(sheetsGlobal, id, appraisalValue, description);
+        await step.func(id, appraisalValue, description);
       } else {
         console.error(`[processAppraisal] Unknown step: ${step.name}`);
         throw new Error(`Unknown step: ${step.name}`);
@@ -934,43 +904,29 @@ async function processAppraisal(id, appraisalValue, description, resume = false)
   }
 }
 
-
 // Function: appraisalSteps
-function appraisalSteps(sheets, config = {}) {
-  const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
-  const SHEET_NAME = config.GOOGLE_SHEET_NAME;
-  sheetsGlobal = sheets; // Asignar sheets a la variable global
-
+function appraisalSteps() {
   return {
     setAppraisalValue: (id, appraisalValue, description, sheetName) =>
-      setAppraisalValue(sheets, id, appraisalValue, description, sheetName),
-    mergeDescriptions: (id, appraiserDescription) =>
-      mergeDescriptions(sheets, id, appraiserDescription),
-    completarTasacion: (postId, id) =>
-      completarTasacion(postId, id), // Asegurarse de pasar 'id'
-    updatePostTitle: (id) =>
-      updatePostTitle(sheets, id),
-    insertTemplate: (id) =>
-      insertTemplate(sheets, id),
-    sendEmailToCustomer: (id) =>
-      sendEmailToCustomer(sheets, id),
+      setAppraisalValue(id, appraisalValue, description, sheetName),
+    mergeDescriptions: (id, appraiserDescription) => mergeDescriptions(id, appraiserDescription),
+    completarTasacion: (postId, id) => completarTasacion(postId, id),
+    updatePostTitle: (id) => updatePostTitle(id),
+    insertTemplate: (id) => insertTemplate(id),
+    sendEmailToCustomer: (id) => sendEmailToCustomer(id),
     markAppraisalAsCompleted: (id, appraisalValue, description) =>
-      markAppraisalAsCompleted(sheets, id, appraisalValue, description),
-    buildPDF: (id) =>
-      buildPDF(id),
-    getSessionId: (postId) =>
-      getSessionId(postId),
-    updateLinks: (id, postId) =>
-      updateLinks(id, postId),
-    updateCurrentStepInSheet: (id, currentStep) =>
-      updateCurrentStepInSheet(sheets, id, currentStep),
-    processAppraisal: (id, appraisalValue, description) =>
-      processAppraisal(id, appraisalValue, description),
+      markAppraisalAsCompleted(id, appraisalValue, description),
+    buildPDF: (id) => buildPDF(id),
+    getSessionId: (postId) => getSessionId(postId),
+    updateLinks: (id, postId) => updateLinks(id, postId),
+    updateCurrentStepInSheet: (id, currentStep) => updateCurrentStepInSheet(id, currentStep),
+    processAppraisal: (id, appraisalValue, description) => processAppraisal(id, appraisalValue, description),
   };
 }
 
 // Exportar las funciones individuales y la función appraisalSteps
 module.exports = {
+  initialize,
   setAppraisalValue,
   mergeDescriptions,
   updatePostTitle,
@@ -982,6 +938,6 @@ module.exports = {
   updateLinks,
   updateShortcodesFlag,
   updateCurrentStepInSheet,
-  processAppraisal, // Exportar si deseas acceder a ella directamente
+  processAppraisal,
   appraisalSteps,
 };
