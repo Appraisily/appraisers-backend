@@ -24,8 +24,9 @@ const validateSetValueData = require('../utils/validateSetValueData');
 exports.getAppraisals = async (req, res) => {
   try {
 const { config } = require('../shared/config');
-    const SPREADSHEET_ID = config.SPREADSHEET_ID;
-    const SHEET_NAME = config.SHEET_NAME;
+   const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+const SHEET_NAME = config.GOOGLE_SHEET_NAME;
+
 
     // Verificar que SPREADSHEET_ID y SHEET_NAME no sean undefined
     if (!SPREADSHEET_ID || !SHEET_NAME) {
