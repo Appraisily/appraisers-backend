@@ -75,6 +75,8 @@ async function main() {
     // Inicializar configuraciones
     await initializeConfig();
     const sheets = await initializeSheets();
+        await appraisalStepsModule.initialize();
+
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
     // Verificar que processAppraisal está definido
