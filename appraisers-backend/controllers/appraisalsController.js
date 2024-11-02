@@ -5,7 +5,7 @@ const fetch = require('node-fetch');
 const appraisalStepsModule = require('../shared/appraisalSteps');
 // No acceder a config aquí
 // const { config } = require('../shared/config');
-const sheets = require('../shared/googleSheets');
+const { initializeSheets } = require('../shared/googleSheets');
 const getImageUrl = require('../utils/getImageUrl');
 const { PubSub } = require('@google-cloud/pubsub');
 const validateSetValueData = require('../utils/validateSetValueData');
@@ -28,7 +28,7 @@ exports.getAppraisals = async (req, res) => {
     const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const SHEET_NAME = config.SHEET_NAME;
 
-      // Obtener la instancia de sheets
+    // Obtener la instancia de sheets
     const sheets = await initializeSheets();
 
     const response = await sheets.spreadsheets.values.get({
@@ -40,13 +40,13 @@ exports.getAppraisals = async (req, res) => {
     console.log(`Total de filas obtenidas: ${rows.length}`);
 
     const appraisals = rows.map((row, index) => ({
-      id: index + 2, // Número de fila en la hoja (A2 corresponde a id=2)
-      date: row[0] || '', // Columna A: Fecha
-      appraisalType: row[1] || '', // Columna B: Tipo de Apreciación
-      identifier: row[2] || '', // Columna C: Número de Apreciación
-      status: row[5] || '', // Columna F: Estado
-      wordpressUrl: row[6] || '', // Columna G: URL de WordPress
-      iaDescription: row[7] || '', // Columna H: Descripción de AI
+      id: index + 2,
+      date: row[0] || '',
+      appraisalType: row[1] || '',
+      identifier: row[2] || '',
+      status: row[5] || '',
+      wordpressUrl: row[6] || '',
+      iaDescription: row[7] || '',
     }));
 
     console.log(`Total de apreciaciones mapeadas: ${appraisals.length}`);
@@ -57,6 +57,7 @@ exports.getAppraisals = async (req, res) => {
   }
 };
 
+
 exports.getAppraisalDetails = async (req, res) => {
   const { id } = req.params; // Número de fila
 
@@ -64,6 +65,7 @@ exports.getAppraisalDetails = async (req, res) => {
     const { config } = require('../shared/config');
     const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const SHEET_NAME = config.SHEET_NAME;
+    const sheets = await initializeSheets();
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
@@ -155,6 +157,7 @@ exports.getAppraisalDetailsForEdit = async (req, res) => {
     const { config } = require('../shared/config');
     const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const SHEET_NAME = config.SHEET_NAME;
+    const sheets = await initializeSheets();
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
@@ -471,6 +474,8 @@ exports.saveLinks = async (req, res) => {
 exports.getCompletedAppraisals = async (req, res) => {
   try {
     const { config } = require('../shared/config');
+        const sheets = await initializeSheets();
+
     const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const sheetName = 'Completed Appraisals'; // Asegúrate de que este es el nombre correcto de la hoja
     const range = `${sheetName}!A2:H`; // Definición correcta del rango
