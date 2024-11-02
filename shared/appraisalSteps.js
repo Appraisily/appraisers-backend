@@ -11,8 +11,25 @@ const { config } = require('./config'); // Asegúrate de que la ruta es correcta
 // Variable global para sheets (si es necesario)
 let sheetsGlobal; // Declarar la variable global
 
+// Función para inicializar Google Sheets y configuración
+async function initialize() {
+  try {
+    await initializeConfig();
+
+    const auth = new google.auth.GoogleAuth({
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const authClient = await auth.getClient();
+    sheetsGlobal = google.sheets({ version: 'v4', auth: authClient });
+  } catch (error) {
+    console.error('Error inicializando:', error);
+    throw error;
+  }
+}
+
+
 // Function: updateCurrentStepInSheet
-async function updateCurrentStepInSheet(sheets, id, currentStep, sheetName = config.SHEET_NAME) {
+async function updateCurrentStepInSheet(sheets, id, currentStep, sheetName = config.GOOGLE_SHEET_NAME) {
   console.log(`[updateCurrentStepInSheet] Called with id:`, id, `type:`, typeof id, `sheetName:`, sheetName);
 
   try {
@@ -20,7 +37,7 @@ async function updateCurrentStepInSheet(sheets, id, currentStep, sheetName = con
     const values = [[currentStep]];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: config.SPREADSHEET_ID, // Usar config.SPREADSHEET_ID
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID, // Usar config.PENDING_APPRAISALS_SPREADSHEET_ID
       range: updateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -37,7 +54,7 @@ async function updateCurrentStepInSheet(sheets, id, currentStep, sheetName = con
 }
 
 // Function: setAppraisalValue
-async function setAppraisalValue(sheets, id, appraisalValue, description, sheetName = config.SHEET_NAME) {
+async function setAppraisalValue(sheets, id, appraisalValue, description, sheetName = config.GOOGLE_SHEET_NAME) {
   console.log(`[setAppraisalValue] Called with id:`, id, `type:`, typeof id, `sheetName:`, sheetName);
 
   if (appraisalValue === undefined || description === undefined) {
@@ -53,7 +70,7 @@ async function setAppraisalValue(sheets, id, appraisalValue, description, sheetN
     const values = [[appraisalValue, description]];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: config.SPREADSHEET_ID,
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -65,8 +82,8 @@ async function setAppraisalValue(sheets, id, appraisalValue, description, sheetN
 
     // Obtener detalles de la tasación para obtener la URL de WordPress
     const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: config.SPREADSHEET_ID,
-      range: `${config.SHEET_NAME}!A${id}:I${id}`,
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      range: `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`,
     });
 
     const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
@@ -147,8 +164,8 @@ async function mergeDescriptions(sheets, id, appraiserDescription) {
 
     // Retrieve iaDescription from Google Sheets (Column H)
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: config.SPREADSHEET_ID,
-      range: `${config.SHEET_NAME}!H${id}:H${id}`, // Column H: iaDescription
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      range: `${config.GOOGLE_SHEET_NAME}!H${id}:H${id}`, // Column H: iaDescription
     });
 
     const iaDescription = response.data.values ? response.data.values[0][0] : null;
@@ -213,11 +230,11 @@ const openAIRequestBody = {
 //    }
 
     // Update column L with blendedDescription
-    const updateRange = `${config.SHEET_NAME}!L${id}:L${id}`; // Column L
+    const updateRange = `${config.GOOGLE_SHEET_NAME}!L${id}:L${id}`; // Column L
     const updateValues = [[blendedDescription]];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: config.SPREADSHEET_ID,
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -237,8 +254,8 @@ async function updatePostTitle(sheets, id) {
   try {
     // Get appraisal details to obtain the WordPress URL and new title from Google Sheets
     const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: config.SPREADSHEET_ID,
-      range: `${config.SHEET_NAME}!A${id}:L${id}`, // Adjust the range as needed
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      range: `${config.GOOGLE_SHEET_NAME}!A${id}:L${id}`, // Adjust the range as needed
     });
 
     const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
@@ -322,8 +339,8 @@ async function insertTemplate(sheets, id) {
 
     // Get appraisal details to obtain the WordPress URL and Type
     const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: config.SPREADSHEET_ID,
-      range: `${config.SHEET_NAME}!A${id}:K${id}`, // Adjust the range as needed
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      range: `${config.GOOGLE_SHEET_NAME}!A${id}:K${id}`, // Adjust the range as needed
     });
 
     const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
@@ -435,8 +452,8 @@ async function sendEmailToCustomer(sheets, id) {
   try {
     // Get appraisal details from Google Sheets
     const appraisalResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: config.SPREADSHEET_ID,
-      range: `${config.SHEET_NAME}!A${id}:N${id}`, // Include columns up to N to get PDF link
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      range: `${config.GOOGLE_SHEET_NAME}!A${id}:N${id}`, // Include columns up to N to get PDF link
     });
 
     const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
@@ -564,11 +581,11 @@ async function markAppraisalAsCompleted(sheets, id, appraisalValue, description)
     await updateCurrentStepInSheet(sheets, id, 'Completed');
 
     // Update columns J and K with the provided data
-    const updateRange = `${config.SHEET_NAME}!J${id}:K${id}`;
+    const updateRange = `${config.GOOGLE_SHEET_NAME}!J${id}:K${id}`;
     const values = [[appraisalValue, description]];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: config.SPREADSHEET_ID,
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -577,11 +594,11 @@ async function markAppraisalAsCompleted(sheets, id, appraisalValue, description)
     });
 
     // Update the status to "Completed" in column F
-    const statusUpdateRange = `${config.SHEET_NAME}!F${id}:F${id}`;
+    const statusUpdateRange = `${config.GOOGLE_SHEET_NAME}!F${id}:F${id}`;
     const statusValues = [['Completed']];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: config.SPREADSHEET_ID,
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: statusUpdateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -603,8 +620,8 @@ async function buildPDF(id) {
   try {
     // Get appraisal details from Google Sheets to obtain the WordPress URL
     const appraisalResponse = await sheetsGlobal.spreadsheets.values.get({
-      spreadsheetId: config.SPREADSHEET_ID,
-      range: `${config.SHEET_NAME}!A${id}:N${id}`, // Adjust the range as needed
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      range: `${config.GOOGLE_SHEET_NAME}!A${id}:N${id}`, // Adjust the range as needed
     });
 
     const appraisalRow = appraisalResponse.data.values ? appraisalResponse.data.values[0] : null;
@@ -751,11 +768,11 @@ async function updateLinks(id, postId) {
     }
 
     // Actualizar columnas M y N en Google Sheets
-    const updateRange = `${config.SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
+    const updateRange = `${config.GOOGLE_SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
     const values = [[pdfLink, docLink]];
 
     await sheetsGlobal.spreadsheets.values.update({
-      spreadsheetId: config.SPREADSHEET_ID,
+      spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       range: updateRange,
       valueInputOption: 'RAW',
       resource: {
@@ -920,8 +937,8 @@ async function processAppraisal(id, appraisalValue, description, resume = false)
 
 // Function: appraisalSteps
 function appraisalSteps(sheets, config = {}) {
-  const SPREADSHEET_ID = config.SPREADSHEET_ID;
-  const SHEET_NAME = config.SHEET_NAME;
+  const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+  const SHEET_NAME = config.GOOGLE_SHEET_NAME;
   sheetsGlobal = sheets; // Asignar sheets a la variable global
 
   return {
