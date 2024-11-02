@@ -23,7 +23,7 @@ const validateSetValueData = require('../utils/validateSetValueData');
 
 exports.getAppraisals = async (req, res) => {
   try {
-    const config = require('../shared/config'); // Importa config correctamente
+const { config } = require('../shared/config');
     const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const SHEET_NAME = config.SHEET_NAME;
 
