@@ -78,18 +78,15 @@ async function main() {
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
     // Verificar que processAppraisal está definido
-    console.log('appraisalSteps:', appraisalSteps);
-
     if (typeof appraisalSteps.processAppraisal === 'function') {
       console.log('processAppraisal está definido correctamente.');
     } else {
       console.error('processAppraisal NO está definido en appraisalSteps.');
     }
 
-    // Inicializar Pub/Sub
-    const pubsub = new PubSub({
-      projectId: config.GCP_PROJECT_ID,
-    });
+const pubsub = new PubSub({
+  projectId: config.GOOGLE_CLOUD_PROJECT_ID,
+});
 
     // Nombre de la suscripción (debe existir en Pub/Sub)
     const subscriptionName = 'appraisal-tasks-subscription';
