@@ -3,30 +3,16 @@
 const { google } = require('googleapis');
 const fetch = require('node-fetch');
 const appraisalStepsModule = require('../shared/appraisalSteps');
-// No acceder a config aquí
 const { initializeSheets } = require('../shared/googleSheets');
 const getImageUrl = require('../utils/getImageUrl');
 const { PubSub } = require('@google-cloud/pubsub');
 const validateSetValueData = require('../utils/validateSetValueData');
 
-// No inicializar appraisalSteps aquí
-// const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
-
-// No inicializar Pub/Sub aquí
-// const pubsub = new PubSub({
-//   projectId: config.GCP_PROJECT_ID,
-// });
-
-// No obtener SPREADSHEET_ID y SHEET_NAME en el nivel superior
-// const SPREADSHEET_ID = config.SPREADSHEET_ID;
-// const SHEET_NAME = config.SHEET_NAME;
-
 exports.getAppraisals = async (req, res) => {
   try {
-const { config } = require('../shared/config');
-   const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
-const SHEET_NAME = config.GOOGLE_SHEET_NAME;
-
+    const { config } = require('../shared/config');
+    const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+    const SHEET_NAME = config.GOOGLE_SHEET_NAME;
 
     // Verificar que SPREADSHEET_ID y SHEET_NAME no sean undefined
     if (!SPREADSHEET_ID || !SHEET_NAME) {
@@ -72,8 +58,8 @@ exports.getAppraisalDetails = async (req, res) => {
 
   try {
     const { config } = require('../shared/config');
-    const SPREADSHEET_ID = config.SPREADSHEET_ID;
-    const SHEET_NAME = config.SHEET_NAME;
+    const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+    const SHEET_NAME = config.GOOGLE_SHEET_NAME;
     const sheets = await initializeSheets();
 
     const response = await sheets.spreadsheets.values.get({
@@ -164,8 +150,8 @@ exports.getAppraisalDetailsForEdit = async (req, res) => {
 
   try {
     const { config } = require('../shared/config');
-    const SPREADSHEET_ID = config.SPREADSHEET_ID;
-    const SHEET_NAME = config.SHEET_NAME;
+    const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+    const SHEET_NAME = config.GOOGLE_SHEET_NAME;
     const sheets = await initializeSheets();
 
     const response = await sheets.spreadsheets.values.get({
@@ -334,10 +320,11 @@ exports.setAppraisalValue = async (req, res) => {
 
   try {
     const { config } = require('../shared/config');
+    const sheets = await initializeSheets();
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
     // Determinar el nombre de la hoja basada en isEdit
-    let sheetName = config.SHEET_NAME; // Por defecto
+    let sheetName = config.GOOGLE_SHEET_NAME; // Por defecto
 
     if (isEdit) {
       sheetName = config.EDIT_SHEET_NAME;
@@ -362,7 +349,7 @@ exports.completeProcess = async (req, res) => {
   try {
     const { config } = require('../shared/config');
     const pubsub = new PubSub({
-      projectId: config.GCP_PROJECT_ID,
+      projectId: config.GOOGLE_CLOUD_PROJECT_ID,
     });
 
     // Crear el mensaje para Pub/Sub
@@ -453,8 +440,9 @@ exports.saveLinks = async (req, res) => {
 
   try {
     const { config } = require('../shared/config');
-    const SPREADSHEET_ID = config.SPREADSHEET_ID;
-    const SHEET_NAME = config.SHEET_NAME;
+    const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+    const SHEET_NAME = config.GOOGLE_SHEET_NAME;
+    const sheets = await initializeSheets();
 
     // Actualizar las columnas M y N en Google Sheets
     const updateRange = `${SHEET_NAME}!M${id}:N${id}`; // Columnas M y N
@@ -483,9 +471,9 @@ exports.saveLinks = async (req, res) => {
 exports.getCompletedAppraisals = async (req, res) => {
   try {
     const { config } = require('../shared/config');
-        const sheets = await initializeSheets();
+    const sheets = await initializeSheets();
 
-    const SPREADSHEET_ID = config.SPREADSHEET_ID;
+    const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
     const sheetName = 'Completed Appraisals'; // Asegúrate de que este es el nombre correcto de la hoja
     const range = `${sheetName}!A2:H`; // Definición correcta del rango
     console.log(`Fetching completed appraisals with range: ${range}`);
@@ -530,6 +518,7 @@ exports.insertTemplate = async (req, res) => {
 
   try {
     const { config } = require('../shared/config');
+    const sheets = await initializeSheets();
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
     await appraisalSteps.insertTemplate(id);
@@ -545,6 +534,7 @@ exports.updatePostTitle = async (req, res) => {
 
   try {
     const { config } = require('../shared/config');
+    const sheets = await initializeSheets();
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
     await appraisalSteps.updatePostTitle(id);
@@ -560,6 +550,7 @@ exports.sendEmailToCustomer = async (req, res) => {
 
   try {
     const { config } = require('../shared/config');
+    const sheets = await initializeSheets();
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
     await appraisalSteps.sendEmailToCustomer(id);
@@ -580,8 +571,9 @@ exports.updateLinks = async (req, res) => {
 
   try {
     const { config } = require('../shared/config');
-    const SPREADSHEET_ID = config.SPREADSHEET_ID;
-    const SHEET_NAME = config.SHEET_NAME;
+    const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+    const SHEET_NAME = config.GOOGLE_SHEET_NAME;
+    const sheets = await initializeSheets();
 
     // Obtener los enlaces desde los campos ACF de WordPress
     const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
@@ -655,6 +647,7 @@ exports.completeAppraisal = async (req, res) => {
 
   try {
     const { config } = require('../shared/config');
+    const sheets = await initializeSheets();
     const appraisalSteps = appraisalStepsModule.appraisalSteps(sheets, config);
 
     await appraisalSteps.markAppraisalAsCompleted(id, appraisalValue, description);
