@@ -466,27 +466,35 @@ async function updateShortcodesFlag(wpPostId, authHeader) {
   console.log(`[updateShortcodesFlag] ACF flag updated successfully:`, updateFlagData);
 }
 
-// Function: completarTasacion (Paso 5)
+// Función: completarTasacion (Paso 5)
 async function completarTasacion(postId, id) {
   console.log(`[completarTasacion] Called for Post ID: ${postId}`);
 
   try {
+    // Configurar un controlador para manejar el tiempo de espera
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 600000); // 600,000 ms = 10 minutos
+
     const response = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/complete-appraisal-report', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ postId }),
+      signal: controller.signal, // Pasar el controlador de señal a fetch
     });
 
-    const contentType = response.headers.get('content-type');
+    clearTimeout(timeout); // Limpiar el timeout si la solicitud se completa
+
+    const text = await response.text();
     let responseData;
 
-    if (contentType && contentType.includes('application/json')) {
-      responseData = await response.json();
-    } else {
-      const text = await response.text();
-      console.error('Unexpected response format:', text);
+    try {
+      responseData = JSON.parse(text);
+    } catch (e) {
+      console.error('Response is not valid JSON:', text);
       throw new Error(`Unexpected response format: ${text}`);
     }
 
@@ -494,14 +502,20 @@ async function completarTasacion(postId, id) {
       throw new Error(responseData.message || 'Error completing appraisal report.');
     }
 
-    // Utilizar 'id' para actualizar el paso actual en Google Sheets
+    // Actualizar el paso actual en Google Sheets
     await updateCurrentStepInSheet(id, 'Appraisal Text Filled');
     console.log(`[completarTasacion] Completed appraisal report for Post ID: ${postId}`);
   } catch (error) {
-    console.error('Error in completarTasacion:', error);
-    throw error;
+    if (error.name === 'AbortError') {
+      console.error('Request timed out:', error);
+      throw new Error('La solicitud excedió el tiempo de espera. Por favor, inténtalo de nuevo más tarde.');
+    } else {
+      console.error('Error in completarTasacion:', error);
+      throw error;
+    }
   }
 }
+
 
 // Function: buildPDF
 async function buildPDF(id) {
