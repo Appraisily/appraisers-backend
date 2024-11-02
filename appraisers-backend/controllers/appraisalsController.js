@@ -4,7 +4,6 @@ const { google } = require('googleapis');
 const fetch = require('node-fetch');
 const appraisalStepsModule = require('../shared/appraisalSteps');
 // No acceder a config aquí
-// const { config } = require('../shared/config');
 const { initializeSheets } = require('../shared/googleSheets');
 const getImageUrl = require('../utils/getImageUrl');
 const { PubSub } = require('@google-cloud/pubsub');
@@ -24,12 +23,22 @@ const validateSetValueData = require('../utils/validateSetValueData');
 
 exports.getAppraisals = async (req, res) => {
   try {
-    const { config } = require('../shared/config');
+    const config = require('../shared/config'); // Importa config correctamente
     const SPREADSHEET_ID = config.SPREADSHEET_ID;
     const SHEET_NAME = config.SHEET_NAME;
 
+    // Verificar que SPREADSHEET_ID y SHEET_NAME no sean undefined
+    if (!SPREADSHEET_ID || !SHEET_NAME) {
+      console.error('SPREADSHEET_ID o SHEET_NAME no están definidos en config.');
+      return res.status(500).json({ success: false, message: 'Error de configuración del servidor.' });
+    }
+
     // Obtener la instancia de sheets
     const sheets = await initializeSheets();
+
+    // Agregar logs para verificar los valores
+    console.log('SPREADSHEET_ID:', SPREADSHEET_ID);
+    console.log('SHEET_NAME:', SHEET_NAME);
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
@@ -56,7 +65,6 @@ exports.getAppraisals = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error obteniendo apreciaciones.' });
   }
 };
-
 
 exports.getAppraisalDetails = async (req, res) => {
   const { id } = req.params; // Número de fila
