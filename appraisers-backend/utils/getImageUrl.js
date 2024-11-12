@@ -3,10 +3,15 @@
 const fetch = require('node-fetch');
 const https = require('https');
 
+// Configure fetch to use Node.js HTTPS module with proper SSL settings
+const agent = new https.Agent({
+  rejectUnauthorized: false,
+  secureProtocol: 'TLSv1_2_method'
+});
+
 module.exports = async function getImageUrl(imageField) {
   if (!imageField) return null;
 
-  // Si es un número o una cadena que representa un número (ID de imagen)
   if (typeof imageField === 'number' || (typeof imageField === 'string' && /^\d+$/.test(imageField))) {
     const mediaId = imageField;
     try {
@@ -14,7 +19,8 @@ module.exports = async function getImageUrl(imageField) {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        agent
       });
 
       if (!mediaResponse.ok) {
@@ -30,12 +36,10 @@ module.exports = async function getImageUrl(imageField) {
     }
   }
 
-  // Si es una URL directa
   if (typeof imageField === 'string' && imageField.startsWith('http')) {
     return imageField;
   }
 
-  // Si es un objeto con una propiedad 'url'
   if (typeof imageField === 'object' && imageField.url) {
     return imageField.url;
   }

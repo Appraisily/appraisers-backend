@@ -9,10 +9,17 @@ const getImageUrl = require('../utils/getImageUrl');
 const { PubSub } = require('@google-cloud/pubsub');
 const validateSetValueData = require('../utils/validateSetValueData');
 
-// Configure fetch to use Node.js HTTPS module
+// Configure fetch to use Node.js HTTPS module with proper SSL settings
 const agent = new https.Agent({
-  rejectUnauthorized: false
+  rejectUnauthorized: false,
+  secureProtocol: 'TLSv1_2_method'
 });
+
+// Helper function to fix WordPress URL
+const fixWordPressUrl = (url) => {
+  if (!url) return url;
+  return url.replace('www.resources.appraisily.com', 'resources.appraisily.com');
+};
 
 exports.getAppraisals = async (req, res) => {
   try {
@@ -32,7 +39,7 @@ exports.getAppraisals = async (req, res) => {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A2:H`
+      range: `${SHEET_NAME}!A2:H`,
     });
 
     const rows = response.data.values || [];
@@ -45,7 +52,7 @@ exports.getAppraisals = async (req, res) => {
       identifier: row[2] || '',
       status: row[5] || '',
       wordpressUrl: row[6] || '',
-      iaDescription: row[7] || ''
+      iaDescription: row[7] || '',
     }));
 
     console.log(`Total de apreciaciones mapeadas: ${appraisals.length}`);
@@ -97,7 +104,7 @@ exports.getAppraisalDetails = async (req, res) => {
 
     console.log(`[getAppraisalDetails] Post ID extraído: ${postId}`);
 
-    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
+    const wpEndpoint = `${fixWordPressUrl(config.WORDPRESS_API_URL)}/appraisals/${postId}`;
     console.log(`[getAppraisalDetails] Endpoint de WordPress: ${wpEndpoint}`);
 
     const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
@@ -185,7 +192,7 @@ exports.getAppraisalDetailsForEdit = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Post ID de WordPress no proporcionado o inválido.' });
     }
 
-    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
+    const wpEndpoint = `${fixWordPressUrl(config.WORDPRESS_API_URL)}/appraisals/${postId}`;
     console.log(`[getAppraisalDetailsForEdit] Endpoint de WordPress: ${wpEndpoint}`);
 
     const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
@@ -237,7 +244,7 @@ exports.updateAcfField = async (req, res) => {
   try {
     const { config } = require('../shared/config');
 
-    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${id}`;
+    const wpEndpoint = `${fixWordPressUrl(config.WORDPRESS_API_URL)}/appraisals/${id}`;
 
     const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
 
@@ -350,7 +357,7 @@ exports.getSessionId = async (req, res) => {
   try {
     const { config } = require('../shared/config');
 
-    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
+    const wpEndpoint = `${fixWordPressUrl(config.WORDPRESS_API_URL)}/appraisals/${postId}`;
     console.log(`[getSessionId] Endpoint de WordPress: ${wpEndpoint}`);
 
     const authHeader = 'Basic ' + Buffer.from(`${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`).toString('base64');
@@ -529,7 +536,7 @@ exports.updateLinks = async (req, res) => {
     const SHEET_NAME = config.GOOGLE_SHEET_NAME;
     const sheets = await initializeSheets();
 
-    const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
+    const wpEndpoint = `${fixWordPressUrl(config.WORDPRESS_API_URL)}/appraisals/${postId}`;
     console.log(`[updateLinks] Endpoint de WordPress: ${wpEndpoint}`);
 
     const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
