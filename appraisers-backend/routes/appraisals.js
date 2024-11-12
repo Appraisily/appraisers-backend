@@ -1,4 +1,3 @@
-
 // routes/appraisals.js
 
 const express = require('express');
@@ -7,6 +6,7 @@ const appraisalsController = require('../controllers/appraisalsController');
 const authenticate = require('../middleware/authenticate');
 const validateSetValueData = require('../utils/validateSetValueData');
 
+// Ensure all controller methods exist before adding routes
 router.get('/appraisals', authenticate, appraisalsController.getAppraisals);
 router.get('/appraisals/:id/list', authenticate, appraisalsController.getAppraisalDetails);
 router.get('/appraisals/:id/list-edit', authenticate, appraisalsController.getAppraisalDetailsForEdit);
