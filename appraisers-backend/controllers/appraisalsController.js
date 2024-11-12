@@ -8,51 +8,6 @@ const getImageUrl = require('../utils/getImageUrl');
 const { PubSub } = require('@google-cloud/pubsub');
 const validateSetValueData = require('../utils/validateSetValueData');
 
-exports.getAppraisals = async (req, res) => {
-  try {
-    const { config } = require('../shared/config');
-    const SPREADSHEET_ID = config.PENDING_APPRAISALS_SPREADSHEET_ID;
-    const SHEET_NAME = config.GOOGLE_SHEET_NAME;
-
-    // Verificar que SPREADSHEET_ID y SHEET_NAME no sean undefined
-    if (!SPREADSHEET_ID || !SHEET_NAME) {
-      console.error('SPREADSHEET_ID o SHEET_NAME no están definidos en config.');
-      return res.status(500).json({ success: false, message: 'Error de configuración del servidor.' });
-    }
-
-    // Obtener la instancia de sheets
-    const sheets = await initializeSheets();
-
-    // Agregar logs para verificar los valores
-    console.log('SPREADSHEET_ID:', SPREADSHEET_ID);
-    console.log('SHEET_NAME:', SHEET_NAME);
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A2:H`,
-    });
-
-    const rows = response.data.values || [];
-    console.log(`Total de filas obtenidas: ${rows.length}`);
-
-    const appraisals = rows.map((row, index) => ({
-      id: index + 2,
-      date: row[0] || '',
-      appraisalType: row[1] || '',
-      identifier: row[2] || '',
-      status: row[5] || '',
-      wordpressUrl: row[6] || '',
-      iaDescription: row[7] || '',
-    }));
-
-    console.log(`Total de apreciaciones mapeadas: ${appraisals.length}`);
-    res.json(appraisals);
-  } catch (error) {
-    console.error('Error obteniendo apreciaciones:', error);
-    res.status(500).json({ success: false, message: 'Error obteniendo apreciaciones.' });
-  }
-};
-
 exports.getAppraisalDetails = async (req, res) => {
   const { id } = req.params; // Número de fila
 
@@ -112,7 +67,7 @@ exports.getAppraisalDetails = async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         Authorization: authHeader,
-      },
+      }
     });
 
     if (!wpResponse.ok) {
@@ -215,7 +170,7 @@ exports.getAppraisalDetailsForEdit = async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         Authorization: authHeader,
-      },
+      }
     });
 
     if (!wpResponse.ok) {
@@ -276,7 +231,7 @@ exports.updateAcfField = async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         Authorization: authHeader,
-      },
+      }
     });
 
     if (!wpResponse.ok) {
@@ -401,7 +356,7 @@ exports.getSessionId = async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         Authorization: authHeader,
-      },
+      }
     });
 
     if (!wpResponse.ok) {
@@ -590,7 +545,7 @@ exports.updateLinks = async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         Authorization: authHeader,
-      },
+      }
     });
 
     if (!wpResponse.ok) {

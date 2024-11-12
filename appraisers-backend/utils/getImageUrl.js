@@ -1,6 +1,7 @@
 // utils/getImageUrl.js
 
 const fetch = require('node-fetch');
+const https = require('https');
 
 module.exports = async function getImageUrl(imageField) {
   if (!imageField) return null;
@@ -9,11 +10,11 @@ module.exports = async function getImageUrl(imageField) {
   if (typeof imageField === 'number' || (typeof imageField === 'string' && /^\d+$/.test(imageField))) {
     const mediaId = imageField;
     try {
-      const mediaResponse = await fetch(`https://www.appraisily.com/wp-json/wp/v2/media/${mediaId}`, {
+      const mediaResponse = await fetch(`https://resources.appraisily.com/wp-json/wp/v2/media/${mediaId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-        },
+        }
       });
 
       if (!mediaResponse.ok) {
@@ -41,4 +42,3 @@ module.exports = async function getImageUrl(imageField) {
 
   return null;
 };
-
