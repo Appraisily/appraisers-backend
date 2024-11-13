@@ -4,6 +4,8 @@ const config = {};
 
 async function initializeConfig() {
   try {
+    console.log('Initializing configuration...');
+
     // IMPORTANT: This secret is named 'jwt-secret' in Google Secret Manager
     // Do not change this name as it's used across multiple services
     config.JWT_SECRET = await getSecret('jwt-secret');
@@ -32,6 +34,7 @@ async function initializeConfig() {
     config.SHARED_SECRET = (await getSecret('SHARED_SECRET')).trim();
 
     console.log('All configurations initialized successfully.');
+    return config;
   } catch (error) {
     console.error('Error initializing configuration:', error);
     throw error;

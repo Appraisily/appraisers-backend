@@ -19,20 +19,25 @@ const secretToEnvMap = {
 };
 
 async function getSecret(secretName) {
-  // Always check environment variables first
+  // Get the corresponding environment variable name
   const envVar = secretToEnvMap[secretName];
-  const envValue = process.env[envVar];
   
+  // In development, use environment variables from .env
+  if (process.env.NODE_ENV === 'development') {
+    const value = process.env[envVar];
+    if (!value) {
+      throw new Error(`Environment variable ${envVar} not found in development environment`);
+    }
+    return value;
+  }
+
+  // In production, try environment variables first
+  const envValue = process.env[envVar];
   if (envValue) {
     return envValue;
   }
 
-  // If no environment variable and we're in development, throw error
-  if (process.env.NODE_ENV === 'development') {
-    throw new Error(`Environment variable ${envVar} not found`);
-  }
-
-  // Use Google Secret Manager in production
+  // If no environment variable in production, use Secret Manager
   try {
     const client = new SecretManagerServiceClient();
     const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;

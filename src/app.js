@@ -23,6 +23,7 @@ const corsOptions = process.env.NODE_ENV === 'development'
       optionsSuccessStatus: 200,
     };
 
+// Apply CORS configuration
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
@@ -34,9 +35,13 @@ app.get('/health', (req, res) => {
 
 async function startServer() {
   try {
-    await initializeConfig();
+    console.log(`Starting server in ${process.env.NODE_ENV} mode`);
     
-    // Only add routes after config is initialized
+    // Initialize configuration
+    await initializeConfig();
+    console.log('Configuration initialized successfully');
+    
+    // Add routes after config is initialized
     app.use('/api', routes);
     
     const PORT = process.env.PORT || 8080;
@@ -44,7 +49,7 @@ async function startServer() {
       console.log(`Backend server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
     });
   } catch (error) {
-    console.error('Error initializing configuration:', error);
+    console.error('Error starting server:', error);
     process.exit(1);
   }
 }
