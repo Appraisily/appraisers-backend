@@ -1,19 +1,27 @@
 const sendGridMail = require('@sendgrid/mail');
-const { config } = require('../config');
 
 class EmailService {
   constructor() {
-    sendGridMail.setApiKey(config.SENDGRID_API_KEY);
+    // Initialize SendGrid only if API key is available
+    const apiKey = process.env.SENDGRID_API_KEY;
+    if (apiKey) {
+      sendGridMail.setApiKey(apiKey);
+    }
   }
 
   async sendAppraisalCompletedEmail(customerEmail, customerName, appraisalData) {
+    if (!process.env.SENDGRID_API_KEY) {
+      console.warn('SendGrid API key not configured, skipping email send');
+      return;
+    }
+
     try {
       const currentYear = new Date().getFullYear();
 
       const emailContent = {
         to: customerEmail,
-        from: config.SENDGRID_EMAIL,
-        templateId: config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED,
+        from: process.env.SENDGRID_EMAIL,
+        templateId: process.env.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED,
         dynamic_template_data: {
           customer_name: customerName,
           appraisal_value: appraisalData.value,
@@ -33,6 +41,11 @@ class EmailService {
   }
 
   async sendAppraisalUpdateEmail(customerEmail, customerName, description, iaDescription) {
+    if (!process.env.SENDGRID_API_KEY) {
+      console.warn('SendGrid API key not configured, skipping email send');
+      return;
+    }
+
     try {
       const currentYear = new Date().getFullYear();
       const delayInMinutes = 1;
@@ -40,8 +53,8 @@ class EmailService {
 
       const emailContent = {
         to: customerEmail,
-        from: config.SENDGRID_EMAIL,
-        templateId: config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE,
+        from: process.env.SENDGRID_EMAIL,
+        templateId: process.env.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE,
         dynamic_template_data: {
           customer_name: customerName,
           description: description || '',
