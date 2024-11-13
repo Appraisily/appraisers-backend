@@ -16,17 +16,31 @@ const corsOptions = process.env.NODE_ENV === 'development'
       origin: true, // Allow all origins in development
       credentials: true,
       optionsSuccessStatus: 200,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
     }
   : {
       origin: 'https://appraisers-frontend-856401495068.us-central1.run.app',
       credentials: true,
       optionsSuccessStatus: 200,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
     };
 
 // Apply CORS configuration
 app.use(cors(corsOptions));
+
+// Middleware
 app.use(express.json());
 app.use(cookieParser());
+
+// Log all requests in development
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path}`, req.body);
+    next();
+  });
+}
 
 // Health check endpoint that doesn't require config
 app.get('/health', (req, res) => {

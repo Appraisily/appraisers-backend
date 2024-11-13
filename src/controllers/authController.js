@@ -5,18 +5,21 @@ const authorizedUsers = require('../constants/authorizedUsers');
 
 class AuthController {
   static async authenticateUser(req, res) {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Email and password are required.' 
-      });
-    }
-
     try {
+      const { email, password } = req.body;
+
+      console.log('Login attempt:', { email, timestamp: new Date().toISOString() });
+
+      if (!email || !password) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Email and password are required.' 
+        });
+      }
+
       // Verificar si el usuario está autorizado
       if (!authorizedUsers.includes(email)) {
+        console.log('Unauthorized email:', email);
         return res.status(403).json({ 
           success: false, 
           message: 'User not authorized.' 
@@ -29,53 +32,63 @@ class AuthController {
         .update(password)
         .digest('hex');
 
-      // En producción, esto debería compararse con un hash almacenado seguramente
-      // Por ahora, comparamos con el hash de 'appraisily2024'
-      const validPassword = hashedPassword === '7c4a8d09ca3762af61e59520943dc26494f8941b'; // Hash of 'appraisily2024'
-      
-      if (!validPassword) {
+      // Hardcoded hash of 'appraisily2024'
+      const expectedHash = crypto
+        .createHash('sha256')
+        .update('appraisily2024')
+        .digest('hex');
+
+      if (hashedPassword !== expectedHash) {
+        console.log('Invalid password attempt for:', email);
         return res.status(401).json({ 
           success: false, 
           message: 'Invalid credentials' 
         });
       }
 
-      // Generar JWT
-      const token = jwt.sign({ email }, config.JWT_SECRET, { expiresIn: '1h' });
+      // Generate JWT token
+      const token = jwt.sign(
+        { email }, 
+        config.JWT_SECRET || 'development_jwt_secret_123',
+        { expiresIn: '1h' }
+      );
 
-      // Establecer cookie segura
+      // Set secure cookie
       res.cookie('jwtToken', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV !== 'development', // Only secure in production
-        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
-        maxAge: 3600000 // 1 hora
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 3600000 // 1 hour
       });
 
-      // Devolver respuesta exitosa
+      // Return successful response matching frontend expectations
+      console.log('Login successful:', { email, timestamp: new Date().toISOString() });
       res.json({
         success: true,
-        name: 'Appraisily Admin'
+        name: 'Appraisily Admin',
+        message: 'Login successful'
       });
 
     } catch (error) {
-      console.error('Error in authentication:', error);
+      console.error('Authentication error:', error);
       res.status(500).json({ 
         success: false, 
-        message: 'Internal server error.' 
+        message: 'Internal server error' 
       });
     }
   }
 
   static logoutUser(req, res) {
+    // Clear the cookie with the same options used to set it
     res.clearCookie('jwtToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none'
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
     });
     
     res.json({ 
       success: true, 
-      message: 'Logout successful.' 
+      message: 'Logout successful' 
     });
   }
 }
