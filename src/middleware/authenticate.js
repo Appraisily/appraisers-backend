@@ -16,7 +16,7 @@ function authenticate(req, res, next) {
   console.log('📨 [authenticate] Cookies:', req.cookies);
 
   if (!token) {
-    console.log('❌ [authenticate] No JWT token found in cookies');
+    console.log('❌ [authenticate] No JWT token found');
     return res.status(401).json({ 
       success: false, 
       message: 'Unauthorized. Token not provided.' 
@@ -27,18 +27,11 @@ function authenticate(req, res, next) {
     const decoded = jwt.verify(token, config.JWT_SECRET);
     req.user = decoded;
 
-    // Check if this is a worker request
-    const isWorkerRequest = req.headers['x-worker-request'] === 'true';
-    console.log('🔍 [authenticate] Request type:', { 
-      isWorkerRequest,
-      email: decoded.email,
-      headers: {
-        'x-worker-request': req.headers['x-worker-request']
-      }
-    });
+    // Check if request comes from task queue worker
+    const isWorker = decoded.role === 'worker';
 
     // Skip authorized users check for worker requests
-    if (isWorkerRequest) {
+    if (isWorker) {
       console.log('✅ [authenticate] Worker request authenticated');
       return next();
     }

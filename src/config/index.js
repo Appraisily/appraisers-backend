@@ -11,6 +11,10 @@ async function initializeConfig() {
     config.JWT_SECRET = await getSecret('jwt-secret');
     console.log('JWT_SECRET obtained successfully.');
 
+    // Get worker authentication secret
+    config.WORKER_SECRET = await getSecret('worker-auth-secret');
+    console.log('WORKER_SECRET obtained successfully.');
+
     let wpApiUrl = (await getSecret('WORDPRESS_API_URL')).trim();
     wpApiUrl = wpApiUrl.replace('www.resources', 'resources');
     config.WORDPRESS_API_URL = wpApiUrl;
