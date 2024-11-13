@@ -9,44 +9,67 @@ const app = express();
 // Set default NODE_ENV if not set
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 
-// CORS configuration
+// CORS configuration with specific origin handling
 const corsOptions = {
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'https://appraisers-frontend-856401495068.us-central1.run.app',
-      /.*\.webcontainer\.io$/, // Allow all StackBlitz WebContainer domains
-      /.*\.stackblitz\.io$/    // Allow all StackBlitz domains
-    ];
-
+  origin: function(origin, callback) {
+    console.log('🌐 [CORS] Request from origin:', origin);
+    
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) {
+      console.log('✅ [CORS] Allowing request with no origin');
       return callback(null, true);
     }
 
-    // Check if the origin matches any of our allowed origins
-    const isAllowed = allowedOrigins.some(allowedOrigin => {
-      if (allowedOrigin instanceof RegExp) {
-        return allowedOrigin.test(origin);
-      }
-      return allowedOrigin === origin;
-    });
+    // Allow all origins in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ [CORS] Development mode - allowing all origins');
+      return callback(null, true);
+    }
 
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      console.log(`❌ [CORS] Blocked request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+    // Create a URL object to parse the origin
+    try {
+      const originUrl = new URL(origin);
+      
+      // Allow specific domains and patterns
+      const allowedDomains = [
+        'localhost',
+        'stackblitz.io',
+        'webcontainer.io',
+        'webcontainer-api.io',
+        'appraisers-frontend-856401495068.us-central1.run.app'
+      ];
+
+      const isAllowed = allowedDomains.some(domain => 
+        originUrl.hostname === domain || 
+        originUrl.hostname.endsWith(`.${domain}`)
+      );
+
+      if (isAllowed) {
+        console.log(`✅ [CORS] Allowing origin: ${origin}`);
+        callback(null, true);
+      } else {
+        console.log(`❌ [CORS] Blocking origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    } catch (error) {
+      console.error('❌ [CORS] Error parsing origin:', error);
+      callback(new Error('Invalid origin'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  exposedHeaders: ['set-cookie']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With'],
+  exposedHeaders: ['Set-Cookie', 'Authorization'],
+  maxAge: 600 // Cache preflight request results for 10 minutes
 };
 
-// Apply middleware
+// Apply CORS middleware before other middleware
 app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
+// Other middleware
 app.use(express.json());
 app.use(cookieParser());
 
@@ -61,6 +84,20 @@ if (process.env.NODE_ENV === 'development') {
     next();
   });
 }
+
+// Add security headers
+app.use((req, res, next) => {
+  // Ensure CORS headers are present
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Only set Access-Control-Allow-Origin if origin is allowed
+  const origin = req.headers.origin;
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
+  next();
+});
 
 // Health check endpoint that doesn't require config
 app.get('/health', (req, res) => {
