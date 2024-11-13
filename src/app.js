@@ -11,49 +11,7 @@ process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 
 // CORS configuration
 const corsOptions = {
-  origin: function(origin, callback) {
-    console.log('🌐 [CORS] Request from origin:', origin);
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
-      console.log('✅ [CORS] Allowing request with no origin');
-      return callback(null, true);
-    }
-
-    // In development, allow all origins
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ [CORS] Development mode - allowing all origins');
-      return callback(null, true);
-    }
-
-    // Production allowed domains
-    const allowedDomains = [
-      'localhost',
-      'stackblitz.io',
-      'webcontainer.io',
-      'webcontainer-api.io',
-      'appraisers-frontend-856401495068.us-central1.run.app'
-    ];
-
-    try {
-      const originUrl = new URL(origin);
-      const isAllowed = allowedDomains.some(domain => 
-        originUrl.hostname === domain || 
-        originUrl.hostname.endsWith(`.${domain}`)
-      );
-
-      if (isAllowed) {
-        console.log(`✅ [CORS] Allowing origin: ${origin}`);
-        callback(null, true);
-      } else {
-        console.log(`❌ [CORS] Blocked request from origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
-      }
-    } catch (error) {
-      console.error('❌ [CORS] Error parsing origin:', error);
-      callback(new Error('Invalid origin'));
-    }
-  },
+  origin: true, // Allow all origins in development
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
@@ -66,7 +24,7 @@ app.use(cors(corsOptions));
 // Handle preflight requests
 app.options('*', cors(corsOptions));
 
-// Other middleware
+// Middleware
 app.use(express.json());
 app.use(cookieParser());
 
@@ -106,8 +64,6 @@ async function startServer() {
   }
 }
 
-if (require.main === module) {
-  startServer();
-}
+startServer();
 
 module.exports = app;

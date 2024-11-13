@@ -3,7 +3,6 @@ const router = express.Router();
 const AppraisalController = require('../controllers/appraisalController');
 const authenticate = require('../middleware/authenticate');
 
-// Ensure all routes have proper middleware and controller methods
 router.get('/', authenticate, AppraisalController.getAppraisals);
 router.get('/completed', authenticate, AppraisalController.getCompletedAppraisals);
 router.get('/:id/list', authenticate, AppraisalController.getAppraisalDetails);

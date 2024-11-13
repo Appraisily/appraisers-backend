@@ -46,14 +46,12 @@ class AuthController {
         });
       }
 
-      // Generate JWT token
       const token = jwt.sign(
         { email }, 
         config.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      // Set cookie options
       const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -81,6 +79,50 @@ class AuthController {
       res.status(500).json({ 
         success: false, 
         message: 'Internal server error' 
+      });
+    }
+  }
+
+  static async refreshToken(req, res) {
+    console.log('🔄 [refreshToken] Attempting to refresh token');
+    
+    const token = req.cookies.jwtToken;
+    if (!token) {
+      console.log('❌ [refreshToken] No refresh token found in cookies');
+      return res.status(401).json({ 
+        success: false, 
+        message: 'No token provided' 
+      });
+    }
+
+    try {
+      const decoded = jwt.verify(token, config.JWT_SECRET);
+      const newToken = jwt.sign(
+        { email: decoded.email },
+        config.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      };
+
+      res.cookie('jwtToken', newToken, cookieOptions);
+      console.log('✅ [refreshToken] Token refreshed successfully');
+      
+      res.json({ 
+        success: true, 
+        message: 'Token refreshed successfully' 
+      });
+    } catch (error) {
+      console.error('❌ [refreshToken] Error refreshing token:', error);
+      res.status(401).json({ 
+        success: false, 
+        message: 'Invalid token' 
       });
     }
   }
