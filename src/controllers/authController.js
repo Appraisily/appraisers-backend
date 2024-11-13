@@ -54,7 +54,7 @@ class AuthController {
 
       const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: true,
         sameSite: 'none',
         path: '/',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
@@ -105,7 +105,7 @@ class AuthController {
 
       const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: true,
         sameSite: 'none',
         path: '/',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
@@ -130,7 +130,7 @@ class AuthController {
   static logoutUser(req, res) {
     const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
       sameSite: 'none',
       path: '/'
     };
