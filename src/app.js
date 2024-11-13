@@ -1,9 +1,12 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-require('dotenv').config(); // Add dotenv configuration
 const { initializeConfig } = require('./config');
 const routes = require('./routes');
+
+// Set default NODE_ENV if not set
+process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 
 const app = express();
 
@@ -24,18 +27,17 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
-app.use('/api', routes);
-
+// Health check endpoint that doesn't require config
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
 async function startServer() {
   try {
-    // Set default NODE_ENV if not set
-    process.env.NODE_ENV = process.env.NODE_ENV || 'development';
-    
     await initializeConfig();
+    
+    // Only add routes after config is initialized
+    app.use('/api', routes);
     
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, '0.0.0.0', () => {
@@ -47,6 +49,9 @@ async function startServer() {
   }
 }
 
-startServer();
+// Start server if this is the main module
+if (require.main === module) {
+  startServer();
+}
 
 module.exports = app;

@@ -1,4 +1,5 @@
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
+require('dotenv').config();
 
 // Mapping of secret names to environment variables
 const secretToEnvMap = {
@@ -18,16 +19,17 @@ const secretToEnvMap = {
 };
 
 async function getSecret(secretName) {
-  // Use environment variables in development mode
+  // Always check environment variables first
+  const envVar = secretToEnvMap[secretName];
+  const envValue = process.env[envVar];
+  
+  if (envValue) {
+    return envValue;
+  }
+
+  // If no environment variable and we're in development, throw error
   if (process.env.NODE_ENV === 'development') {
-    const envVar = secretToEnvMap[secretName];
-    const value = process.env[envVar];
-    
-    if (!value) {
-      throw new Error(`Environment variable ${envVar} not found`);
-    }
-    
-    return value;
+    throw new Error(`Environment variable ${envVar} not found`);
   }
 
   // Use Google Secret Manager in production
