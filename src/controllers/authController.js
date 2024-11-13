@@ -8,18 +8,22 @@ class AuthController {
     try {
       const { email, password } = req.body;
 
-      console.log('Login attempt:', { email, timestamp: new Date().toISOString() });
+      console.log('🔑 [authenticateUser] Login attempt:', { 
+        email, 
+        timestamp: new Date().toISOString() 
+      });
 
       if (!email || !password) {
+        console.log('❌ [authenticateUser] Missing email or password');
         return res.status(400).json({ 
           success: false, 
           message: 'Email and password are required.' 
         });
       }
 
-      // Verificar si el usuario está autorizado
+      // Verify if user is authorized
       if (!authorizedUsers.includes(email)) {
-        console.log('Unauthorized email:', email);
+        console.log('❌ [authenticateUser] Unauthorized email:', email);
         return res.status(403).json({ 
           success: false, 
           message: 'User not authorized.' 
@@ -39,7 +43,7 @@ class AuthController {
         .digest('hex');
 
       if (hashedPassword !== expectedHash) {
-        console.log('Invalid password attempt for:', email);
+        console.log('❌ [authenticateUser] Invalid password attempt for:', email);
         return res.status(401).json({ 
           success: false, 
           message: 'Invalid credentials' 
@@ -49,20 +53,28 @@ class AuthController {
       // Generate JWT token
       const token = jwt.sign(
         { email }, 
-        config.JWT_SECRET || 'development_jwt_secret_123',
+        config.JWT_SECRET,
         { expiresIn: '1h' }
       );
 
-      // Set secure cookie
-      res.cookie('jwtToken', token, {
+      // Set secure cookie with proper options
+      const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 3600000 // 1 hour
+        maxAge: 3600000, // 1 hour
+        path: '/'
+      };
+
+      console.log('🍪 [authenticateUser] Setting cookie with options:', cookieOptions);
+      res.cookie('jwtToken', token, cookieOptions);
+
+      // Return successful response
+      console.log('✅ [authenticateUser] Login successful:', { 
+        email, 
+        timestamp: new Date().toISOString() 
       });
 
-      // Return successful response matching frontend expectations
-      console.log('Login successful:', { email, timestamp: new Date().toISOString() });
       res.json({
         success: true,
         name: 'Appraisily Admin',
@@ -70,7 +82,7 @@ class AuthController {
       });
 
     } catch (error) {
-      console.error('Authentication error:', error);
+      console.error('❌ [authenticateUser] Error:', error);
       res.status(500).json({ 
         success: false, 
         message: 'Internal server error' 
@@ -80,11 +92,15 @@ class AuthController {
 
   static logoutUser(req, res) {
     // Clear the cookie with the same options used to set it
-    res.clearCookie('jwtToken', {
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
-    });
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
+    };
+
+    console.log('🍪 [logoutUser] Clearing cookie with options:', cookieOptions);
+    res.clearCookie('jwtToken', cookieOptions);
     
     res.json({ 
       success: true, 
