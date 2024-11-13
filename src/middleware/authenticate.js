@@ -4,6 +4,7 @@ const authorizedUsers = require('../constants/authorizedUsers');
 
 function authenticate(req, res, next) {
   console.log('🔒 [authenticate] Starting authentication check');
+  console.log('📨 [authenticate] Headers:', req.headers);
 
   // Get token from cookie or Authorization header
   const cookieToken = req.cookies.jwtToken;
@@ -12,14 +13,10 @@ function authenticate(req, res, next) {
   
   const token = cookieToken || bearerToken;
 
-  console.log('🔍 [authenticate] Token sources:', {
-    hasCookieToken: !!cookieToken,
-    hasAuthHeader: !!authHeader,
-    hasBearerToken: !!bearerToken
-  });
+  console.log('📨 [authenticate] Cookies:', req.cookies);
 
   if (!token) {
-    console.log('❌ [authenticate] No token found in cookies or Authorization header');
+    console.log('❌ [authenticate] No JWT token found in cookies');
     return res.status(401).json({ 
       success: false, 
       message: 'Unauthorized. Token not provided.' 
@@ -27,25 +24,35 @@ function authenticate(req, res, next) {
   }
 
   try {
-    console.log('🔍 [authenticate] Verifying JWT token');
     const decoded = jwt.verify(token, config.JWT_SECRET);
-    console.log('✅ [authenticate] JWT verified successfully:', { 
-      email: decoded.email,
-      exp: new Date(decoded.exp * 1000)
-    });
-
     req.user = decoded;
 
-    // Skip authorized users check for worker requests
+    // Check if this is a worker request
     const isWorkerRequest = req.headers['x-worker-request'] === 'true';
-    if (!isWorkerRequest && !authorizedUsers.includes(decoded.email)) {
-      console.log(`❌ [authenticate] User ${decoded.email} not in authorized users list`);
+    console.log('🔍 [authenticate] Request type:', { 
+      isWorkerRequest,
+      email: decoded.email,
+      headers: {
+        'x-worker-request': req.headers['x-worker-request']
+      }
+    });
+
+    // Skip authorized users check for worker requests
+    if (isWorkerRequest) {
+      console.log('✅ [authenticate] Worker request authenticated');
+      return next();
+    }
+
+    // For non-worker requests, check if user is authorized
+    if (!authorizedUsers.includes(decoded.email)) {
+      console.log('❌ [authenticate] Unauthorized access attempt:', decoded.email);
       return res.status(403).json({ 
         success: false, 
         message: 'Forbidden. You do not have access to this resource.' 
       });
     }
 
+    console.log('✅ [authenticate] User authenticated:', decoded.email);
     next();
   } catch (error) {
     console.error('❌ [authenticate] JWT verification error:', error);
