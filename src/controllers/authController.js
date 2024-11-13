@@ -4,6 +4,22 @@ const { config } = require('../config');
 const authorizedUsers = require('../constants/authorizedUsers');
 
 class AuthController {
+  static generateAccessToken(email) {
+    return jwt.sign(
+      { email }, 
+      config.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+  }
+
+  static generateRefreshToken(email) {
+    return jwt.sign(
+      { email }, 
+      config.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+  }
+
   static async authenticateUser(req, res) {
     try {
       const { email, password } = req.body;
@@ -48,8 +64,8 @@ class AuthController {
       }
 
       // Generate access token and refresh token
-      const accessToken = this.generateAccessToken(email);
-      const refreshToken = this.generateRefreshToken(email);
+      const accessToken = AuthController.generateAccessToken(email);
+      const refreshToken = AuthController.generateRefreshToken(email);
 
       const cookieOptions = {
         httpOnly: true,
@@ -125,7 +141,7 @@ class AuthController {
       }
 
       // Generate new access token
-      const newAccessToken = this.generateAccessToken(decoded.email);
+      const newAccessToken = AuthController.generateAccessToken(decoded.email);
 
       // Set the new access token as a cookie
       const cookieOptions = {
@@ -170,22 +186,6 @@ class AuthController {
       success: true, 
       message: 'Logout successful' 
     });
-  }
-
-  static generateAccessToken(email) {
-    return jwt.sign(
-      { email }, 
-      config.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-  }
-
-  static generateRefreshToken(email) {
-    return jwt.sign(
-      { email }, 
-      config.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
   }
 }
 
