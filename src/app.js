@@ -9,9 +9,11 @@ const app = express();
 // Set default NODE_ENV if not set
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 
-// CORS configuration
+// CORS configuration based on environment
 const corsOptions = {
-  origin: true, // Allow all origins in development
+  origin: process.env.NODE_ENV === 'development' 
+    ? 'https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3--3000--f565b097.local-credentialless.webcontainer-api.io'
+    : 'https://appraisers-frontend-856401495068.us-central1.run.app',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
