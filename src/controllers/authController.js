@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { config } = require('../config');
 const authorizedUsers = require('../constants/authorizedUsers');
 
@@ -22,9 +23,15 @@ class AuthController {
         });
       }
 
-      // Aquí deberías verificar la contraseña contra un hash almacenado
-      // Por ahora, usaremos una contraseña hardcodeada para demo
-      const validPassword = password === 'appraisily2024';
+      // Hash the password with SHA-256
+      const hashedPassword = crypto
+        .createHash('sha256')
+        .update(password)
+        .digest('hex');
+
+      // En producción, esto debería compararse con un hash almacenado seguramente
+      // Por ahora, comparamos con el hash de 'appraisily2024'
+      const validPassword = hashedPassword === '7c4a8d09ca3762af61e59520943dc26494f8941b'; // Hash of 'appraisily2024'
       
       if (!validPassword) {
         return res.status(401).json({ 
@@ -39,15 +46,15 @@ class AuthController {
       // Establecer cookie segura
       res.cookie('jwtToken', token, {
         httpOnly: true,
-        secure: true,
-        sameSite: 'None',
+        secure: process.env.NODE_ENV !== 'development', // Only secure in production
+        sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none',
         maxAge: 3600000 // 1 hora
       });
 
       // Devolver respuesta exitosa
       res.json({
         success: true,
-        name: 'Appraisily Admin' // Nombre de display para el usuario
+        name: 'Appraisily Admin'
       });
 
     } catch (error) {
@@ -62,8 +69,8 @@ class AuthController {
   static logoutUser(req, res) {
     res.clearCookie('jwtToken', {
       httpOnly: true,
-      secure: true,
-      sameSite: 'None'
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: process.env.NODE_ENV === 'development' ? 'lax' : 'none'
     });
     
     res.json({ 

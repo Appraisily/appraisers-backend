@@ -4,6 +4,8 @@ const config = {};
 
 async function initializeConfig() {
   try {
+    // IMPORTANT: This secret is named 'jwt-secret' in Google Secret Manager
+    // Do not change this name as it's used across multiple services
     config.JWT_SECRET = await getSecret('jwt-secret');
     console.log('JWT_SECRET obtained successfully.');
 

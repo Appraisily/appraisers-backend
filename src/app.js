@@ -6,11 +6,18 @@ const routes = require('./routes');
 
 const app = express();
 
-const corsOptions = {
-  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app',
-  credentials: true,
-  optionsSuccessStatus: 200,
-};
+// CORS configuration based on environment
+const corsOptions = process.env.NODE_ENV === 'development' 
+  ? {
+      origin: true, // Allow all origins in development
+      credentials: true,
+      optionsSuccessStatus: 200,
+    }
+  : {
+      origin: 'https://appraisers-frontend-856401495068.us-central1.run.app',
+      credentials: true,
+      optionsSuccessStatus: 200,
+    };
 
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -28,7 +35,7 @@ async function startServer() {
     
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Backend server running on port ${PORT}`);
+      console.log(`Backend server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
     });
   } catch (error) {
     console.error('Error initializing configuration:', error);
