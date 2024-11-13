@@ -4,12 +4,22 @@ const authorizedUsers = require('../constants/authorizedUsers');
 
 function authenticate(req, res, next) {
   console.log('🔒 [authenticate] Starting authentication check');
-  console.log('📨 [authenticate] Cookies:', req.cookies);
 
-  const token = req.cookies.jwtToken;
+  // Get token from cookie or Authorization header
+  const cookieToken = req.cookies.jwtToken;
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+  
+  const token = cookieToken || bearerToken;
+
+  console.log('🔍 [authenticate] Token sources:', {
+    hasCookieToken: !!cookieToken,
+    hasAuthHeader: !!authHeader,
+    hasBearerToken: !!bearerToken
+  });
 
   if (!token) {
-    console.log('❌ [authenticate] No JWT token found in cookies');
+    console.log('❌ [authenticate] No token found in cookies or Authorization header');
     return res.status(401).json({ 
       success: false, 
       message: 'Unauthorized. Token not provided.' 
@@ -26,7 +36,9 @@ function authenticate(req, res, next) {
 
     req.user = decoded;
 
-    if (!authorizedUsers.includes(decoded.email)) {
+    // Skip authorized users check for worker requests
+    const isWorkerRequest = req.headers['x-worker-request'] === 'true';
+    if (!isWorkerRequest && !authorizedUsers.includes(decoded.email)) {
       console.log(`❌ [authenticate] User ${decoded.email} not in authorized users list`);
       return res.status(403).json({ 
         success: false, 
