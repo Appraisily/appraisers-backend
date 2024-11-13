@@ -644,4 +644,4 @@ class AppraisalController {
   }
 }
 
-module.exports = AppraisalController;</content>
+module.exports = AppraisalController;
