@@ -3,7 +3,6 @@ steps:
     args: [
       'build',
       '-t', 'gcr.io/$PROJECT_ID/appraisers-backend',
-      '-f', 'Dockerfile',
       '.'
     ]
 

@@ -7,4 +7,6 @@ RUN npm install --production
 
 COPY src ./src
 
+EXPOSE 8080
+
 CMD ["npm", "start"]

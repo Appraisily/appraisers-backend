@@ -1,8 +1,5 @@
 node_modules
 npm-debug.log
 .env
-Dockerfile
 .git
 .gitignore
-service-account.json
-!main-service/service-account.json
