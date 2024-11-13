@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+require('dotenv').config(); // Add dotenv configuration
 const { initializeConfig } = require('./config');
 const routes = require('./routes');
 
@@ -31,6 +32,9 @@ app.get('/health', (req, res) => {
 
 async function startServer() {
   try {
+    // Set default NODE_ENV if not set
+    process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+    
     await initializeConfig();
     
     const PORT = process.env.PORT || 8080;
