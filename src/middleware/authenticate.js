@@ -37,6 +37,17 @@ function authenticate(req, res, next) {
       });
     }
 
+    // Check if token is about to expire (less than 5 minutes remaining)
+    const expirationTime = decoded.exp * 1000; // Convert to milliseconds
+    const currentTime = Date.now();
+    const timeRemaining = expirationTime - currentTime;
+    const fiveMinutes = 5 * 60 * 1000;
+
+    if (timeRemaining < fiveMinutes) {
+      console.log('⚠️ [authenticate] Token about to expire, setting refresh header');
+      res.set('X-Token-Expiring', 'true');
+    }
+
     console.log('✅ [authenticate] Authentication successful');
     next();
   } catch (error) {
