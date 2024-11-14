@@ -2,17 +2,33 @@ const { initializeSheets } = require('./googleSheets');
 const { config } = require('../config');
 const fetch = require('node-fetch');
 const OpenAI = require('openai');
+const { getSecret } = require('../utils/secretManager');
 
 class AppraisalWorkerService {
   constructor() {
     this.sheets = null;
-    this.openai = new OpenAI({ apiKey: config.OPENAI_API_KEY });
+    this.openai = null;
   }
 
   async initialize() {
-    this.sheets = await initializeSheets();
+    try {
+      this.sheets = await initializeSheets();
+      
+      // Get OpenAI API key from Secret Manager
+      const openaiApiKey = await getSecret('OPENAI_API_KEY');
+      if (!openaiApiKey) {
+        throw new Error('OpenAI API key not found in Secret Manager');
+      }
+      
+      this.openai = new OpenAI({ apiKey: openaiApiKey.trim() });
+      console.log('AppraisalWorkerService initialized successfully');
+    } catch (error) {
+      console.error('Error initializing AppraisalWorkerService:', error);
+      throw error;
+    }
   }
 
+  // Rest of the service methods remain the same
   async updateStatus(id, status) {
     const range = `${config.GOOGLE_SHEET_NAME}!F${id}`;
     await this.sheets.spreadsheets.values.update({
@@ -266,7 +282,7 @@ class AppraisalWorkerService {
     });
   }
 
-  async sendCustomerEmail(id) {
+  async sendEmailToCustomer(id) {
     await this.updateStatus(id, 'Sending Email');
 
     const response = await this.sheets.spreadsheets.values.get({
