@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
-const authRoutes = require('./auth');
-const appraisalRoutes = require('./appraisals');
-const updatePendingAppraisalRoutes = require('./updatePendingAppraisal');
+const authRoutes = require('./auth.routes');
+const appraisalRoutes = require('./appraisal.routes');
+const updatePendingAppraisalRoutes = require('./updatePendingAppraisal.routes');
 
-// Mount routes
 router.use('/auth', authRoutes);
 router.use('/appraisals', appraisalRoutes);
 router.use('/update-pending-appraisal', updatePendingAppraisalRoutes);
