@@ -1,6 +1,6 @@
-const fetch = require('node-fetch');
 const { PubSub } = require('@google-cloud/pubsub');
-const { config } = require('./config');
+const fetch = require('node-fetch');
+const { config, initializeConfig } = require('./config');
 
 const API_URL = 'https://appraisers-backend-856401495068.us-central1.run.app';
 
@@ -38,33 +38,37 @@ async function processMessage(message) {
     message.ack();
   } catch (error) {
     console.error('Error processing message:', error);
-    // No ack the message to retry later
     message.nack();
   }
 }
 
 async function startWorker() {
-  const pubsub = new PubSub({
-    projectId: config.GOOGLE_CLOUD_PROJECT_ID
-  });
+  try {
+    // Initialize configuration first
+    await initializeConfig();
+    console.log('Configuration initialized');
 
-  const subscription = pubsub.subscription('appraisal-tasks-sub');
+    const pubsub = new PubSub({
+      projectId: config.GOOGLE_CLOUD_PROJECT_ID
+    });
 
-  console.log('Worker started, listening for messages...');
+    const subscription = pubsub.subscription('appraisal-tasks-sub');
+    console.log('Worker started, listening for messages...');
 
-  subscription.on('message', processMessage);
-  subscription.on('error', error => {
-    console.error('Subscription error:', error);
-  });
+    subscription.on('message', processMessage);
+    subscription.on('error', error => {
+      console.error('Subscription error:', error);
+    });
 
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('Shutting down worker...');
-    subscription.close();
-  });
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      console.log('Shutting down worker...');
+      subscription.close();
+    });
+  } catch (error) {
+    console.error('Failed to start worker:', error);
+    process.exit(1);
+  }
 }
 
-startWorker().catch(error => {
-  console.error('Failed to start worker:', error);
-  process.exit(1);
-});
+startWorker();

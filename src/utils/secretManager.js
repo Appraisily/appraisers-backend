@@ -1,18 +1,15 @@
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
-require('dotenv').config();
+const client = new SecretManagerServiceClient();
 
 async function getSecret(secretName) {
   try {
     console.log(`[getSecret] Fetching secret: ${secretName}`);
-    const client = new SecretManagerServiceClient();
     const projectId = await client.getProjectId();
     
     if (!projectId) {
       throw new Error('GOOGLE_CLOUD_PROJECT_ID not found');
     }
 
-    // Note: jwt-secret is a special case and keeps its name
-    // All other secrets are prefixed with their environment
     const secretVersionName = `projects/${projectId}/secrets/${secretName}/versions/latest`;
     
     console.log(`[getSecret] Accessing secret version: ${secretVersionName}`);
