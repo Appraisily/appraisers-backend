@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const AppraisalController = require('../controllers/appraisalController');
 const authenticate = require('../middleware/authenticate');
+const validateWorker = require('../middleware/validateWorker');
 
 // Get all appraisals
 router.get('/', authenticate, AppraisalController.getAppraisals);
@@ -14,5 +15,8 @@ router.get('/:id/list-edit', authenticate, AppraisalController.getAppraisalDetai
 
 // Complete appraisal process
 router.post('/:id/complete-process', authenticate, AppraisalController.completeProcess);
+
+// Worker endpoint to process appraisals
+router.post('/process-worker', validateWorker, AppraisalController.processWorker);
 
 module.exports = router;

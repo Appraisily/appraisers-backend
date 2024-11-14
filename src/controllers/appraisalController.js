@@ -1,255 +1,55 @@
 const { PubSub } = require('@google-cloud/pubsub');
 const { config } = require('../config');
 const { initializeSheets } = require('../services/googleSheets');
+const appraisalWorkerService = require('../services/appraisalWorkerService');
 const fetch = require('node-fetch');
 
 class AppraisalController {
-  static async getAppraisals(req, res) {
-    try {
-      const sheets = await initializeSheets();
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        range: `${config.GOOGLE_SHEET_NAME}!A2:H`,
-      });
+  // ... existing methods ...
 
-      const rows = response.data.values || [];
-      const appraisals = rows.map((row, index) => ({
-        id: index + 2,
-        date: row[0] || '',
-        appraisalType: row[1] || '',
-        identifier: row[2] || '',
-        status: row[5] || '',
-        wordpressUrl: row[6] || '',
-        iaDescription: row[7] || '',
-      }));
+  static async processWorker(req, res) {
+    const { id, appraisalValue, description } = req.body;
 
-      res.json(appraisals);
-    } catch (error) {
-      console.error('Error getting appraisals:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Error getting appraisals.' 
-      });
-    }
-  }
-
-  static async getAppraisalDetails(req, res) {
-    const { id } = req.params;
-    try {
-      const sheets = await initializeSheets();
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        range: `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`,
-      });
-
-      const row = response.data.values?.[0];
-      if (!row) {
-        return res.status(404).json({ success: false, message: 'Appraisal not found.' });
-      }
-
-      const appraisal = {
-        id,
-        date: row[0] || '',
-        appraisalType: row[1] || '',
-        identifier: row[2] || '',
-        customerEmail: row[3] || '',
-        customerName: row[4] || '',
-        status: row[5] || '',
-        wordpressUrl: row[6] || '',
-        iaDescription: row[7] || '',
-        customerDescription: row[8] || '',
-      };
-
-      const wordpressUrl = appraisal.wordpressUrl;
-      const parsedUrl = new URL(wordpressUrl);
-      const postId = parsedUrl.searchParams.get('post');
-
-      if (!postId) {
-        return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
-      }
-
-      const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
-      const authHeader = 'Basic ' + Buffer.from(`${config.WORDPRESS_USERNAME}:${config.WORDPRESS_APP_PASSWORD}`).toString('base64');
-
-      const wpResponse = await fetch(wpEndpoint, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: authHeader,
-        },
-      });
-
-      if (!wpResponse.ok) {
-        return res.status(500).json({ success: false, message: 'Error getting WordPress data.' });
-      }
-
-      const wpData = await wpResponse.json();
-      const acfFields = wpData.acf || {};
-
-      appraisal.images = {
-        main: acfFields.main?.url || acfFields.main,
-        age: acfFields.age?.url || acfFields.age,
-        signature: acfFields.signature?.url || acfFields.signature,
-      };
-
-      res.json(appraisal);
-    } catch (error) {
-      console.error('Error getting appraisal details:', error);
-      res.status(500).json({ success: false, message: 'Error getting appraisal details.' });
-    }
-  }
-
-  static async getAppraisalDetailsForEdit(req, res) {
-    const { id } = req.params;
-    try {
-      const sheets = await initializeSheets();
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        range: `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`,
-      });
-
-      const row = response.data.values?.[0];
-      if (!row) {
-        return res.status(404).json({ success: false, message: 'Appraisal not found.' });
-      }
-
-      const appraisal = {
-        id,
-        date: row[0] || '',
-        appraisalType: row[1] || '',
-        identifier: row[2] || '',
-        customerEmail: row[3] || '',
-        customerName: row[4] || '',
-        status: row[5] || '',
-        wordpressUrl: row[6] || '',
-        iaDescription: row[7] || '',
-        customerDescription: row[8] || '',
-      };
-
-      const wordpressUrl = appraisal.wordpressUrl;
-      const parsedUrl = new URL(wordpressUrl);
-      const postId = parsedUrl.searchParams.get('post');
-
-      if (!postId) {
-        return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
-      }
-
-      const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
-      const authHeader = 'Basic ' + Buffer.from(`${config.WORDPRESS_USERNAME}:${config.WORDPRESS_APP_PASSWORD}`).toString('base64');
-
-      const wpResponse = await fetch(wpEndpoint, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: authHeader,
-        },
-      });
-
-      if (!wpResponse.ok) {
-        return res.status(500).json({ success: false, message: 'Error getting WordPress data.' });
-      }
-
-      const wpData = await wpResponse.json();
-      const acfFields = wpData.acf || {};
-
-      appraisal.images = {
-        main: acfFields.main?.url || acfFields.main,
-        age: acfFields.age?.url || acfFields.age,
-        signature: acfFields.signature?.url || acfFields.signature,
-      };
-
-      appraisal.acfFields = acfFields;
-
-      res.json(appraisal);
-    } catch (error) {
-      console.error('Error getting appraisal details for edit:', error);
-      res.status(500).json({ success: false, message: 'Error getting appraisal details.' });
-    }
-  }
-
-  static async completeProcess(req, res) {
-    const { id } = req.params;
-    const { appraisalValue, description } = req.body;
-
-    console.log('🔄 [completeProcess] Starting appraisal process', {
-      id,
-      appraisalValue,
-      hasDescription: !!description
-    });
-
-    if (!appraisalValue || !description) {
-      console.log('❌ [completeProcess] Missing required fields');
+    if (!id || !appraisalValue || !description) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Appraisal value and description are required.' 
+        message: 'Missing required fields: id, appraisalValue, description' 
       });
     }
 
     try {
-      // 1. Validate appraisal exists
-      const sheets = await initializeSheets();
-      const response = await sheets.spreadsheets.values.get({
-        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        range: `${config.GOOGLE_SHEET_NAME}!A${id}:G${id}`,
-      });
+      await appraisalWorkerService.initialize();
 
-      if (!response.data.values || response.data.values.length === 0) {
-        console.log('❌ [completeProcess] Appraisal not found:', id);
-        return res.status(404).json({
-          success: false,
-          message: 'Appraisal not found'
-        });
-      }
+      // Update appraisal value and description
+      await appraisalWorkerService.updateAppraisalValue(id, appraisalValue, description);
 
-      // 2. Initialize PubSub
-      const pubsub = new PubSub({
-        projectId: config.GOOGLE_CLOUD_PROJECT_ID,
-      });
+      // Merge descriptions
+      const mergedDescription = await appraisalWorkerService.mergeDescriptions(id, description);
 
-      // 3. Create task payload
-      const task = {
-        type: 'COMPLETE_APPRAISAL',
-        data: {
-          id,
-          appraisalValue,
-          description,
-          timestamp: new Date().toISOString()
-        }
-      };
+      // Update post title with merged description
+      await appraisalWorkerService.updatePostTitle(id, mergedDescription);
 
-      // 4. Publish to PubSub
-      const dataBuffer = Buffer.from(JSON.stringify(task));
-      const messageId = await pubsub.topic('appraisal-tasks').publish(dataBuffer);
+      // Insert template
+      await appraisalWorkerService.insertTemplate(id);
 
-      console.log(`✅ [completeProcess] Task published successfully`, {
-        messageId,
-        id,
-        timestamp: new Date().toISOString()
-      });
+      // Generate documents (PDF and Doc)
+      await appraisalWorkerService.generateDocuments(id);
 
-      // 5. Update status in sheets
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        range: `${config.GOOGLE_SHEET_NAME}!F${id}`,
-        valueInputOption: 'RAW',
-        resource: {
-          values: [['Processing']]
-        }
-      });
+      // Send email to customer
+      await appraisalWorkerService.sendEmailToCustomer(id);
 
-      // 6. Send success response
+      // Mark appraisal as completed
+      await appraisalWorkerService.markAsCompleted(id);
+
       res.json({ 
         success: true, 
-        message: 'Appraisal process started successfully.',
-        data: {
-          messageId,
-          status: 'processing'
-        }
+        message: 'Appraisal processed successfully' 
       });
-
     } catch (error) {
-      console.error('❌ [completeProcess] Error:', error);
+      console.error('Error processing appraisal:', error);
       res.status(500).json({ 
         success: false, 
-        message: `Error submitting appraisal: ${error.message}` 
+        message: error.message || 'Error processing appraisal' 
       });
     }
   }
