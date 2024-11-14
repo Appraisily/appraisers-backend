@@ -6,22 +6,51 @@ async function initializeConfig() {
   try {
     console.log('Initializing configuration...');
 
-    config.GOOGLE_CLOUD_PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT_ID;
-    if (!config.GOOGLE_CLOUD_PROJECT_ID) {
-      throw new Error('GOOGLE_CLOUD_PROJECT_ID environment variable is required');
-    }
+    // Get all secrets in parallel for better performance
+    const [
+      jwtSecret,
+      wpApiUrl,
+      wpUsername,
+      wpAppPassword,
+      sendgridApiKey,
+      sendgridEmail,
+      templateCompleted,
+      templateUpdate,
+      spreadsheetId,
+      sheetName,
+      openaiApiKey,
+      sharedSecret,
+      projectId
+    ] = await Promise.all([
+      getSecret('jwt-secret'),
+      getSecret('WORDPRESS_API_URL'),
+      getSecret('wp_username'),
+      getSecret('wp_app_password'),
+      getSecret('SENDGRID_API_KEY'),
+      getSecret('SENDGRID_EMAIL'),
+      getSecret('SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED'),
+      getSecret('SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE'),
+      getSecret('PENDING_APPRAISALS_SPREADSHEET_ID'),
+      getSecret('GOOGLE_SHEET_NAME'),
+      getSecret('OPENAI_API_KEY'),
+      getSecret('SHARED_SECRET'),
+      getSecret('GOOGLE_CLOUD_PROJECT_ID')
+    ]);
 
-    // Get secrets
-    config.JWT_SECRET = await getSecret('jwt-secret');
-    config.WORDPRESS_API_URL = (await getSecret('WORDPRESS_API_URL')).trim();
-    config.WORDPRESS_USERNAME = (await getSecret('wp_username')).trim();
-    config.WORDPRESS_APP_PASSWORD = (await getSecret('wp_app_password')).trim();
-    config.SENDGRID_API_KEY = (await getSecret('SENDGRID_API_KEY')).trim();
-    config.SENDGRID_EMAIL = (await getSecret('SENDGRID_EMAIL')).trim();
-    config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED = (await getSecret('SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED')).trim();
-    config.PENDING_APPRAISALS_SPREADSHEET_ID = (await getSecret('PENDING_APPRAISALS_SPREADSHEET_ID')).trim();
-    config.GOOGLE_SHEET_NAME = (await getSecret('GOOGLE_SHEET_NAME')).trim();
-    config.OPENAI_API_KEY = (await getSecret('OPENAI_API_KEY')).trim();
+    // Set all config values
+    config.JWT_SECRET = jwtSecret;
+    config.WORDPRESS_API_URL = wpApiUrl.trim().replace('www.resources', 'resources');
+    config.WORDPRESS_USERNAME = wpUsername.trim();
+    config.WORDPRESS_APP_PASSWORD = wpAppPassword.trim();
+    config.SENDGRID_API_KEY = sendgridApiKey.trim();
+    config.SENDGRID_EMAIL = sendgridEmail.trim();
+    config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED = templateCompleted.trim();
+    config.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE = templateUpdate.trim();
+    config.PENDING_APPRAISALS_SPREADSHEET_ID = spreadsheetId.trim();
+    config.GOOGLE_SHEET_NAME = sheetName.trim();
+    config.OPENAI_API_KEY = openaiApiKey.trim();
+    config.SHARED_SECRET = sharedSecret.trim();
+    config.GOOGLE_CLOUD_PROJECT_ID = projectId.trim();
 
     console.log('Configuration initialized successfully');
     return config;

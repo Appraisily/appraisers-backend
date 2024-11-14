@@ -25,7 +25,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With', 'x-shared-secret'],
   exposedHeaders: ['Set-Cookie']
 };
 
@@ -46,11 +46,13 @@ app.get('/health', (req, res) => {
 
 async function startServer() {
   try {
-    console.log('Starting server...');
+    console.log('Initializing configuration...');
     
+    // Initialize configuration first
     await initializeConfig();
     console.log('Configuration initialized successfully');
     
+    // Only after config is initialized, set up routes
     app.use('/api', routes);
     
     const PORT = process.env.PORT || 8080;
@@ -63,4 +65,5 @@ async function startServer() {
   }
 }
 
+// Start the server
 startServer();
