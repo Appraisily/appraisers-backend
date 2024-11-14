@@ -3,6 +3,35 @@ const { config } = require('../config');
 const { initializeSheets } = require('../services/googleSheets');
 
 class AppraisalController {
+  static async getAppraisals(req, res) {
+    try {
+      const sheets = await initializeSheets();
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        range: `${config.GOOGLE_SHEET_NAME}!A2:H`,
+      });
+
+      const rows = response.data.values || [];
+      const appraisals = rows.map((row, index) => ({
+        id: index + 2,
+        date: row[0] || '',
+        appraisalType: row[1] || '',
+        identifier: row[2] || '',
+        status: row[5] || '',
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || '',
+      }));
+
+      res.json(appraisals);
+    } catch (error) {
+      console.error('Error getting appraisals:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error getting appraisals.' 
+      });
+    }
+  }
+
   static async completeProcess(req, res) {
     const { id } = req.params;
     const { appraisalValue, description } = req.body;
