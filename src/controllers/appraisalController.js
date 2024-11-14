@@ -1,6 +1,7 @@
 const { PubSub } = require('@google-cloud/pubsub');
 const { config } = require('../config');
 const { initializeSheets } = require('../services/googleSheets');
+const fetch = require('node-fetch');
 
 class AppraisalController {
   static async getAppraisals(req, res) {
@@ -29,6 +30,138 @@ class AppraisalController {
         success: false, 
         message: 'Error getting appraisals.' 
       });
+    }
+  }
+
+  static async getAppraisalDetails(req, res) {
+    const { id } = req.params;
+    try {
+      const sheets = await initializeSheets();
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        range: `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`,
+      });
+
+      const row = response.data.values?.[0];
+      if (!row) {
+        return res.status(404).json({ success: false, message: 'Appraisal not found.' });
+      }
+
+      const appraisal = {
+        id,
+        date: row[0] || '',
+        appraisalType: row[1] || '',
+        identifier: row[2] || '',
+        customerEmail: row[3] || '',
+        customerName: row[4] || '',
+        status: row[5] || '',
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || '',
+        customerDescription: row[8] || '',
+      };
+
+      const wordpressUrl = appraisal.wordpressUrl;
+      const parsedUrl = new URL(wordpressUrl);
+      const postId = parsedUrl.searchParams.get('post');
+
+      if (!postId) {
+        return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
+      }
+
+      const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
+      const authHeader = 'Basic ' + Buffer.from(`${config.WORDPRESS_USERNAME}:${config.WORDPRESS_APP_PASSWORD}`).toString('base64');
+
+      const wpResponse = await fetch(wpEndpoint, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+      });
+
+      if (!wpResponse.ok) {
+        return res.status(500).json({ success: false, message: 'Error getting WordPress data.' });
+      }
+
+      const wpData = await wpResponse.json();
+      const acfFields = wpData.acf || {};
+
+      appraisal.images = {
+        main: acfFields.main?.url || acfFields.main,
+        age: acfFields.age?.url || acfFields.age,
+        signature: acfFields.signature?.url || acfFields.signature,
+      };
+
+      res.json(appraisal);
+    } catch (error) {
+      console.error('Error getting appraisal details:', error);
+      res.status(500).json({ success: false, message: 'Error getting appraisal details.' });
+    }
+  }
+
+  static async getAppraisalDetailsForEdit(req, res) {
+    const { id } = req.params;
+    try {
+      const sheets = await initializeSheets();
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        range: `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`,
+      });
+
+      const row = response.data.values?.[0];
+      if (!row) {
+        return res.status(404).json({ success: false, message: 'Appraisal not found.' });
+      }
+
+      const appraisal = {
+        id,
+        date: row[0] || '',
+        appraisalType: row[1] || '',
+        identifier: row[2] || '',
+        customerEmail: row[3] || '',
+        customerName: row[4] || '',
+        status: row[5] || '',
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || '',
+        customerDescription: row[8] || '',
+      };
+
+      const wordpressUrl = appraisal.wordpressUrl;
+      const parsedUrl = new URL(wordpressUrl);
+      const postId = parsedUrl.searchParams.get('post');
+
+      if (!postId) {
+        return res.status(400).json({ success: false, message: 'Could not extract WordPress post ID.' });
+      }
+
+      const wpEndpoint = `${config.WORDPRESS_API_URL}/appraisals/${postId}`;
+      const authHeader = 'Basic ' + Buffer.from(`${config.WORDPRESS_USERNAME}:${config.WORDPRESS_APP_PASSWORD}`).toString('base64');
+
+      const wpResponse = await fetch(wpEndpoint, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+      });
+
+      if (!wpResponse.ok) {
+        return res.status(500).json({ success: false, message: 'Error getting WordPress data.' });
+      }
+
+      const wpData = await wpResponse.json();
+      const acfFields = wpData.acf || {};
+
+      appraisal.images = {
+        main: acfFields.main?.url || acfFields.main,
+        age: acfFields.age?.url || acfFields.age,
+        signature: acfFields.signature?.url || acfFields.signature,
+      };
+
+      appraisal.acfFields = acfFields;
+
+      res.json(appraisal);
+    } catch (error) {
+      console.error('Error getting appraisal details for edit:', error);
+      res.status(500).json({ success: false, message: 'Error getting appraisal details.' });
     }
   }
 

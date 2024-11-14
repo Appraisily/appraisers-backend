@@ -4,8 +4,7 @@
   "description": "Backend service for Appraisers Dashboard",
   "main": "src/app.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "start": "node src/app.js"
   },
   "dependencies": {
     "@google-cloud/pubsub": "^3.0.0",
