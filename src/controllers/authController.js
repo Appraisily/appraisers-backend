@@ -52,6 +52,7 @@ class AuthController {
         { expiresIn: '24h' }
       );
 
+      // Set cookie with appropriate options for cross-origin
       const cookieOptions = {
         httpOnly: true,
         secure: true,
@@ -60,7 +61,6 @@ class AuthController {
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
       };
 
-      console.log('🍪 [authenticateUser] Setting cookies with options:', cookieOptions);
       res.cookie('jwtToken', token, cookieOptions);
 
       console.log('✅ [authenticateUser] Login successful:', { 
@@ -79,50 +79,6 @@ class AuthController {
       res.status(500).json({ 
         success: false, 
         message: 'Internal server error' 
-      });
-    }
-  }
-
-  static async refreshToken(req, res) {
-    console.log('🔄 [refreshToken] Attempting to refresh token');
-    
-    const token = req.cookies.jwtToken;
-    if (!token) {
-      console.log('❌ [refreshToken] No refresh token found in cookies');
-      return res.status(401).json({ 
-        success: false, 
-        message: 'No token provided' 
-      });
-    }
-
-    try {
-      const decoded = jwt.verify(token, config.JWT_SECRET);
-      const newToken = jwt.sign(
-        { email: decoded.email },
-        config.JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-
-      const cookieOptions = {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none',
-        path: '/',
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
-      };
-
-      res.cookie('jwtToken', newToken, cookieOptions);
-      console.log('✅ [refreshToken] Token refreshed successfully');
-      
-      res.json({ 
-        success: true, 
-        message: 'Token refreshed successfully' 
-      });
-    } catch (error) {
-      console.error('❌ [refreshToken] Error refreshing token:', error);
-      res.status(401).json({ 
-        success: false, 
-        message: 'Invalid token' 
       });
     }
   }
