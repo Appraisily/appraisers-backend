@@ -1,6 +1,6 @@
 const { PubSub } = require('@google-cloud/pubsub');
 const { config } = require('../config');
-const appraisalWorkerService = require('../services/appraisalWorkerService');
+const { initializeSheets } = require('../services/googleSheets');
 
 class AppraisalController {
   static async completeProcess(req, res) {
@@ -22,10 +22,27 @@ class AppraisalController {
     }
 
     try {
+      // 1. Validate appraisal exists
+      const sheets = await initializeSheets();
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        range: `${config.GOOGLE_SHEET_NAME}!A${id}:G${id}`,
+      });
+
+      if (!response.data.values || response.data.values.length === 0) {
+        console.log('❌ [completeProcess] Appraisal not found:', id);
+        return res.status(404).json({
+          success: false,
+          message: 'Appraisal not found'
+        });
+      }
+
+      // 2. Initialize PubSub
       const pubsub = new PubSub({
         projectId: config.GOOGLE_CLOUD_PROJECT_ID,
       });
 
+      // 3. Create task payload
       const task = {
         type: 'COMPLETE_APPRAISAL',
         data: {
@@ -36,21 +53,33 @@ class AppraisalController {
         }
       };
 
+      // 4. Publish to PubSub
       const dataBuffer = Buffer.from(JSON.stringify(task));
       const messageId = await pubsub.topic('appraisal-tasks').publish(dataBuffer);
 
-      console.log(`✅ [completeProcess] Task queued successfully`, {
+      console.log(`✅ [completeProcess] Task published successfully`, {
         messageId,
         id,
         timestamp: new Date().toISOString()
       });
 
+      // 5. Update status in sheets
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        range: `${config.GOOGLE_SHEET_NAME}!F${id}`,
+        valueInputOption: 'RAW',
+        resource: {
+          values: [['Processing']]
+        }
+      });
+
+      // 6. Send success response
       res.json({ 
         success: true, 
-        message: 'Appraisal process queued successfully.',
+        message: 'Appraisal process started successfully.',
         data: {
           messageId,
-          status: 'queued'
+          status: 'processing'
         }
       });
 
@@ -58,51 +87,7 @@ class AppraisalController {
       console.error('❌ [completeProcess] Error:', error);
       res.status(500).json({ 
         success: false, 
-        message: `Error queueing appraisal: ${error.message}` 
-      });
-    }
-  }
-
-  static async processWorker(req, res) {
-    const { id, appraisalValue, description } = req.body;
-
-    console.log('🔄 [processWorker] Processing appraisal', { id });
-
-    try {
-      await appraisalWorkerService.initialize();
-
-      // 1. Update value and description
-      await appraisalWorkerService.updateAppraisalValue(id, appraisalValue, description);
-
-      // 2. Merge descriptions
-      const mergedDescription = await appraisalWorkerService.mergeDescriptions(id, description);
-
-      // 3. Update WordPress title
-      await appraisalWorkerService.updatePostTitle(id, mergedDescription);
-
-      // 4. Insert template
-      await appraisalWorkerService.insertTemplate(id);
-
-      // 5. Generate PDF and documents
-      await appraisalWorkerService.generateDocuments(id);
-
-      // 6. Send email
-      await appraisalWorkerService.sendCustomerEmail(id);
-
-      // 7. Mark as completed
-      await appraisalWorkerService.markAsCompleted(id);
-
-      console.log(`✅ [processWorker] Appraisal ${id} processed successfully`);
-      res.json({
-        success: true,
-        message: 'Appraisal processed successfully'
-      });
-
-    } catch (error) {
-      console.error('❌ [processWorker] Error:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message
+        message: `Error submitting appraisal: ${error.message}` 
       });
     }
   }

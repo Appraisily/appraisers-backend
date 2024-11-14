@@ -4,6 +4,5 @@ const AppraisalController = require('../controllers/appraisalController');
 const authenticate = require('../middleware/authenticate');
 
 router.post('/:id/complete-process', authenticate, AppraisalController.completeProcess);
-router.post('/process-worker', AppraisalController.processWorker);
 
 module.exports = router;

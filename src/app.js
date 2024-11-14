@@ -6,54 +6,18 @@ const routes = require('./routes');
 
 const app = express();
 
-// Set default NODE_ENV if not set
-process.env.NODE_ENV = process.env.NODE_ENV || 'development';
-
-// CORS configuration based on environment
-const allowedOrigins = [
-  'https://earnest-choux-a0ec16.netlify.app',
-  'https://jazzy-lollipop-0a3217.netlify.app',
-  'https://appraisers-frontend-856401495068.us-central1.run.app',
-  'http://localhost:3000'
-];
-
+// CORS configuration
 const corsOptions = {
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, etc)
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('❌ [CORS] Blocked request from origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: 'https://appraisers-frontend-856401495068.us-central1.run.app',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
   exposedHeaders: ['Set-Cookie']
 };
 
-// Apply CORS configuration
 app.use(cors(corsOptions));
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
-
-// Middleware
 app.use(express.json());
 app.use(cookieParser());
-
-// Log all requests in development
-if (process.env.NODE_ENV === 'development') {
-  app.use((req, res, next) => {
-    console.log(`📨 [${req.method}] ${req.path}`, {
-      origin: req.headers.origin,
-      cookies: req.cookies,
-      headers: req.headers
-    });
-    next();
-  });
-}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -62,7 +26,7 @@ app.get('/health', (req, res) => {
 
 async function startServer() {
   try {
-    console.log(`Starting server in ${process.env.NODE_ENV} mode`);
+    console.log('Starting server...');
     
     await initializeConfig();
     console.log('Configuration initialized successfully');
@@ -80,5 +44,3 @@ async function startServer() {
 }
 
 startServer();
-
-module.exports = app;

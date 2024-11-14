@@ -1,17 +1,21 @@
 {
-  "name": "appraisers-worker",
+  "name": "appraisers-backend",
   "version": "1.0.0",
-  "description": "Worker service for processing appraisal tasks",
-  "main": "src/worker.js",
+  "description": "Backend service for Appraisers Dashboard",
+  "main": "src/app.js",
   "scripts": {
-    "start": "node src/worker.js"
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js"
   },
   "dependencies": {
     "@google-cloud/pubsub": "^3.0.0",
     "@google-cloud/secret-manager": "^5.6.0",
     "@sendgrid/mail": "^7.7.0",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
     "googleapis": "^105.0.0",
+    "jsonwebtoken": "^9.0.0",
     "node-fetch": "^2.6.7",
     "openai": "^4.0.0"
   }
