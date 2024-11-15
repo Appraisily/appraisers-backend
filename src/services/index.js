@@ -5,53 +5,40 @@ const openaiService = require('./openai.service');
 const wordpressService = require('./wordpress.service');
 
 async function initializeServices() {
-  try {
-    console.log('Initializing services...');
-    
-    // Initialize required services first
-    try {
-      await sheetsService.initialize();
-      console.log('✓ Google Sheets service initialized');
-    } catch (error) {
-      console.error('Failed to initialize Google Sheets service:', error);
-      throw error; // This is a critical service, so we rethrow
-    }
+  const services = {
+    sheets: { service: sheetsService, required: true },
+    wordpress: { service: wordpressService, required: true },
+    email: { service: emailService, required: false },
+    openai: { service: openaiService, required: false },
+    pubsub: { service: pubsubService, required: false }
+  };
 
-    // Initialize optional services - failures won't stop the application
-    try {
-      await emailService.initialize();
-      console.log('✓ Email service initialized');
-    } catch (error) {
-      console.warn('⚠ Email service initialization failed:', error.message);
-    }
+  const results = {
+    success: [],
+    failed: []
+  };
 
+  for (const [name, { service, required }] of Object.entries(services)) {
     try {
-      await openaiService.initialize();
-      console.log('✓ OpenAI service initialized');
+      await service.initialize();
+      console.log(`✓ ${name} service initialized`);
+      results.success.push(name);
     } catch (error) {
-      console.warn('⚠ OpenAI service initialization failed:', error.message);
+      console.error(`✗ ${name} service initialization failed:`, error.message);
+      results.failed.push(name);
+      
+      if (required) {
+        throw new Error(`Required service ${name} failed to initialize: ${error.message}`);
+      }
     }
-
-    try {
-      await pubsubService.initialize();
-      console.log('✓ PubSub service initialized');
-    } catch (error) {
-      console.warn('⚠ PubSub service initialization failed:', error.message);
-    }
-
-    try {
-      await wordpressService.initialize();
-      console.log('✓ WordPress service initialized');
-    } catch (error) {
-      console.warn('⚠ WordPress service initialization failed:', error.message);
-    }
-
-    console.log('Service initialization completed');
-    return true;
-  } catch (error) {
-    console.error('Critical service initialization failed:', error);
-    throw error;
   }
+
+  // Log initialization summary
+  console.log('\nService Initialization Summary:');
+  console.log('Successful:', results.success.join(', ') || 'None');
+  console.log('Failed:', results.failed.join(', ') || 'None');
+
+  return results;
 }
 
 module.exports = {

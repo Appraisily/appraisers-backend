@@ -2,11 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
+const { corsOptions } = require('./config/corsConfig');
 const routes = require('./routes');
 const { initializeConfig } = require('./config');
 const { initializeServices } = require('./services');
 const { errorHandler } = require('./middleware/errorHandler');
-const { corsOptions } = require('./config/corsConfig');
 
 const app = express();
 
@@ -37,9 +37,24 @@ async function startServer() {
     await initializeConfig();
     console.log('✓ Configuration initialized');
 
-    // Initialize all services
-    await initializeServices();
-    console.log('✓ Services initialized');
+    // Initialize services with retries
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await initializeServices();
+        console.log('✓ Services initialized');
+        break;
+      } catch (error) {
+        retries--;
+        if (retries === 0) {
+          console.error('Failed to initialize services after 3 attempts:', error);
+          // Continue starting the server even if some services fail
+        } else {
+          console.warn(`Service initialization failed, retrying... (${retries} attempts left)`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+        }
+      }
+    }
     
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, '0.0.0.0', () => {
