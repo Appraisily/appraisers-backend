@@ -16,6 +16,11 @@ function authenticate(req, res, next) {
     const decoded = jwt.verify(token, config.JWT_SECRET);
     req.user = decoded;
 
+    // Skip authorization check for refresh token requests
+    if (req.path === '/auth/refresh') {
+      return next();
+    }
+
     if (!authorizedUsers.includes(decoded.email)) {
       return res.status(403).json({ 
         success: false, 
@@ -25,6 +30,13 @@ function authenticate(req, res, next) {
 
     next();
   } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token expired'
+      });
+    }
+
     console.error('Error verifying JWT:', error);
     res.status(401).json({ 
       success: false, 
