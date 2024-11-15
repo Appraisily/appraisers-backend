@@ -20,11 +20,10 @@ async function startServer() {
       } catch (error) {
         retries--;
         if (retries === 0) {
-          console.error('Failed to initialize services after 3 attempts:', error);
-        } else {
-          console.warn(`Service initialization failed, retrying... (${retries} attempts left)`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          throw error;
         }
+        console.warn(`Service initialization failed, retrying... (${retries} attempts left)`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
     
@@ -37,6 +36,18 @@ async function startServer() {
     process.exit(1);
   }
 }
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
 
 // Start the server
 startServer();
