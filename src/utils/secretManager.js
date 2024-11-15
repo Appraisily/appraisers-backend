@@ -3,21 +3,23 @@ const client = new SecretManagerServiceClient();
 
 async function getSecret(secretName) {
   try {
+    console.log(`[getSecret] Fetching secret: ${secretName}`);
     const projectId = await client.getProjectId();
+    
     if (!projectId) {
       throw new Error('GOOGLE_CLOUD_PROJECT_ID not found');
     }
 
-    console.log(`Fetching secret: ${secretName}`);
-    const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
+    const secretVersionName = `projects/${projectId}/secrets/${secretName}/versions/latest`;
     
-    const [version] = await client.accessSecretVersion({ name });
+    console.log(`[getSecret] Accessing secret version: ${secretVersionName}`);
+    const [version] = await client.accessSecretVersion({ name: secretVersionName });
     const secretValue = version.payload.data.toString('utf8');
     
-    console.log(`Successfully retrieved secret: ${secretName}`);
+    console.log(`[getSecret] Successfully retrieved secret: ${secretName}`);
     return secretValue;
   } catch (error) {
-    console.error(`Error getting secret ${secretName}:`, error);
+    console.error(`[getSecret] Error getting secret ${secretName}:`, error);
     throw new Error(`Could not get secret ${secretName}`);
   }
 }
