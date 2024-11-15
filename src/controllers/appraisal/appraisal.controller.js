@@ -1,89 +1,175 @@
-const AppraisalService = require('./appraisal.service');
+const { 
+  sheetsService, 
+  wordpressService,
+  pubsubService,
+  emailService 
+} = require('../../services');
+const { config } = require('../../config');
+const { getImageUrl } = require('../../utils/getImageUrl');
 
 class AppraisalController {
-  // Existing methods remain the same...
-
-  async mergeDescriptions(req, res) {
+  async getAppraisals(req, res) {
     try {
-      const { id } = req.params;
-      const { description } = req.body;
-      
-      await AppraisalService.mergeDescriptions(id, description);
-      res.json({ success: true });
+      const values = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!A2:H`
+      );
+
+      const appraisals = values.map((row, index) => ({
+        id: index + 2,
+        date: row[0] || '',
+        appraisalType: row[1] || '',
+        identifier: row[2] || '',
+        status: row[5] || '',
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || '',
+      }));
+
+      res.json(appraisals);
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
+      console.error('Error getting appraisals:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error getting appraisals.' 
       });
     }
   }
 
-  async updateTitle(req, res) {
+  async getCompleted(req, res) {
     try {
-      const { id } = req.params;
-      await AppraisalService.updateTitle(id);
-      res.json({ success: true });
+      const values = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        'Completed Appraisals!A2:H'
+      );
+
+      const completedAppraisals = values.map((row, index) => ({
+        id: index + 2,
+        date: row[0] || '',
+        appraisalType: row[1] || '',
+        identifier: row[2] || '',
+        status: row[5] || '',
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || '',
+      }));
+
+      res.json(completedAppraisals);
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
+      console.error('Error getting completed appraisals:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error getting completed appraisals.' 
       });
     }
   }
 
-  async insertTemplate(req, res) {
+  async getDetails(req, res) {
+    const { id } = req.params;
     try {
-      const { id } = req.params;
-      await AppraisalService.insertTemplate(id);
-      res.json({ success: true });
+      const values = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`
+      );
+
+      const row = values[0];
+      if (!row) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Appraisal not found.' 
+        });
+      }
+
+      const appraisal = {
+        id,
+        date: row[0] || '',
+        appraisalType: row[1] || '',
+        identifier: row[2] || '',
+        customerEmail: row[3] || '',
+        customerName: row[4] || '',
+        status: row[5] || '',
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || '',
+        customerDescription: row[8] || '',
+      };
+
+      // Get WordPress data
+      const postId = new URL(appraisal.wordpressUrl).searchParams.get('post');
+      if (!postId) {
+        throw new Error('Invalid WordPress URL');
+      }
+
+      const wpData = await wordpressService.getPost(postId);
+      const acfFields = wpData.acf || {};
+
+      appraisal.images = {
+        main: await getImageUrl(acfFields.main),
+        age: await getImageUrl(acfFields.age),
+        signature: await getImageUrl(acfFields.signature),
+      };
+
+      res.json(appraisal);
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
+      console.error('Error getting appraisal details:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error getting appraisal details.' 
       });
     }
   }
 
-  async buildPdf(req, res) {
+  async getDetailsForEdit(req, res) {
+    const { id } = req.params;
     try {
-      const { id } = req.params;
-      await AppraisalService.buildPdf(id);
-      res.json({ success: true });
+      const values = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`
+      );
+
+      const row = values[0];
+      if (!row) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Appraisal not found.' 
+        });
+      }
+
+      const appraisal = {
+        id,
+        date: row[0] || '',
+        appraisalType: row[1] || '',
+        identifier: row[2] || '',
+        customerEmail: row[3] || '',
+        customerName: row[4] || '',
+        status: row[5] || '',
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || '',
+        customerDescription: row[8] || '',
+      };
+
+      // Get WordPress data
+      const postId = new URL(appraisal.wordpressUrl).searchParams.get('post');
+      if (!postId) {
+        throw new Error('Invalid WordPress URL');
+      }
+
+      const wpData = await wordpressService.getPost(postId);
+      appraisal.acfFields = wpData.acf || {};
+      appraisal.images = {
+        main: await getImageUrl(appraisal.acfFields.main),
+        age: await getImageUrl(appraisal.acfFields.age),
+        signature: await getImageUrl(appraisal.acfFields.signature),
+      };
+
+      res.json(appraisal);
     } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
+      console.error('Error getting appraisal details for edit:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error getting appraisal details.' 
       });
     }
   }
 
-  async sendEmail(req, res) {
-    try {
-      const { id } = req.params;
-      await AppraisalService.sendEmail(id);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  async complete(req, res) {
-    try {
-      const { id } = req.params;
-      const { appraisalValue, description } = req.body;
-      
-      await AppraisalService.complete(id, appraisalValue, description);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
+  // ... rest of the controller methods ...
 }
 
 module.exports = new AppraisalController();

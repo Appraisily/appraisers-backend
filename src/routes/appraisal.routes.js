@@ -6,30 +6,28 @@ const { validateWorker } = require('../middleware/validateWorker');
 const appraisalController = require('../controllers/appraisal/appraisal.controller');
 
 // Get all appraisals
-router.get('/', authenticate, (req, res) => appraisalController.getAppraisals(req, res));
+router.get('/', authenticate, appraisalController.getAppraisals);
 
 // Get completed appraisals
-router.get('/completed', authenticate, (req, res) => appraisalController.getCompleted(req, res));
+router.get('/completed', authenticate, appraisalController.getCompleted);
 
 // Get specific appraisal details
-router.get('/:id/list', authenticate, (req, res) => appraisalController.getDetails(req, res));
-
-// Get appraisal details for editing
-router.get('/:id/list-edit', authenticate, (req, res) => appraisalController.getDetails(req, res, true));
+router.get('/:id/list', authenticate, appraisalController.getDetails);
+router.get('/:id/list-edit', authenticate, appraisalController.getDetailsForEdit);
 
 // Process steps endpoints
-router.post('/:id/set-value', authenticate, validateSetValue, (req, res) => appraisalController.setValue(req, res));
-router.post('/:id/merge-descriptions', authenticate, (req, res) => appraisalController.mergeDescriptions(req, res));
-router.post('/:id/update-title', authenticate, (req, res) => appraisalController.updateTitle(req, res));
-router.post('/:id/insert-template', authenticate, (req, res) => appraisalController.insertTemplate(req, res));
-router.post('/:id/build-pdf', authenticate, (req, res) => appraisalController.buildPdf(req, res));
-router.post('/:id/send-email', authenticate, (req, res) => appraisalController.sendEmail(req, res));
-router.post('/:id/complete', authenticate, validateSetValue, (req, res) => appraisalController.complete(req, res));
+router.post('/:id/set-value', authenticate, validateSetValue, appraisalController.setValue);
+router.post('/:id/merge-descriptions', authenticate, appraisalController.mergeDescriptions);
+router.post('/:id/update-title', authenticate, appraisalController.updateTitle);
+router.post('/:id/insert-template', authenticate, appraisalController.insertTemplate);
+router.post('/:id/build-pdf', authenticate, appraisalController.buildPdf);
+router.post('/:id/send-email', authenticate, appraisalController.sendEmail);
+router.post('/:id/complete', authenticate, validateSetValue, appraisalController.complete);
 
 // Worker endpoint
-router.post('/process-worker', validateWorker, (req, res) => appraisalController.processWorker(req, res));
+router.post('/process-worker', validateWorker, appraisalController.processWorker);
 
 // Complete process (starts the workflow)
-router.post('/:id/complete-process', authenticate, validateSetValue, (req, res) => appraisalController.completeProcess(req, res));
+router.post('/:id/complete-process', authenticate, validateSetValue, appraisalController.completeProcess);
 
 module.exports = router;
