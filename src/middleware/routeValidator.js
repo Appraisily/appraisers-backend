@@ -1,71 +1,71 @@
 const { API_ROUTES } = require('../constants/routes');
+const { RouteError } = require('./errorHandler');
 
 class RouteValidator {
   static validateRoutes(router) {
-    const definedRoutes = this.getDefinedRoutes(router);
-    const expectedRoutes = this.getExpectedRoutes();
-    
-    this.validateDefinedRoutes(definedRoutes, expectedRoutes);
-    this.validateHandlers(router);
-    
-    return router;
+    try {
+      const definedRoutes = this.getDefinedRoutes(router);
+      const expectedRoutes = this.getExpectedRoutes();
+      
+      this.validateDefinedRoutes(definedRoutes, expectedRoutes);
+      this.validateHandlers(router);
+      
+      return router;
+    } catch (error) {
+      console.error('Route validation failed:', error);
+      throw error;
+    }
   }
 
   static getDefinedRoutes(router) {
-    return router.stack
-      .filter(layer => layer.route || (layer.name === 'router' && layer.handle.stack))
-      .reduce((routes, layer) => {
+    const routes = [];
+    
+    function extractRoutes(stack, prefix = '') {
+      stack.forEach(layer => {
         if (layer.route) {
-          routes.push(this.processRoute(layer.route));
+          routes.push({
+            path: prefix + layer.route.path,
+            methods: Object.keys(layer.route.methods)
+          });
         } else if (layer.name === 'router') {
-          routes.push(...this.processNestedRoutes(layer));
+          const newPrefix = prefix + (layer.regexp.source
+            .replace(/^\^\\\//, '')
+            .replace(/\\\/\?\(\?\=\\\/\|\$\)/, '')
+            .replace(/\\\//g, '/'));
+          extractRoutes(layer.handle.stack, newPrefix);
         }
-        return routes;
-      }, []);
-  }
+      });
+    }
 
-  static processRoute(route) {
-    return {
-      path: route.path,
-      methods: Object.keys(route.methods)
-    };
-  }
-
-  static processNestedRoutes(layer) {
-    const prefix = this.getRoutePrefix(layer);
-    return layer.handle.stack
-      .filter(nestedLayer => nestedLayer.route)
-      .map(nestedLayer => ({
-        path: `${prefix}${nestedLayer.route.path}`,
-        methods: Object.keys(nestedLayer.route.methods)
-      }));
-  }
-
-  static getRoutePrefix(layer) {
-    const match = layer.regexp.toString().match(/^\/\^(\\\/[^?]*)/);
-    return match ? match[1].replace(/\\/g, '') : '';
+    extractRoutes(router.stack);
+    return routes;
   }
 
   static getExpectedRoutes() {
-    return Object.values(API_ROUTES).reduce((routes, group) => {
+    return Object.entries(API_ROUTES).reduce((routes, [groupName, group]) => {
       if (typeof group === 'string') {
-        routes.push(this.normalizeRoutePath(group));
+        routes.push(group);
       } else {
-        routes.push(...Object.values(group).map(this.normalizeRoutePath));
+        Object.entries(group).forEach(([routeName, path]) => {
+          routes.push(path);
+        });
       }
       return routes;
     }, []);
   }
 
-  static normalizeRoutePath(path) {
-    return path.replace(/^\/api/, '').replace(/:\w+/g, ':id');
-  }
-
   static validateDefinedRoutes(definedRoutes, expectedRoutes) {
-    definedRoutes.forEach(({ path }) => {
-      const normalizedPath = this.normalizeRoutePath(path);
-      if (!expectedRoutes.includes(normalizedPath)) {
-        throw new Error(`Route ${path} is not defined in API_ROUTES`);
+    definedRoutes.forEach(({ path, methods }) => {
+      const normalizedPath = this.normalizePath(path);
+      const matchingExpectedRoute = expectedRoutes.find(route => 
+        this.normalizePath(route) === normalizedPath
+      );
+
+      if (!matchingExpectedRoute) {
+        throw new RouteError(
+          `Route ${path} is not defined in API_ROUTES`,
+          404
+        );
       }
     });
   }
@@ -73,10 +73,11 @@ class RouteValidator {
   static validateHandlers(router) {
     const validateLayer = (layer) => {
       if (layer.route) {
-        layer.route.stack.forEach(routeLayer => {
-          if (typeof routeLayer.handle !== 'function') {
-            throw new Error(
-              `Invalid handler for route ${layer.route.path}. Handler must be a function.`
+        layer.route.stack.forEach(handler => {
+          if (typeof handler.handle !== 'function') {
+            throw new RouteError(
+              `Invalid handler for route ${layer.route.path}`,
+              500
             );
           }
         });
@@ -86,6 +87,13 @@ class RouteValidator {
     };
 
     router.stack.forEach(validateLayer);
+  }
+
+  static normalizePath(path) {
+    return path
+      .replace(/^\/+|\/+$/g, '') // Remove leading/trailing slashes
+      .replace(/:\w+/g, ':id')    // Normalize params
+      .replace(/\/+/g, '/');      // Remove duplicate slashes
   }
 }
 
