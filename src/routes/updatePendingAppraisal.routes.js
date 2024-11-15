@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const UpdatePendingAppraisalController = require('../controllers/updatePendingAppraisal.controller');
+const { updatePendingAppraisal } = require('../controllers/updatePendingAppraisal.controller');
 
-router.post('/', UpdatePendingAppraisalController.updatePendingAppraisal);
+router.post('/', updatePendingAppraisal);
 
 module.exports = router;
