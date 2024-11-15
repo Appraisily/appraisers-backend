@@ -8,25 +8,48 @@ async function initializeServices() {
   try {
     console.log('Initializing services...');
     
-    // Initialize Google Sheets
-    await sheetsService.initialize();
-    console.log('✓ Google Sheets service initialized');
-    
-    // Email service is self-initializing in constructor
-    console.log('✓ Email service initialized');
-    
-    // PubSub service is self-initializing in constructor
-    console.log('✓ PubSub service initialized');
-    
-    // OpenAI service is self-initializing in constructor
-    console.log('✓ OpenAI service initialized');
-    
-    // WordPress service is self-initializing in constructor
-    console.log('✓ WordPress service initialized');
-    
-    console.log('All services initialized successfully');
+    // Initialize required services first
+    try {
+      await sheetsService.initialize();
+      console.log('✓ Google Sheets service initialized');
+    } catch (error) {
+      console.error('Failed to initialize Google Sheets service:', error);
+      throw error; // This is a critical service, so we rethrow
+    }
+
+    // Initialize optional services - failures won't stop the application
+    try {
+      await emailService.initialize();
+      console.log('✓ Email service initialized');
+    } catch (error) {
+      console.warn('⚠ Email service initialization failed:', error.message);
+    }
+
+    try {
+      await openaiService.initialize();
+      console.log('✓ OpenAI service initialized');
+    } catch (error) {
+      console.warn('⚠ OpenAI service initialization failed:', error.message);
+    }
+
+    try {
+      await pubsubService.initialize();
+      console.log('✓ PubSub service initialized');
+    } catch (error) {
+      console.warn('⚠ PubSub service initialization failed:', error.message);
+    }
+
+    try {
+      await wordpressService.initialize();
+      console.log('✓ WordPress service initialized');
+    } catch (error) {
+      console.warn('⚠ WordPress service initialization failed:', error.message);
+    }
+
+    console.log('Service initialization completed');
+    return true;
   } catch (error) {
-    console.error('Error initializing services:', error);
+    console.error('Critical service initialization failed:', error);
     throw error;
   }
 }

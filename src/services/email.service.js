@@ -3,10 +3,29 @@ const { config } = require('../config');
 
 class EmailService {
   constructor() {
-    sendGridMail.setApiKey(config.SENDGRID_API_KEY);
+    this.isAvailable = false;
+  }
+
+  async initialize() {
+    try {
+      if (!config.SENDGRID_API_KEY) {
+        throw new Error('SendGrid API key not configured');
+      }
+
+      sendGridMail.setApiKey(config.SENDGRID_API_KEY);
+      this.isAvailable = true;
+      return true;
+    } catch (error) {
+      this.isAvailable = false;
+      throw error;
+    }
   }
 
   async sendAppraisalCompletedEmail(customerEmail, customerName, appraisalData) {
+    if (!this.isAvailable) {
+      throw new Error('Email service is not available');
+    }
+
     try {
       const currentYear = new Date().getFullYear();
 
@@ -33,6 +52,10 @@ class EmailService {
   }
 
   async sendAppraisalUpdateEmail(customerEmail, customerName, description, iaDescription) {
+    if (!this.isAvailable) {
+      throw new Error('Email service is not available');
+    }
+
     try {
       const currentYear = new Date().getFullYear();
       const delayInMinutes = 1;

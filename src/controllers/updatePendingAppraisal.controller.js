@@ -42,12 +42,23 @@ class UpdatePendingAppraisalController {
       // Process in background
       (async () => {
         try {
-          // Generate AI description
-          const iaDescription = await openaiService.generateDescription(images.main);
+          let iaDescription = '';
+          
+          // Try to generate AI description if service is available
+          if (openaiService.isAvailable) {
+            try {
+              iaDescription = await openaiService.generateDescription(images.main);
+            } catch (error) {
+              console.error('Failed to generate AI description:', error);
+              iaDescription = 'AI description unavailable';
+            }
+          } else {
+            iaDescription = 'AI service unavailable';
+          }
 
           // Update WordPress title
           await wordpressService.updatePost(post_id, {
-            title: `Preliminary Analysis: ${iaDescription}`
+            title: iaDescription ? `Preliminary Analysis: ${iaDescription}` : 'Pending Analysis'
           });
 
           // Find row in sheets and update
@@ -73,19 +84,16 @@ class UpdatePendingAppraisalController {
 
           // Update sheets with new data
           await Promise.all([
-            // Update IA description
             sheetsService.updateValues(
               config.PENDING_APPRAISALS_SPREADSHEET_ID,
               `${config.GOOGLE_SHEET_NAME}!H${rowIndex}`,
               [[iaDescription]]
             ),
-            // Update customer description
             sheetsService.updateValues(
               config.PENDING_APPRAISALS_SPREADSHEET_ID,
               `${config.GOOGLE_SHEET_NAME}!I${rowIndex}`,
               [[description || '']]
             ),
-            // Update images
             sheetsService.updateValues(
               config.PENDING_APPRAISALS_SPREADSHEET_ID,
               `${config.GOOGLE_SHEET_NAME}!O${rowIndex}`,
@@ -93,13 +101,19 @@ class UpdatePendingAppraisalController {
             )
           ]);
 
-          // Send email notification
-          await emailService.sendAppraisalUpdateEmail(
-            customer_email,
-            customer_name,
-            description,
-            iaDescription
-          );
+          // Try to send email if service is available
+          if (emailService.isAvailable) {
+            try {
+              await emailService.sendAppraisalUpdateEmail(
+                customer_email,
+                customer_name,
+                description,
+                iaDescription
+              );
+            } catch (error) {
+              console.error('Failed to send email notification:', error);
+            }
+          }
 
         } catch (error) {
           console.error('Background processing error:', error);

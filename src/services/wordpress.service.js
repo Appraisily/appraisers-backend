@@ -3,13 +3,35 @@ const { config } = require('../config');
 
 class WordPressService {
   constructor() {
-    this.baseUrl = config.WORDPRESS_API_URL;
-    this.auth = Buffer.from(
-      `${config.WORDPRESS_USERNAME}:${config.WORDPRESS_APP_PASSWORD}`
-    ).toString('base64');
+    this.isAvailable = false;
+    this.baseUrl = null;
+    this.auth = null;
+  }
+
+  async initialize() {
+    try {
+      if (!config.WORDPRESS_API_URL || !config.WORDPRESS_USERNAME || !config.WORDPRESS_APP_PASSWORD) {
+        throw new Error('WordPress credentials not configured');
+      }
+
+      this.baseUrl = config.WORDPRESS_API_URL;
+      this.auth = Buffer.from(
+        `${config.WORDPRESS_USERNAME}:${config.WORDPRESS_APP_PASSWORD}`
+      ).toString('base64');
+      
+      this.isAvailable = true;
+      return true;
+    } catch (error) {
+      this.isAvailable = false;
+      throw error;
+    }
   }
 
   async getPost(postId) {
+    if (!this.isAvailable) {
+      throw new Error('WordPress service is not available');
+    }
+
     try {
       const response = await fetch(`${this.baseUrl}/appraisals/${postId}`, {
         headers: {
@@ -30,6 +52,10 @@ class WordPressService {
   }
 
   async updatePost(postId, data) {
+    if (!this.isAvailable) {
+      throw new Error('WordPress service is not available');
+    }
+
     try {
       const response = await fetch(`${this.baseUrl}/appraisals/${postId}`, {
         method: 'PUT',
@@ -49,14 +75,6 @@ class WordPressService {
       console.error('Error updating WordPress post:', error);
       throw error;
     }
-  }
-
-  async updateAcfField(postId, fieldName, fieldValue) {
-    return this.updatePost(postId, {
-      acf: {
-        [fieldName]: fieldValue
-      }
-    });
   }
 }
 

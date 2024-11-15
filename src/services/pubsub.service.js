@@ -3,12 +3,33 @@ const { config } = require('../config');
 
 class PubSubService {
   constructor() {
-    this.pubsub = new PubSub({
-      projectId: config.GOOGLE_CLOUD_PROJECT_ID
-    });
+    this.pubsub = null;
+    this.isAvailable = false;
+  }
+
+  async initialize() {
+    try {
+      if (!config.GOOGLE_CLOUD_PROJECT_ID) {
+        throw new Error('Google Cloud Project ID not configured');
+      }
+
+      this.pubsub = new PubSub({
+        projectId: config.GOOGLE_CLOUD_PROJECT_ID
+      });
+      
+      this.isAvailable = true;
+      return true;
+    } catch (error) {
+      this.isAvailable = false;
+      throw error;
+    }
   }
 
   async publishMessage(topicName, data) {
+    if (!this.isAvailable) {
+      throw new Error('PubSub service is not available');
+    }
+
     try {
       const topic = this.pubsub.topic(topicName);
       const messageBuffer = Buffer.from(JSON.stringify(data));
@@ -19,17 +40,6 @@ class PubSubService {
       return messageId;
     } catch (error) {
       console.error(`Error publishing message to ${topicName}:`, error);
-      throw error;
-    }
-  }
-
-  async createSubscription(topicName, subscriptionName) {
-    try {
-      const topic = this.pubsub.topic(topicName);
-      const [subscription] = await topic.createSubscription(subscriptionName);
-      return subscription;
-    } catch (error) {
-      console.error('Error creating subscription:', error);
       throw error;
     }
   }
