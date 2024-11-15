@@ -5,7 +5,6 @@ const helmet = require('helmet');
 const { corsOptions } = require('./config/corsConfig');
 const routes = require('./routes');
 const { errorHandler } = require('./middleware/errorHandler');
-const validateRoutes = require('./middleware/validateRoutes');
 
 const app = express();
 
@@ -31,8 +30,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Validate routes before using them
-app.use('/api', validateRoutes(routes), routes);
+// Mount API routes
+app.use('/api', routes);
 
 // Error handling
 app.use(errorHandler);

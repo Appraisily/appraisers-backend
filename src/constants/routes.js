@@ -18,7 +18,11 @@ const API_ROUTES = {
     SEND_EMAIL: '/api/appraisals/:id/send-email',
     COMPLETE: '/api/appraisals/:id/complete',
     COMPLETE_PROCESS: '/api/appraisals/:id/complete-process',
-    PROCESS_WORKER: '/api/appraisals/process-worker'
+    PROCESS_WORKER: '/api/appraisals/process-worker',
+    UPDATE_ACF_FIELD: '/api/appraisals/:id/update-acf-field',
+    GET_SESSION_ID: '/api/appraisals/get-session-id',
+    SAVE_LINKS: '/api/appraisals/:id/save-links',
+    UPDATE_LINKS: '/api/appraisals/:id/update-links'
   },
   UPDATE_PENDING: '/api/update-pending-appraisal'
 };

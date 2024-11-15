@@ -6,9 +6,12 @@ const authRoutes = require('./auth.routes');
 const appraisalRoutes = require('./appraisal.routes');
 const updatePendingAppraisalRoutes = require('./updatePendingAppraisal.routes');
 
-// Mount routes without /api prefix as it's added in validateRoutes
-router.use('/auth', validateRoutes(authRoutes));
-router.use('/appraisals', validateRoutes(appraisalRoutes));
-router.use('/update-pending-appraisal', validateRoutes(updatePendingAppraisalRoutes));
+// Mount routes directly without /api prefix
+router.use('/auth', authRoutes);
+router.use('/appraisals', appraisalRoutes);
+router.use('/update-pending-appraisal', updatePendingAppraisalRoutes);
+
+// Validate all routes after mounting
+validateRoutes(router);
 
 module.exports = router;
