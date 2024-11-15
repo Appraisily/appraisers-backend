@@ -1,18 +1,18 @@
-const RouteValidator = require('../utils/routeValidator');
-
 function validateRoutes(router) {
-  return (req, res, next) => {
-    try {
-      RouteValidator.validateRouter(router);
-      next();
-    } catch (error) {
-      console.error('Route validation error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Server configuration error'
+  // Validate all routes before mounting
+  router.stack.forEach(layer => {
+    if (layer.route) {
+      const path = layer.route.path;
+      layer.route.stack.forEach(routeLayer => {
+        const handler = routeLayer.handle;
+        if (typeof handler !== 'function') {
+          throw new Error(`Invalid handler for route ${path}. Handler must be a function.`);
+        }
       });
     }
-  };
+  });
+
+  return router;
 }
 
 module.exports = validateRoutes;
