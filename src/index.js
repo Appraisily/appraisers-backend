@@ -18,6 +18,18 @@ async function startServer() {
     const PORT = process.env.PORT || 8080;
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`✓ Server running on port ${PORT}`);
+      console.log('Available endpoints:');
+      console.log('  POST /api/auth/login');
+      console.log('  POST /api/auth/refresh');
+      console.log('  POST /api/auth/logout');
+      console.log('  GET  /api/appraisals');
+      console.log('  GET  /api/appraisals/completed');
+      console.log('  GET  /api/appraisals/:id/list');
+      console.log('  GET  /api/appraisals/:id/list-edit');
+      console.log('  POST /api/appraisals/:id/set-value');
+      console.log('  POST /api/appraisals/:id/complete-process');
+      console.log('  POST /api/appraisals/process-worker');
+      console.log('  POST /api/update-pending-appraisal');
     });
   } catch (error) {
     console.error('Failed to start server:', error);
