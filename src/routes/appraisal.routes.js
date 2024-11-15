@@ -3,35 +3,27 @@ const router = express.Router();
 const { authenticate } = require('../middleware/authenticate');
 const { validateSetValue } = require('../middleware/validateSetValue');
 const { validateWorker } = require('../middleware/validateWorker');
-const {
-  getAppraisals,
-  getCompletedAppraisals,
-  getAppraisalDetails,
-  getAppraisalDetailsForEdit,
-  processWorker,
-  completeProcess,
-  setValue
-} = require('../controllers/appraisal.controller');
+const appraisalController = require('../controllers/appraisal.controller');
 
 // Get all appraisals
-router.get('/', authenticate, getAppraisals);
+router.get('/', authenticate, appraisalController.getAppraisals);
 
 // Get completed appraisals
-router.get('/completed', authenticate, getCompletedAppraisals);
+router.get('/completed', authenticate, appraisalController.getCompletedAppraisals);
 
 // Get specific appraisal details
-router.get('/:id/list', authenticate, getAppraisalDetails);
+router.get('/:id/list', authenticate, appraisalController.getAppraisalDetails);
 
 // Get appraisal details for editing
-router.get('/:id/list-edit', authenticate, getAppraisalDetailsForEdit);
+router.get('/:id/list-edit', authenticate, appraisalController.getAppraisalDetailsForEdit);
 
 // Set appraisal value
-router.post('/:id/set-value', authenticate, validateSetValue, setValue);
+router.post('/:id/set-value', authenticate, validateSetValue, appraisalController.setValue);
 
 // Process worker endpoint
-router.post('/process-worker', validateWorker, processWorker);
+router.post('/process-worker', validateWorker, appraisalController.processWorker);
 
 // Complete process
-router.post('/:id/complete-process', authenticate, validateSetValue, completeProcess);
+router.post('/:id/complete-process', authenticate, validateSetValue, appraisalController.completeProcess);
 
 module.exports = router;

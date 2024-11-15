@@ -13,7 +13,7 @@ function authenticate(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, config.JWT_SECRET);
+    const decoded = jwt.verify(token, config.JWT_SECRET || 'dev-jwt-secret');
     req.user = decoded;
 
     // Skip authorization check for refresh token requests

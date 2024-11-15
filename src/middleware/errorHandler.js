@@ -1,6 +1,15 @@
-function errorHandler(err, req, res, next) {
-  console.error('Error:', err);
+const { config } = require('../config');
 
+function errorHandler(err, req, res, next) {
+  // Log error details
+  console.error('Error:', {
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    path: req.path,
+    method: req.method
+  });
+
+  // Handle specific error types
   if (err.name === 'UnauthorizedError') {
     return res.status(401).json({
       success: false,
@@ -15,9 +24,23 @@ function errorHandler(err, req, res, next) {
     });
   }
 
-  res.status(500).json({
+  if (err.name === 'ServiceUnavailableError') {
+    return res.status(503).json({
+      success: false,
+      message: 'Service temporarily unavailable'
+    });
+  }
+
+  // Default error response
+  const statusCode = err.statusCode || 500;
+  const message = statusCode === 500 && process.env.NODE_ENV === 'production' 
+    ? 'Internal server error' 
+    : err.message;
+
+  res.status(statusCode).json({
     success: false,
-    message: 'Internal server error'
+    message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 }
 

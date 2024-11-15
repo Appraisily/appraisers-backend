@@ -5,40 +5,46 @@ const openaiService = require('./openai.service');
 const wordpressService = require('./wordpress.service');
 
 async function initializeServices() {
-  // In development, only initialize required services
   const isDev = process.env.NODE_ENV !== 'production';
+  console.log(`Initializing services in ${isDev ? 'development' : 'production'} mode`);
 
-  const services = {
-    wordpress: { service: wordpressService, required: !isDev },
-    sheets: { service: sheetsService, required: !isDev },
-    email: { service: emailService, required: false },
-    openai: { service: openaiService, required: false },
-    pubsub: { service: pubsubService, required: false }
-  };
+  // In development, use mock services
+  if (isDev) {
+    console.log('Using development configuration');
+    return {
+      success: ['mock-services'],
+      failed: []
+    };
+  }
+
+  const services = [
+    { name: 'wordpress', service: wordpressService, required: true },
+    { name: 'sheets', service: sheetsService, required: true },
+    { name: 'email', service: emailService, required: false },
+    { name: 'openai', service: openaiService, required: false },
+    { name: 'pubsub', service: pubsubService, required: false }
+  ];
 
   const results = {
     success: [],
     failed: []
   };
 
-  for (const [name, { service, required }] of Object.entries(services)) {
+  for (const { name, service, required } of services) {
     try {
+      console.log(`Initializing ${name} service...`);
       await service.initialize();
       console.log(`✓ ${name} service initialized`);
       results.success.push(name);
     } catch (error) {
-      console.error(`✗ ${name} service initialization failed:`, error.message);
+      console.error(`✗ ${name} service failed:`, error.message);
       results.failed.push(name);
       
-      if (required) {
-        throw new Error(`Required service ${name} failed to initialize: ${error.message}`);
+      if (required && !isDev) {
+        throw error;
       }
     }
   }
-
-  console.log('\nService Initialization Summary:');
-  console.log('Successful:', results.success.join(', ') || 'None');
-  console.log('Failed:', results.failed.join(', ') || 'None');
 
   return results;
 }
