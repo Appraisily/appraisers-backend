@@ -4,7 +4,7 @@ const config = {};
 
 async function initializeConfig() {
   try {
-    console.log(`Initializing configuration in ${process.env.NODE_ENV} mode`);
+    console.log('Initializing configuration...');
 
     // Core configuration
     config.JWT_SECRET = await getSecret('jwt-secret');
@@ -30,6 +30,7 @@ async function initializeConfig() {
     config.GOOGLE_SHEET_NAME = (await getSecret('GOOGLE_SHEET_NAME')).trim();
     config.LOG_SPREADSHEET_ID = (await getSecret('LOG_SPREADSHEET_ID')).trim();
     config.EDIT_SHEET_NAME = (await getSecret('EDIT_SHEET_NAME')).trim();
+    config.GOOGLE_DOCS_CREDENTIALS = await getSecret('GOOGLE_DOCS_CREDENTIALS');
 
     // OpenAI configuration
     config.OPENAI_API_KEY = (await getSecret('OPENAI_API_KEY')).trim();
@@ -40,10 +41,6 @@ async function initializeConfig() {
     console.log('Configuration initialized successfully');
     return config;
   } catch (error) {
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('Using development configuration due to error:', error.message);
-      return require('./development.config');
-    }
     console.error('Error initializing configuration:', error);
     throw error;
   }

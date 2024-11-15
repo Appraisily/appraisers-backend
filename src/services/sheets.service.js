@@ -1,5 +1,5 @@
 const { google } = require('googleapis');
-const { getSecret } = require('../utils/secretManager');
+const { config } = require('../config');
 
 class SheetsService {
   constructor() {
@@ -8,17 +8,36 @@ class SheetsService {
 
   async initialize() {
     try {
-      // Get service account credentials from Secret Manager
-      const credentials = await getSecret('GOOGLE_DOCS_CREDENTIALS');
+      if (!config.GOOGLE_DOCS_CREDENTIALS) {
+        throw new Error('Google service account credentials not found');
+      }
+
+      // Parse credentials
+      const credentials = JSON.parse(config.GOOGLE_DOCS_CREDENTIALS);
       
-      // Create auth client from credentials
+      // Validate required fields
+      const requiredFields = ['private_key', 'client_email', 'project_id'];
+      for (const field of requiredFields) {
+        if (!credentials[field]) {
+          throw new Error(`Missing required field in credentials: ${field}`);
+        }
+      }
+
+      // Create auth client
       const auth = new google.auth.GoogleAuth({
-        credentials: JSON.parse(credentials),
+        credentials,
         scopes: ['https://www.googleapis.com/auth/spreadsheets']
       });
 
       this.sheets = google.sheets({ version: 'v4', auth });
       console.log('✓ Authenticated with Google Sheets API');
+      
+      // Test connection
+      await this.sheets.spreadsheets.get({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID
+      });
+      
+      console.log('✓ Successfully connected to Google Sheets');
       return true;
     } catch (error) {
       console.error('Error authenticating with Google Sheets API:', error);
