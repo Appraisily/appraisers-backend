@@ -5,11 +5,18 @@ const { getSecret } = require('../utils/secretManager');
 class SheetsService {
   constructor() {
     this.sheets = null;
+    this.isInitialized = false;
   }
 
   async initialize() {
+    if (this.isInitialized) {
+      return true;
+    }
+
     try {
-      // Get service account credentials from the correct secret
+      console.log('Initializing Google Sheets service...');
+      
+      // Get service account credentials
       const serviceAccountJson = await getSecret('service-account-json');
       if (!serviceAccountJson) {
         throw new Error('Service account credentials not found');
@@ -17,14 +24,6 @@ class SheetsService {
 
       // Parse credentials
       const credentials = JSON.parse(serviceAccountJson);
-      
-      // Validate required fields
-      const requiredFields = ['private_key', 'client_email', 'project_id'];
-      for (const field of requiredFields) {
-        if (!credentials[field]) {
-          throw new Error(`Missing required field in service account: ${field}`);
-        }
-      }
 
       // Create auth client
       const auth = new google.auth.GoogleAuth({
@@ -32,44 +31,33 @@ class SheetsService {
         scopes: ['https://www.googleapis.com/auth/spreadsheets']
       });
 
-      // Get client
-      const client = await auth.getClient();
-      
-      // Create sheets instance
-      this.sheets = google.sheets({ 
-        version: 'v4', 
-        auth: client
-      });
-
-      console.log('✓ Authenticated with Google Sheets API');
+      // Initialize sheets client
+      this.sheets = google.sheets({ version: 'v4', auth });
       
       // Test connection
-      const test = await this.sheets.spreadsheets.get({
+      await this.sheets.spreadsheets.get({
         spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
         fields: 'spreadsheetId'
       });
 
-      if (!test.data.spreadsheetId) {
-        throw new Error('Failed to access spreadsheet');
-      }
-      
-      console.log('✓ Successfully connected to Google Sheets');
+      this.isInitialized = true;
+      console.log('✓ Google Sheets service initialized successfully');
       return true;
     } catch (error) {
-      // Add more context to the error
-      if (error.response?.data?.error) {
-        const { message, status } = error.response.data.error;
-        throw new Error(`Google Sheets API error (${status}): ${message}`);
-      }
-      throw error;
+      console.error('Failed to initialize Google Sheets service:', error);
+      throw new Error(`Google Sheets initialization failed: ${error.message}`);
+    }
+  }
+
+  async ensureInitialized() {
+    if (!this.isInitialized) {
+      await this.initialize();
     }
   }
 
   async getValues(spreadsheetId, range) {
-    if (!this.sheets) {
-      await this.initialize();
-    }
-    
+    await this.ensureInitialized();
+
     try {
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId,
@@ -86,16 +74,14 @@ class SheetsService {
   }
 
   async updateValues(spreadsheetId, range, values) {
-    if (!this.sheets) {
-      await this.initialize();
-    }
+    await this.ensureInitialized();
 
     try {
       await this.sheets.spreadsheets.values.update({
         spreadsheetId,
         range,
         valueInputOption: 'RAW',
-        resource: { values },
+        resource: { values }
       });
     } catch (error) {
       console.error('Error updating values in sheets:', error);
