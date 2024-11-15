@@ -1,3 +1,4 @@
+// API Routes
 const API_ROUTES = {
   AUTH: {
     LOGIN: 'auth/login',
@@ -27,29 +28,22 @@ const API_ROUTES = {
   UPDATE_PENDING: 'update-pending-appraisal'
 };
 
-// Validate routes are unique
-const allRoutes = [
-  ...Object.values(API_ROUTES.AUTH),
-  ...Object.values(API_ROUTES.APPRAISALS),
-  API_ROUTES.UPDATE_PENDING
-];
-
-const duplicates = allRoutes.filter((route, index) => 
-  allRoutes.indexOf(route) !== index
-);
-
-if (duplicates.length > 0) {
-  throw new Error(`Duplicate routes found: ${duplicates.join(', ')}`);
-}
-
 // Route helpers
 const routeHelpers = {
   getFullPath: (route) => `/api/${route.replace(/^\/+/, '')}`,
   validatePath: (path) => {
-    const normalizedPath = path.replace(/^\/+|\/+$/g, '').replace(/:\w+/g, ':id');
-    return allRoutes.some(route => 
-      route.replace(/^\/+|\/+$/g, '').replace(/:\w+/g, ':id') === normalizedPath
-    );
+    const normalizedPath = path
+      .replace(/^\/+|\/+$/g, '')
+      .replace(/:\w+/g, ':id');
+    
+    return Object.values(API_ROUTES).some(group => {
+      if (typeof group === 'string') {
+        return group.replace(/:\w+/g, ':id') === normalizedPath;
+      }
+      return Object.values(group).some(route => 
+        route.replace(/:\w+/g, ':id') === normalizedPath
+      );
+    });
   }
 };
 

@@ -23,17 +23,15 @@ class RouteValidator {
     const extractRoutes = (stack, prefix = '') => {
       stack.forEach(layer => {
         if (layer.route) {
-          const path = this.normalizePath(prefix + layer.route.path);
+          // Clean up path by removing regex characters
+          const path = this.cleanPath(layer.route.path);
           routes.push({
-            path,
+            path: this.normalizePath(prefix + path),
             methods: Object.keys(layer.route.methods)
           });
         } else if (layer.name === 'router') {
-          // Get router prefix
-          const routerPath = layer.regexp.toString()
-            .replace(/^\^\\\//, '')
-            .replace(/\\\/\?\(\?\=\\\/\|\$\).*$/, '')
-            .replace(/\\\//g, '/');
+          // Get router prefix without regex
+          const routerPath = this.cleanPath(layer.regexp.source);
           
           // Recursively extract routes from nested router
           extractRoutes(layer.handle.stack, routerPath ? `${prefix}/${routerPath}` : prefix);
@@ -97,6 +95,17 @@ class RouteValidator {
     };
 
     router.stack.forEach(validateLayer);
+  }
+
+  static cleanPath(path) {
+    return path
+      .replace(/^\^\\\//, '')           // Remove leading ^\/
+      .replace(/\\\/\?\(\?\=.*$/, '')   // Remove trailing regex
+      .replace(/\\\//g, '/')            // Replace \/ with /
+      .replace(/^\^|\$$/g, '')          // Remove ^ and $ anchors
+      .replace(/\(\?:\([^\)]+\)\)\?/g, '') // Remove optional groups
+      .replace(/\([^\)]+\)/g, '')       // Remove remaining groups
+      .replace(/\\(.)/g, '$1');         // Unescape characters
   }
 
   static normalizePath(path) {

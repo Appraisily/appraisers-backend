@@ -11,7 +11,7 @@ router.use('/auth', authRoutes);
 router.use('/appraisals', appraisalRoutes);
 router.use('/update-pending-appraisal', updatePendingAppraisalRoutes);
 
-// Validate routes
+// Validate all routes after mounting
 RouteValidator.validateRoutes(router);
 
 module.exports = router;
