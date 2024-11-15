@@ -1,16 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const { 
-  authenticateUser,
+  authenticateUser, 
+  authenticateGoogle,
   refreshToken,
   logoutUser 
 } = require('../controllers/auth.controller');
 
-// Basic authentication
+// Standard login
 router.post('/login', authenticateUser);
 
-// Google authentication (if needed later)
-// router.post('/google', authenticateWithGoogle);
+// Google authentication
+router.post('/google', authenticateGoogle);
 
 // Token refresh
 router.post('/refresh', refreshToken);

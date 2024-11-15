@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const { config } = require('../config');
 const { authorizedUsers } = require('../constants/authorizedUsers');
 
@@ -6,7 +7,6 @@ class AuthController {
   static async authenticateUser(req, res) {
     try {
       const { email, password } = req.body;
-      console.log('🔑 [authenticateUser] Login attempt:', { email });
 
       if (!email || !password) {
         return res.status(400).json({ 
@@ -34,18 +34,19 @@ class AuthController {
 
       const token = jwt.sign(
         { email }, 
-        config.JWT_SECRET || 'dev-jwt-secret',
+        config.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      // Set cookie with appropriate options
-      res.cookie('jwtToken', token, {
+      const cookieOptions = {
         httpOnly: true,
-        secure: true,
-        sameSite: 'none',
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
         path: '/',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
-      });
+      };
+
+      res.cookie('jwtToken', token, cookieOptions);
 
       console.log('✅ [authenticateUser] Login successful:', email);
 
@@ -64,6 +65,63 @@ class AuthController {
     }
   }
 
+  static async authenticateGoogle(req, res) {
+    try {
+      const { idToken } = req.body;
+
+      if (!idToken) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID token is required'
+        });
+      }
+
+      const client = new OAuth2Client(config.GOOGLE_CLIENT_ID);
+      const ticket = await client.verifyIdToken({
+        idToken,
+        audience: config.GOOGLE_CLIENT_ID
+      });
+
+      const payload = ticket.getPayload();
+      const email = payload.email;
+
+      if (!authorizedUsers.includes(email)) {
+        return res.status(403).json({
+          success: false,
+          message: 'User not authorized'
+        });
+      }
+
+      const token = jwt.sign(
+        { email },
+        config.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        path: '/',
+        maxAge: 24 * 60 * 60 * 1000
+      };
+
+      res.cookie('jwtToken', token, cookieOptions);
+
+      res.json({
+        success: true,
+        name: payload.name,
+        message: 'Google authentication successful'
+      });
+    } catch (error) {
+      console.error('Error in Google authentication:', error);
+      res.status(401).json({
+        success: false,
+        message: 'Invalid Google token'
+      });
+    }
+  }
+
   static async refreshToken(req, res) {
     try {
       const token = req.cookies.jwtToken;
@@ -76,54 +134,53 @@ class AuthController {
       }
 
       try {
-        const decoded = jwt.verify(token, config.JWT_SECRET || 'dev-jwt-secret');
+        const decoded = jwt.verify(token, config.JWT_SECRET);
         
         // Generate new token
         const newToken = jwt.sign(
           { email: decoded.email },
-          config.JWT_SECRET || 'dev-jwt-secret',
+          config.JWT_SECRET,
           { expiresIn: '24h' }
         );
 
-        res.cookie('jwtToken', newToken, {
+        const cookieOptions = {
           httpOnly: true,
-          secure: true,
-          sameSite: 'none',
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
           path: '/',
           maxAge: 24 * 60 * 60 * 1000
-        });
+        };
+
+        res.cookie('jwtToken', newToken, cookieOptions);
 
         res.json({
           success: true,
           message: 'Token refreshed successfully'
         });
       } catch (error) {
-        if (error.name === 'TokenExpiredError') {
-          return res.status(401).json({
-            success: false,
-            message: 'Token expired'
-          });
-        }
-        throw error;
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid or expired token'
+        });
       }
     } catch (error) {
       console.error('Error refreshing token:', error);
-      res.status(401).json({
+      res.status(500).json({
         success: false,
-        message: 'Invalid token'
+        message: 'Internal server error'
       });
     }
   }
 
   static async logoutUser(req, res) {
-    res.cookie('jwtToken', '', {
+    const cookieOptions = {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/',
-      expires: new Date(0)
-    });
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
+    };
 
+    res.clearCookie('jwtToken', cookieOptions);
     res.json({ 
       success: true, 
       message: 'Logout successful' 
@@ -133,6 +190,7 @@ class AuthController {
 
 module.exports = {
   authenticateUser: AuthController.authenticateUser,
+  authenticateGoogle: AuthController.authenticateGoogle,
   refreshToken: AuthController.refreshToken,
   logoutUser: AuthController.logoutUser
 };

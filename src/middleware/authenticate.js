@@ -3,13 +3,9 @@ const { config } = require('../config');
 const { authorizedUsers } = require('../constants/authorizedUsers');
 
 function authenticate(req, res, next) {
-  console.log('🔒 [authenticate] Checking authentication');
-  console.log('📨 [authenticate] Cookies:', req.cookies);
-  
   const token = req.cookies.jwtToken;
 
   if (!token) {
-    console.log('❌ [authenticate] No token found');
     return res.status(401).json({ 
       success: false, 
       message: 'Unauthorized. Token not provided.' 
@@ -17,8 +13,7 @@ function authenticate(req, res, next) {
   }
 
   try {
-    const secret = config.JWT_SECRET || 'dev-jwt-secret';
-    const decoded = jwt.verify(token, secret);
+    const decoded = jwt.verify(token, config.JWT_SECRET);
     req.user = decoded;
 
     // Skip authorization check for refresh token requests
@@ -27,14 +22,12 @@ function authenticate(req, res, next) {
     }
 
     if (!authorizedUsers.includes(decoded.email)) {
-      console.log('❌ [authenticate] Unauthorized email:', decoded.email);
       return res.status(403).json({ 
         success: false, 
         message: 'Forbidden. You do not have access to this resource.' 
       });
     }
 
-    console.log('✅ [authenticate] Authentication successful');
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -44,10 +37,12 @@ function authenticate(req, res, next) {
       });
     }
 
-    console.error('❌ [authenticate] Error:', error);
+    console.error('Error verifying JWT:', error);
     res.status(401).json({ 
       success: false, 
       message: 'Invalid token.' 
     });
   }
 }
+
+module.exports = { authenticate };
