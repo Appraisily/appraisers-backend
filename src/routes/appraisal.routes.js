@@ -17,13 +17,19 @@ router.get('/:id/list', authenticate, (req, res) => appraisalController.getDetai
 // Get appraisal details for editing
 router.get('/:id/list-edit', authenticate, (req, res) => appraisalController.getDetails(req, res, true));
 
-// Set appraisal value
+// Process steps endpoints
 router.post('/:id/set-value', authenticate, validateSetValue, (req, res) => appraisalController.setValue(req, res));
+router.post('/:id/merge-descriptions', authenticate, (req, res) => appraisalController.mergeDescriptions(req, res));
+router.post('/:id/update-title', authenticate, (req, res) => appraisalController.updateTitle(req, res));
+router.post('/:id/insert-template', authenticate, (req, res) => appraisalController.insertTemplate(req, res));
+router.post('/:id/build-pdf', authenticate, (req, res) => appraisalController.buildPdf(req, res));
+router.post('/:id/send-email', authenticate, (req, res) => appraisalController.sendEmail(req, res));
+router.post('/:id/complete', authenticate, validateSetValue, (req, res) => appraisalController.complete(req, res));
 
-// Process worker endpoint
+// Worker endpoint
 router.post('/process-worker', validateWorker, (req, res) => appraisalController.processWorker(req, res));
 
-// Complete process
+// Complete process (starts the workflow)
 router.post('/:id/complete-process', authenticate, validateSetValue, (req, res) => appraisalController.completeProcess(req, res));
 
 module.exports = router;

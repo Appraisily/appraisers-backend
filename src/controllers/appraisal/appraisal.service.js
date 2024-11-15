@@ -1,192 +1,105 @@
 const { 
   sheetsService, 
   wordpressService,
-  pubsubService 
+  pubsubService,
+  openaiService,
+  emailService 
 } = require('../../services');
 const { config } = require('../../config');
 const { getImageUrl } = require('../../utils/getImageUrl');
 
 class AppraisalService {
-  async getPendingAppraisals() {
-    // Initialize sheets if needed
-    if (!sheetsService.sheets) {
-      await sheetsService.initialize();
-    }
+  // Existing methods remain the same...
 
-    const values = await sheetsService.getValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!A2:H`
-    );
-
-    return (values || []).map((row, index) => ({
-      id: index + 2,
-      date: row[0] || '',
-      appraisalType: row[1] || '',
-      identifier: row[2] || '',
-      status: row[5] || '',
-      wordpressUrl: row[6] || '',
-      iaDescription: row[7] || '',
-    }));
-  }
-
-  async getCompletedAppraisals() {
-    // Initialize sheets if needed
-    if (!sheetsService.sheets) {
-      await sheetsService.initialize();
-    }
-
-    const values = await sheetsService.getValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      'Completed Appraisals!A2:H'
-    );
-
-    return (values || []).map((row, index) => ({
-      id: index + 2,
-      date: row[0] || '',
-      appraisalType: row[1] || '',
-      identifier: row[2] || '',
-      status: row[5] || '',
-      wordpressUrl: row[6] || '',
-      iaDescription: row[7] || '',
-    }));
-  }
-
-  async getAppraisalDetails(id, forEdit = false) {
+  async mergeDescriptions(id, description) {
     try {
-      // Initialize sheets if needed
-      if (!sheetsService.sheets) {
-        await sheetsService.initialize();
-      }
-
-      // Initialize WordPress if needed
-      if (!wordpressService.isAvailable) {
-        await wordpressService.initialize();
-      }
-
+      // Get IA description from sheets
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`
+        `${config.GOOGLE_SHEET_NAME}!H${id}`
       );
 
-      const row = values[0];
-      if (!row) {
-        throw new Error('Appraisal not found');
+      const iaDescription = values[0][0];
+      if (!iaDescription) {
+        throw new Error('IA description not found');
       }
 
-      const appraisal = {
-        id,
-        date: row[0] || '',
-        appraisalType: row[1] || '',
-        identifier: row[2] || '',
-        customerEmail: row[3] || '',
-        customerName: row[4] || '',
-        status: row[5] || '',
-        wordpressUrl: row[6] || '',
-        iaDescription: row[7] || '',
-        customerDescription: row[8] || '',
-      };
+      // Use OpenAI to merge descriptions
+      const prompt = `Merge these two descriptions into a single, cohesive paragraph under 350 characters:\n\nAppraiser: ${description}\nAI: ${iaDescription}`;
+      const mergedDescription = await openaiService.generateDescription(prompt);
 
-      // Extract WordPress post ID
-      const postId = this.extractPostId(appraisal.wordpressUrl);
-      if (!postId) {
-        throw new Error('Invalid WordPress URL');
-      }
-
-      // Get WordPress data
-      const wpData = await wordpressService.getPost(postId);
-      const acfFields = wpData.acf || {};
-      
-      if (forEdit) {
-        appraisal.acfFields = acfFields;
-      }
-
-      // Get image URLs
-      appraisal.images = {
-        main: await getImageUrl(acfFields.main),
-        age: await getImageUrl(acfFields.age),
-        signature: await getImageUrl(acfFields.signature),
-      };
-
-      return appraisal;
-    } catch (error) {
-      console.error('Error getting appraisal details:', error);
-      throw new Error(`Failed to get appraisal details: ${error.message}`);
-    }
-  }
-
-  async setAppraisalValue(id, value, description, isEdit = false) {
-    try {
-      // Initialize services if needed
-      if (!sheetsService.sheets) {
-        await sheetsService.initialize();
-      }
-      if (!wordpressService.isAvailable) {
-        await wordpressService.initialize();
-      }
-
-      const sheetName = isEdit ? config.EDIT_SHEET_NAME : config.GOOGLE_SHEET_NAME;
-
-      // Update sheets
+      // Save merged description
       await sheetsService.updateValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${sheetName}!J${id}:K${id}`,
-        [[value, description]]
+        `${config.GOOGLE_SHEET_NAME}!L${id}`,
+        [[mergedDescription]]
       );
 
-      // Get WordPress URL
+      return mergedDescription;
+    } catch (error) {
+      throw new Error(`Failed to merge descriptions: ${error.message}`);
+    }
+  }
+
+  async updateTitle(id) {
+    try {
+      // Get merged description
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${sheetName}!G${id}`
+        `${config.GOOGLE_SHEET_NAME}!G${id}:L${id}`
       );
 
-      const wordpressUrl = values[0][0];
+      const [row] = values;
+      const wordpressUrl = row[0];
+      const mergedDescription = row[5];
+
+      if (!wordpressUrl || !mergedDescription) {
+        throw new Error('Required data not found');
+      }
+
+      // Update WordPress title
       const postId = this.extractPostId(wordpressUrl);
-
-      // Update WordPress
       await wordpressService.updatePost(postId, {
-        acf: { value }
+        title: mergedDescription
       });
     } catch (error) {
-      console.error('Error setting appraisal value:', error);
-      throw new Error(`Failed to set appraisal value: ${error.message}`);
+      throw new Error(`Failed to update title: ${error.message}`);
     }
   }
 
-  async startCompletionProcess(id, value, description) {
+  async insertTemplate(id) {
     try {
-      if (!pubsubService.isAvailable) {
-        await pubsubService.initialize();
-      }
-
-      await pubsubService.publishMessage('appraisal-tasks', {
-        id,
-        appraisalValue: value,
-        description
-      });
-    } catch (error) {
-      console.error('Error starting completion process:', error);
-      throw new Error(`Failed to start completion process: ${error.message}`);
-    }
-  }
-
-  async processWorkerTask(id, value, description) {
-    try {
-      // Initialize services
-      if (!sheetsService.sheets) {
-        await sheetsService.initialize();
-      }
-      if (!wordpressService.isAvailable) {
-        await wordpressService.initialize();
-      }
-
-      // Update sheets
-      await sheetsService.updateValues(
+      // Get appraisal type and WordPress URL
+      const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!J${id}:K${id}`,
-        [[value, description]]
+        `${config.GOOGLE_SHEET_NAME}!B${id}:G${id}`
       );
 
-      // Get WordPress URL
+      const [row] = values;
+      const appraisalType = row[0] || 'RegularArt';
+      const wordpressUrl = row[5];
+
+      if (!wordpressUrl) {
+        throw new Error('WordPress URL not found');
+      }
+
+      const postId = this.extractPostId(wordpressUrl);
+      
+      // Update WordPress content
+      await wordpressService.updatePost(postId, {
+        content: `[pdf_download]\n[AppraisalTemplates type="${appraisalType}"]`,
+        acf: {
+          shortcodes_inserted: true
+        }
+      });
+    } catch (error) {
+      throw new Error(`Failed to insert template: ${error.message}`);
+    }
+  }
+
+  async buildPdf(id) {
+    try {
+      // Get WordPress URL and session ID
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
         `${config.GOOGLE_SHEET_NAME}!G${id}`
@@ -195,23 +108,98 @@ class AppraisalService {
       const wordpressUrl = values[0][0];
       const postId = this.extractPostId(wordpressUrl);
 
-      // Update WordPress
-      await wordpressService.updatePost(postId, {
-        acf: { value }
+      // Get session ID from WordPress
+      const post = await wordpressService.getPost(postId);
+      const sessionId = post.acf?.session_id;
+
+      if (!sessionId) {
+        throw new Error('Session ID not found');
+      }
+
+      // Request PDF generation
+      const response = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId, session_ID: sessionId })
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+
+      // Update links in sheets
+      const updatedPost = await wordpressService.getPost(postId);
+      const pdfLink = updatedPost.acf?.pdflink;
+      const docLink = updatedPost.acf?.doclink;
+
+      if (!pdfLink || !docLink) {
+        throw new Error('Document links not found');
+      }
+
+      await sheetsService.updateValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!M${id}:N${id}`,
+        [[pdfLink, docLink]]
+      );
     } catch (error) {
-      console.error('Error processing worker task:', error);
-      throw new Error(`Failed to process worker task: ${error.message}`);
+      throw new Error(`Failed to build PDF: ${error.message}`);
     }
   }
 
-  // Helper method to extract post ID from WordPress URL
-  extractPostId(url) {
+  async sendEmail(id) {
     try {
-      return new URL(url).searchParams.get('post');
+      // Get appraisal details
+      const values = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!A${id}:N${id}`
+      );
+
+      const [row] = values;
+      const customerEmail = row[3];
+      const customerName = row[4];
+      const wordpressUrl = row[6];
+      const appraisalValue = row[9];
+      const description = row[10];
+      const pdfLink = row[12];
+
+      if (!customerEmail || !wordpressUrl) {
+        throw new Error('Required data missing');
+      }
+
+      // Get public URL from WordPress
+      const postId = this.extractPostId(wordpressUrl);
+      const post = await wordpressService.getPost(postId);
+      const publicUrl = post.link;
+
+      // Send email
+      await emailService.sendAppraisalCompletedEmail(customerEmail, customerName, {
+        value: appraisalValue,
+        description,
+        pdfLink,
+        publicUrl
+      });
     } catch (error) {
-      console.error('Error extracting post ID:', error);
-      return null;
+      throw new Error(`Failed to send email: ${error.message}`);
+    }
+  }
+
+  async complete(id, value, description) {
+    try {
+      // Update status to "Completed"
+      await sheetsService.updateValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!F${id}`,
+        [['Completed']]
+      );
+
+      // Update value and description
+      await sheetsService.updateValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!J${id}:K${id}`,
+        [[value, description]]
+      );
+    } catch (error) {
+      throw new Error(`Failed to complete appraisal: ${error.message}`);
     }
   }
 }

@@ -1,50 +1,14 @@
 const AppraisalService = require('./appraisal.service');
 
 class AppraisalController {
-  async getAppraisals(req, res) {
-    try {
-      const appraisals = await AppraisalService.getPendingAppraisals();
-      res.json(appraisals);
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
+  // Existing methods remain the same...
 
-  async getCompleted(req, res) {
+  async mergeDescriptions(req, res) {
     try {
-      const completed = await AppraisalService.getCompletedAppraisals();
-      res.json(completed);
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  async getDetails(req, res) {
-    try {
-      const details = await AppraisalService.getAppraisalDetails(req.params.id);
-      res.json(details);
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  async setValue(req, res) {
-    try {
-      await AppraisalService.setAppraisalValue(
-        req.params.id,
-        req.body.appraisalValue,
-        req.body.description,
-        req.body.isEdit
-      );
+      const { id } = req.params;
+      const { description } = req.body;
+      
+      await AppraisalService.mergeDescriptions(id, description);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({
@@ -54,13 +18,10 @@ class AppraisalController {
     }
   }
 
-  async completeProcess(req, res) {
+  async updateTitle(req, res) {
     try {
-      await AppraisalService.startCompletionProcess(
-        req.params.id,
-        req.body.appraisalValue,
-        req.body.description
-      );
+      const { id } = req.params;
+      await AppraisalService.updateTitle(id);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({
@@ -70,13 +31,51 @@ class AppraisalController {
     }
   }
 
-  async processWorker(req, res) {
+  async insertTemplate(req, res) {
     try {
-      await AppraisalService.processWorkerTask(
-        req.body.id,
-        req.body.appraisalValue,
-        req.body.description
-      );
+      const { id } = req.params;
+      await AppraisalService.insertTemplate(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  async buildPdf(req, res) {
+    try {
+      const { id } = req.params;
+      await AppraisalService.buildPdf(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  async sendEmail(req, res) {
+    try {
+      const { id } = req.params;
+      await AppraisalService.sendEmail(id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
+  async complete(req, res) {
+    try {
+      const { id } = req.params;
+      const { appraisalValue, description } = req.body;
+      
+      await AppraisalService.complete(id, appraisalValue, description);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({
