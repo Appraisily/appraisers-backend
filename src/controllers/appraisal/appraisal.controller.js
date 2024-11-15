@@ -9,6 +9,7 @@ const { getImageUrl } = require('../../utils/getImageUrl');
 const appraisalService = require('./appraisal.service');
 
 class AppraisalController {
+  // Get all pending appraisals
   async getAppraisals(req, res) {
     try {
       const values = await sheetsService.getValues(
@@ -36,6 +37,7 @@ class AppraisalController {
     }
   }
 
+  // Get completed appraisals
   async getCompleted(req, res) {
     try {
       const values = await sheetsService.getValues(
@@ -63,6 +65,7 @@ class AppraisalController {
     }
   }
 
+  // Get details for a specific appraisal
   async getDetails(req, res) {
     const { id } = req.params;
     try {
@@ -117,6 +120,7 @@ class AppraisalController {
     }
   }
 
+  // Get details for editing
   async getDetailsForEdit(req, res) {
     const { id } = req.params;
     try {
@@ -170,6 +174,7 @@ class AppraisalController {
     }
   }
 
+  // Process steps
   async setValue(req, res) {
     try {
       await appraisalService.setValue(req.params.id, req.body);
