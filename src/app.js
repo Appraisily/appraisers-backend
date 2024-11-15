@@ -1,69 +1,48 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const { initializeConfig } = require('./config');
+const helmet = require('helmet');
+const { corsOptions } = require('./config/corsConfig');
 const routes = require('./routes');
+const { errorHandler } = require('./middleware/errorHandler');
+const validateRoutes = require('./middleware/validateRoutes');
 
 const app = express();
 
-// CORS configuration
-const allowedOrigins = [
-  'https://earnest-choux-a0ec16.netlify.app',
-  'https://jazzy-lollipop-0a3217.netlify.app',
-  'https://appraisers-frontend-856401495068.us-central1.run.app',
-  'http://localhost:3000'
-];
+// Security middleware
+app.use(helmet());
 
-const corsOptions = {
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('❌ [CORS] Blocked request from origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With', 'x-shared-secret'],
-  exposedHeaders: ['Set-Cookie']
-};
-
-// Apply CORS middleware
+// Standard middleware
 app.use(cors(corsOptions));
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
-
-// Parse JSON bodies and cookies
 app.use(express.json());
 app.use(cookieParser());
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
+// Health check endpoints
+app.get('/_ah/health', (req, res) => res.status(200).send('OK'));
+app.get('/health', (req, res) => res.status(200).send('OK'));
+
+// Request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
+  });
+  next();
 });
 
-async function startServer() {
-  try {
-    console.log('Initializing configuration...');
-    
-    // Initialize configuration first
-    await initializeConfig();
-    console.log('Configuration initialized successfully');
-    
-    // Only after config is initialized, set up routes
-    app.use('/api', routes);
-    
-    const PORT = process.env.PORT || 8080;
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Backend server running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error('Error starting server:', error);
-    process.exit(1);
-  }
-}
+// Validate routes before using them
+app.use('/api', validateRoutes(routes), routes);
 
-// Start the server
-startServer();
+// Error handling
+app.use(errorHandler);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Not Found'
+  });
+});
+
+module.exports = app;

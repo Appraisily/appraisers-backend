@@ -1,65 +1,71 @@
 const jwt = require('jsonwebtoken');
 const { config } = require('../config');
-const authorizedUsers = require('../constants/authorizedUsers');
+const { authorizedUsers } = require('../constants/authorizedUsers');
 
 function authenticate(req, res, next) {
-  console.log('🔒 [authenticate] Starting authentication check');
-  console.log('📨 [authenticate] Headers:', req.headers);
+  console.log('🔒 Starting authentication check');
 
   // Get token from cookie or Authorization header
   const cookieToken = req.cookies.jwtToken;
   const authHeader = req.headers.authorization;
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+  const workerSecret = req.headers['x-worker-secret'];
   
+  // Allow worker secret for background tasks
+  if (workerSecret === config.SHARED_SECRET) {
+    req.user = { role: 'worker' };
+    return next();
+  }
+
+  // Check for JWT token
   const token = cookieToken || bearerToken;
-
-  console.log('📨 [authenticate] Cookies:', req.cookies);
-
+  
   if (!token) {
-    console.log('❌ [authenticate] No JWT token found');
-    return res.status(401).json({ 
-      success: false, 
-      message: 'Unauthorized. Token not provided.' 
+    console.log('❌ No token found');
+    return res.status(401).json({
+      success: false,
+      message: 'Unauthorized. Token not provided.'
     });
   }
 
   try {
     const decoded = jwt.verify(token, config.JWT_SECRET);
-    req.user = decoded;
+    console.log('✓ Token verified successfully');
 
-    // Check if request comes from task queue worker
-    const isWorker = decoded.role === 'worker';
-
-    // Skip authorized users check for worker requests
-    if (isWorker) {
-      console.log('✅ [authenticate] Worker request authenticated');
+    // Skip authorization check for worker requests
+    if (decoded.role === 'worker') {
+      req.user = decoded;
       return next();
     }
 
-    // For non-worker requests, check if user is authorized
+    // Check if user is authorized
     if (!authorizedUsers.includes(decoded.email)) {
-      console.log('❌ [authenticate] Unauthorized access attempt:', decoded.email);
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Forbidden. You do not have access to this resource.' 
+      console.log('❌ Unauthorized email:', decoded.email);
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden. You do not have access to this resource.'
       });
     }
 
-    console.log('✅ [authenticate] User authenticated:', decoded.email);
+    req.user = decoded;
     next();
   } catch (error) {
-    console.error('❌ [authenticate] JWT verification error:', error);
+    console.error('❌ JWT verification error:', error);
+    
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Token expired.' 
+      return res.status(401).json({
+        success: false,
+        message: 'Token expired',
+        code: 'TOKEN_EXPIRED'
       });
     }
-    res.status(401).json({ 
-      success: false, 
-      message: 'Invalid token.' 
+
+    res.status(401).json({
+      success: false,
+      message: 'Invalid token',
+      code: 'INVALID_TOKEN'
     });
   }
 }
 
-module.exports = authenticate;
+module.exports = { authenticate };
