@@ -5,9 +5,12 @@ const openaiService = require('./openai.service');
 const wordpressService = require('./wordpress.service');
 
 async function initializeServices() {
+  // In development, only initialize required services
+  const isDev = process.env.NODE_ENV !== 'production';
+
   const services = {
-    sheets: { service: sheetsService, required: true },
-    wordpress: { service: wordpressService, required: true },
+    wordpress: { service: wordpressService, required: !isDev },
+    sheets: { service: sheetsService, required: !isDev },
     email: { service: emailService, required: false },
     openai: { service: openaiService, required: false },
     pubsub: { service: pubsubService, required: false }
@@ -33,7 +36,6 @@ async function initializeServices() {
     }
   }
 
-  // Log initialization summary
   console.log('\nService Initialization Summary:');
   console.log('Successful:', results.success.join(', ') || 'None');
   console.log('Failed:', results.failed.join(', ') || 'None');

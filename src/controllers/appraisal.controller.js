@@ -36,6 +36,80 @@ class AppraisalController {
     }
   }
 
+  static async getCompletedAppraisals(req, res) {
+    try {
+      const values = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        'Completed Appraisals!A2:H'
+      );
+
+      const completedAppraisals = values.map((row, index) => ({
+        id: index + 2,
+        date: row[0] || '',
+        appraisalType: row[1] || '',
+        identifier: row[2] || '',
+        status: row[5] || '',
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || ''
+      }));
+
+      res.json(completedAppraisals);
+    } catch (error) {
+      console.error('Error getting completed appraisals:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error getting completed appraisals' 
+      });
+    }
+  }
+
+  static async getAppraisalDetails(req, res) {
+    const { id } = req.params;
+    try {
+      const values = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`
+      );
+
+      if (!values || !values[0]) {
+        return res.status(404).json({
+          success: false,
+          message: 'Appraisal not found'
+        });
+      }
+
+      const row = values[0];
+      const appraisal = {
+        id,
+        date: row[0] || '',
+        appraisalType: row[1] || '',
+        identifier: row[2] || '',
+        status: row[5] || '',
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || '',
+        customerDescription: row[8] || ''
+      };
+
+      // Get WordPress data
+      const postId = new URL(appraisal.wordpressUrl).searchParams.get('post');
+      const post = await wordpressService.getPost(postId);
+      
+      appraisal.images = {
+        main: await getImageUrl(post.acf?.main),
+        age: await getImageUrl(post.acf?.age),
+        signature: await getImageUrl(post.acf?.signature)
+      };
+
+      res.json(appraisal);
+    } catch (error) {
+      console.error('Error getting appraisal details:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error getting appraisal details'
+      });
+    }
+  }
+
   static async processWorker(req, res) {
     const { id, appraisalValue, description } = req.body;
 
@@ -117,11 +191,42 @@ class AppraisalController {
     }
   }
 
-  // Add other controller methods here...
+  static async completeProcess(req, res) {
+    const { id } = req.params;
+    const { appraisalValue, description } = req.body;
+
+    if (!appraisalValue || !description) {
+      return res.status(400).json({
+        success: false,
+        message: 'Appraisal value and description are required'
+      });
+    }
+
+    try {
+      await pubsubService.publishMessage('appraisal-tasks', {
+        id,
+        appraisalValue,
+        description
+      });
+
+      res.json({
+        success: true,
+        message: 'Appraisal process started successfully'
+      });
+    } catch (error) {
+      console.error('Error starting appraisal process:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error starting appraisal process'
+      });
+    }
+  }
 }
 
 module.exports = {
   getAppraisals: AppraisalController.getAppraisals,
-  processWorker: AppraisalController.processWorker
-  // Export other methods as needed...
+  getCompletedAppraisals: AppraisalController.getCompletedAppraisals,
+  getAppraisalDetails: AppraisalController.getAppraisalDetails,
+  processWorker: AppraisalController.processWorker,
+  completeProcess: AppraisalController.completeProcess
 };

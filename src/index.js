@@ -2,9 +2,14 @@ const app = require('./app');
 const { initializeConfig } = require('./config');
 const { initializeServices } = require('./services');
 
+// Set development environment if not specified
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = 'development';
+}
+
 async function startServer() {
   try {
-    console.log('Starting server initialization...');
+    console.log(`Starting server in ${process.env.NODE_ENV} mode...`);
 
     // Initialize configuration first
     await initializeConfig();
@@ -19,7 +24,7 @@ async function startServer() {
         break;
       } catch (error) {
         retries--;
-        if (retries === 0) {
+        if (retries === 0 && process.env.NODE_ENV === 'production') {
           throw error;
         }
         console.warn(`Service initialization failed, retrying... (${retries} attempts left)`);
@@ -33,20 +38,28 @@ async function startServer() {
     });
   } catch (error) {
     console.error('Failed to start server:', error);
-    process.exit(1);
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    } else {
+      console.warn('Continuing in development mode with limited functionality');
+    }
   }
 }
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
-  process.exit(1);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
 });
 
 // Start the server

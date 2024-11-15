@@ -7,18 +7,8 @@ const {
   getAppraisals,
   getCompletedAppraisals,
   getAppraisalDetails,
-  getAppraisalDetailsForEdit,
-  updateAcfField,
-  setAppraisalValue,
-  completeProcess,
   processWorker,
-  getSessionId,
-  saveLinks,
-  updateLinks,
-  insertTemplate,
-  updatePostTitle,
-  sendEmailToCustomer,
-  completeAppraisal
+  completeProcess
 } = require('../controllers/appraisal.controller');
 
 // Get all appraisals
@@ -29,27 +19,11 @@ router.get('/completed', authenticate, getCompletedAppraisals);
 
 // Get specific appraisal details
 router.get('/:id/list', authenticate, getAppraisalDetails);
-router.get('/:id/list-edit', authenticate, getAppraisalDetailsForEdit);
 
-// Update appraisal
-router.put('/:id/update-acf-field', authenticate, updateAcfField);
-router.post('/:id/set-value', authenticate, validateSetValue, setAppraisalValue);
-router.post('/:id/complete-process', authenticate, completeProcess);
-
-// Worker endpoint
+// Process worker endpoint
 router.post('/process-worker', validateWorker, processWorker);
 
-// Session and links management
-router.post('/get-session-id', authenticate, getSessionId);
-router.post('/:id/save-links', authenticate, saveLinks);
-router.post('/:id/update-links', authenticate, updateLinks);
-
-// Template and content management
-router.post('/:id/insert-template', authenticate, insertTemplate);
-router.post('/:id/update-title', authenticate, updatePostTitle);
-
-// Email and completion
-router.post('/:id/send-email', authenticate, sendEmailToCustomer);
-router.post('/:id/complete', authenticate, completeAppraisal);
+// Complete process
+router.post('/:id/complete-process', authenticate, validateSetValue, completeProcess);
 
 module.exports = router;
