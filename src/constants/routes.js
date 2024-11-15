@@ -1,30 +1,30 @@
 const API_ROUTES = {
   AUTH: {
-    LOGIN: '/api/auth/login',
-    LOGOUT: '/api/auth/logout',
-    REFRESH: '/api/auth/refresh',
-    GOOGLE: '/api/auth/google'
+    LOGIN: '/auth/login',
+    LOGOUT: '/auth/logout',
+    REFRESH: '/auth/refresh',
+    GOOGLE: '/auth/google'
   },
   APPRAISALS: {
-    BASE: '/api/appraisals',
-    COMPLETED: '/api/appraisals/completed',
-    DETAILS: '/api/appraisals/:id/list',
-    DETAILS_EDIT: '/api/appraisals/:id/list-edit',
-    SET_VALUE: '/api/appraisals/:id/set-value',
-    MERGE_DESCRIPTIONS: '/api/appraisals/:id/merge-descriptions',
-    UPDATE_TITLE: '/api/appraisals/:id/update-title',
-    INSERT_TEMPLATE: '/api/appraisals/:id/insert-template',
-    BUILD_PDF: '/api/appraisals/:id/build-pdf',
-    SEND_EMAIL: '/api/appraisals/:id/send-email',
-    COMPLETE: '/api/appraisals/:id/complete',
-    COMPLETE_PROCESS: '/api/appraisals/:id/complete-process',
-    PROCESS_WORKER: '/api/appraisals/process-worker',
-    UPDATE_ACF_FIELD: '/api/appraisals/:id/update-acf-field',
-    GET_SESSION_ID: '/api/appraisals/get-session-id',
-    SAVE_LINKS: '/api/appraisals/:id/save-links',
-    UPDATE_LINKS: '/api/appraisals/:id/update-links'
+    BASE: '/appraisals',
+    COMPLETED: '/appraisals/completed',
+    DETAILS: '/appraisals/:id/list',
+    DETAILS_EDIT: '/appraisals/:id/list-edit',
+    SET_VALUE: '/appraisals/:id/set-value',
+    MERGE_DESCRIPTIONS: '/appraisals/:id/merge-descriptions',
+    UPDATE_TITLE: '/appraisals/:id/update-title',
+    INSERT_TEMPLATE: '/appraisals/:id/insert-template',
+    BUILD_PDF: '/appraisals/:id/build-pdf',
+    SEND_EMAIL: '/appraisals/:id/send-email',
+    COMPLETE: '/appraisals/:id/complete',
+    COMPLETE_PROCESS: '/appraisals/:id/complete-process',
+    PROCESS_WORKER: '/appraisals/process-worker',
+    UPDATE_ACF_FIELD: '/appraisals/:id/update-acf-field',
+    GET_SESSION_ID: '/appraisals/get-session-id',
+    SAVE_LINKS: '/appraisals/:id/save-links',
+    UPDATE_LINKS: '/appraisals/:id/update-links'
   },
-  UPDATE_PENDING: '/api/update-pending-appraisal'
+  UPDATE_PENDING: '/update-pending-appraisal'
 };
 
 // Validate routes are unique
@@ -42,4 +42,18 @@ if (duplicates.length > 0) {
   throw new Error(`Duplicate routes found: ${duplicates.join(', ')}`);
 }
 
-module.exports = { API_ROUTES };
+// Add route helpers
+const routeHelpers = {
+  getFullPath: (route) => `/api${route}`,
+  validatePath: (path) => {
+    const normalizedPath = path.replace(/^\/api/, '');
+    return allRoutes.some(route => 
+      route.replace(/:\w+/g, ':id') === normalizedPath.replace(/:\w+/g, ':id')
+    );
+  }
+};
+
+module.exports = { 
+  API_ROUTES,
+  routeHelpers
+};

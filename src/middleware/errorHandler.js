@@ -1,8 +1,17 @@
 const { config } = require('../config');
 
+class RouteError extends Error {
+  constructor(message, statusCode = 400) {
+    super(message);
+    this.name = 'RouteError';
+    this.statusCode = statusCode;
+  }
+}
+
 function errorHandler(err, req, res, next) {
   // Log error details
   console.error('Error:', {
+    name: err.name,
     message: err.message,
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     path: req.path,
@@ -10,6 +19,13 @@ function errorHandler(err, req, res, next) {
   });
 
   // Handle specific error types
+  if (err instanceof RouteError) {
+    return res.status(err.statusCode).json({
+      success: false,
+      message: err.message
+    });
+  }
+
   if (err.name === 'UnauthorizedError') {
     return res.status(401).json({
       success: false,
@@ -21,13 +37,6 @@ function errorHandler(err, req, res, next) {
     return res.status(400).json({
       success: false,
       message: err.message
-    });
-  }
-
-  if (err.name === 'ServiceUnavailableError') {
-    return res.status(503).json({
-      success: false,
-      message: 'Service temporarily unavailable'
     });
   }
 
@@ -44,4 +53,7 @@ function errorHandler(err, req, res, next) {
   });
 }
 
-module.exports = { errorHandler };
+module.exports = { 
+  errorHandler,
+  RouteError
+};

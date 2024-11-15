@@ -30,7 +30,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Mount API routes
+// Mount API routes with prefix
 app.use('/api', routes);
 
 // Error handling

@@ -1,17 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const validateRoutes = require('../middleware/validateRoutes');
+const RouteValidator = require('../middleware/routeValidator');
 
 const authRoutes = require('./auth.routes');
 const appraisalRoutes = require('./appraisal.routes');
 const updatePendingAppraisalRoutes = require('./updatePendingAppraisal.routes');
 
-// Mount routes directly without /api prefix
+// Mount routes without /api prefix (it's added at the app level)
 router.use('/auth', authRoutes);
 router.use('/appraisals', appraisalRoutes);
 router.use('/update-pending-appraisal', updatePendingAppraisalRoutes);
 
 // Validate all routes after mounting
-validateRoutes(router);
+RouteValidator.validateRoutes(router);
 
 module.exports = router;
