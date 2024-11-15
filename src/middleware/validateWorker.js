@@ -13,4 +13,4 @@ function validateWorker(req, res, next) {
   next();
 }
 
-module.exports = validateWorker;
+module.exports = { validateWorker };

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/authenticate');
 const { validateSetValue } = require('../middleware/validateSetValue');
+const { validateWorker } = require('../middleware/validateWorker');
 const AppraisalController = require('../controllers/appraisal.controller');
 
 // Get all appraisals
@@ -18,6 +19,9 @@ router.get('/:id/list-edit', authenticate, AppraisalController.getAppraisalDetai
 router.put('/:id/update-acf-field', authenticate, AppraisalController.updateAcfField);
 router.post('/:id/set-value', authenticate, validateSetValue, AppraisalController.setAppraisalValue);
 router.post('/:id/complete-process', authenticate, AppraisalController.completeProcess);
+
+// Worker endpoint
+router.post('/process-worker', validateWorker, AppraisalController.processWorker);
 
 // Session and links management
 router.post('/get-session-id', authenticate, AppraisalController.getSessionId);
