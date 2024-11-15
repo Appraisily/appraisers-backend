@@ -9,7 +9,12 @@ const { errorHandler } = require('./middleware/errorHandler');
 const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// Handle CORS preflight requests
+app.options('*', cors(corsOptions));
 
 // Standard middleware
 app.use(cors(corsOptions));

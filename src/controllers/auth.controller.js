@@ -6,6 +6,7 @@ class AuthController {
   static async authenticateUser(req, res) {
     try {
       const { email, password } = req.body;
+      console.log('🔑 [authenticateUser] Login attempt:', { email });
 
       if (!email || !password) {
         return res.status(400).json({ 
@@ -37,15 +38,14 @@ class AuthController {
         { expiresIn: '24h' }
       );
 
-      const cookieOptions = {
+      // Set cookie with appropriate options
+      res.cookie('jwtToken', token, {
         httpOnly: true,
         secure: true,
         sameSite: 'none',
         path: '/',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
-      };
-
-      res.cookie('jwtToken', token, cookieOptions);
+      });
 
       console.log('✅ [authenticateUser] Login successful:', email);
 
@@ -85,15 +85,13 @@ class AuthController {
           { expiresIn: '24h' }
         );
 
-        const cookieOptions = {
+        res.cookie('jwtToken', newToken, {
           httpOnly: true,
           secure: true,
           sameSite: 'none',
           path: '/',
           maxAge: 24 * 60 * 60 * 1000
-        };
-
-        res.cookie('jwtToken', newToken, cookieOptions);
+        });
 
         res.json({
           success: true,
@@ -118,14 +116,14 @@ class AuthController {
   }
 
   static async logoutUser(req, res) {
-    const cookieOptions = {
+    res.cookie('jwtToken', '', {
       httpOnly: true,
       secure: true,
       sameSite: 'none',
-      path: '/'
-    };
+      path: '/',
+      expires: new Date(0)
+    });
 
-    res.clearCookie('jwtToken', cookieOptions);
     res.json({ 
       success: true, 
       message: 'Logout successful' 
