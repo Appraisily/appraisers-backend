@@ -6,6 +6,7 @@ const {
 } = require('../../services');
 const { config } = require('../../config');
 const { getImageUrl } = require('../../utils/getImageUrl');
+const appraisalService = require('./appraisal.service');
 
 class AppraisalController {
   async getAppraisals(req, res) {
@@ -169,7 +170,126 @@ class AppraisalController {
     }
   }
 
-  // ... rest of the controller methods ...
+  async setValue(req, res) {
+    try {
+      await appraisalService.setValue(req.params.id, req.body);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: error.message 
+      });
+    }
+  }
+
+  async mergeDescriptions(req, res) {
+    try {
+      await appraisalService.mergeDescriptions(req.params.id, req.body.description);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: error.message 
+      });
+    }
+  }
+
+  async updateTitle(req, res) {
+    try {
+      await appraisalService.updateTitle(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: error.message 
+      });
+    }
+  }
+
+  async insertTemplate(req, res) {
+    try {
+      await appraisalService.insertTemplate(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: error.message 
+      });
+    }
+  }
+
+  async buildPdf(req, res) {
+    try {
+      await appraisalService.buildPdf(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: error.message 
+      });
+    }
+  }
+
+  async sendEmail(req, res) {
+    try {
+      await appraisalService.sendEmail(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: error.message 
+      });
+    }
+  }
+
+  async complete(req, res) {
+    try {
+      const { appraisalValue, description } = req.body;
+      await appraisalService.complete(req.params.id, appraisalValue, description);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: error.message 
+      });
+    }
+  }
+
+  async processWorker(req, res) {
+    try {
+      const { id, appraisalValue, description } = req.body;
+      await appraisalService.processWorker(id, appraisalValue, description);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: error.message 
+      });
+    }
+  }
+
+  async completeProcess(req, res) {
+    try {
+      const { id } = req.params;
+      const { appraisalValue, description } = req.body;
+      
+      await pubsubService.publishMessage('appraisal-tasks', {
+        id,
+        appraisalValue,
+        description
+      });
+
+      res.json({ 
+        success: true, 
+        message: 'Appraisal process started successfully.' 
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: error.message 
+      });
+    }
+  }
 }
 
 module.exports = new AppraisalController();

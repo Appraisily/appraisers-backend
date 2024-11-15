@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const { corsOptions } = require('./config/corsConfig');
 const routes = require('./routes');
 const { errorHandler } = require('./middleware/errorHandler');
+const validateRoutes = require('./middleware/validateRoutes');
 
 const app = express();
 
@@ -16,16 +17,11 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
-// Health check endpoint for Cloud Run
-app.get('/_ah/health', (req, res) => {
-  res.status(200).send('OK');
-});
+// Health check endpoints
+app.get('/_ah/health', (req, res) => res.status(200).send('OK'));
+app.get('/health', (req, res) => res.status(200).send('OK'));
 
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
-});
-
-// Request logging middleware
+// Request logging
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -35,10 +31,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// API routes
-app.use('/api', routes);
+// Validate routes before using them
+app.use('/api', validateRoutes(routes), routes);
 
-// Error handling middleware
+// Error handling
 app.use(errorHandler);
 
 // 404 handler
