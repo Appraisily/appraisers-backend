@@ -35,6 +35,10 @@ async function startServer() {
     const serviceStatus = await initializeServices();
     console.log('Services initialization status:', serviceStatus);
 
+    if (serviceStatus.failed.includes('pubsub')) {
+      console.warn('⚠️ PubSub service failed to initialize. Some features may be limited.');
+    }
+
     // Get port from environment
     const PORT = process.env.PORT || 8080;
 
