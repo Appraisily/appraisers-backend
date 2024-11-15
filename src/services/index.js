@@ -5,9 +5,21 @@ const openaiService = require('./openai.service');
 const wordpressService = require('./wordpress.service');
 
 async function initializeServices() {
+  const isDev = process.env.NODE_ENV !== 'production';
+  console.log(`Initializing services in ${isDev ? 'development' : 'production'} mode`);
+
+  // In development, use mock services
+  if (isDev) {
+    console.log('Using development configuration');
+    return {
+      success: ['mock-services'],
+      failed: []
+    };
+  }
+
   const services = [
-    { name: 'sheets', service: sheetsService, required: true },
     { name: 'wordpress', service: wordpressService, required: true },
+    { name: 'sheets', service: sheetsService, required: true },
     { name: 'email', service: emailService, required: false },
     { name: 'openai', service: openaiService, required: false },
     { name: 'pubsub', service: pubsubService, required: false }
@@ -28,8 +40,8 @@ async function initializeServices() {
       console.error(`✗ ${name} service failed:`, error.message);
       results.failed.push(name);
       
-      if (required) {
-        throw new Error(`Required service ${name} failed to initialize: ${error.message}`);
+      if (required && !isDev) {
+        throw error;
       }
     }
   }
