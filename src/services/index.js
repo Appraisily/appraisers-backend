@@ -3,6 +3,7 @@ const sheetsService = require('./sheets.service');
 const pubsubService = require('./pubsub.service');
 const openaiService = require('./openai.service');
 const wordpressService = require('./wordpress.service');
+const ServiceValidator = require('../middleware/validateService');
 
 async function initializeServices() {
   const isDev = process.env.NODE_ENV !== 'production';
@@ -18,11 +19,36 @@ async function initializeServices() {
   }
 
   const services = [
-    { name: 'wordpress', service: wordpressService, required: true },
-    { name: 'sheets', service: sheetsService, required: true },
-    { name: 'email', service: emailService, required: false },
-    { name: 'openai', service: openaiService, required: false },
-    { name: 'pubsub', service: pubsubService, required: false }
+    { 
+      name: 'wordpress', 
+      service: wordpressService, 
+      required: true,
+      validator: ServiceValidator.validateWordPressService 
+    },
+    { 
+      name: 'sheets', 
+      service: sheetsService, 
+      required: true,
+      validator: ServiceValidator.validateSheetsService 
+    },
+    { 
+      name: 'email', 
+      service: emailService, 
+      required: false,
+      validator: ServiceValidator.validateEmailService 
+    },
+    { 
+      name: 'openai', 
+      service: openaiService, 
+      required: false,
+      validator: ServiceValidator.validateOpenAIService 
+    },
+    { 
+      name: 'pubsub', 
+      service: pubsubService, 
+      required: false,
+      validator: ServiceValidator.validatePubSubService 
+    }
   ];
 
   const results = {
@@ -30,10 +56,16 @@ async function initializeServices() {
     failed: []
   };
 
-  for (const { name, service, required } of services) {
+  for (const { name, service, required, validator } of services) {
     try {
       console.log(`Initializing ${name} service...`);
+      
+      // Validate service methods
+      validator(service);
+      
+      // Initialize service
       await service.initialize();
+      
       console.log(`✓ ${name} service initialized`);
       results.success.push(name);
     } catch (error) {
