@@ -5,6 +5,30 @@ const { validateSetValue } = require('../middleware/validateSetValue');
 const { validateWorker } = require('../middleware/validateWorker');
 const appraisalController = require('../controllers/appraisal/appraisal.controller');
 
+// Validate controller methods exist
+const requiredMethods = [
+  'getAppraisals',
+  'getCompleted',
+  'getDetails',
+  'getDetailsForEdit',
+  'setValue',
+  'mergeDescriptions',
+  'updateTitle',
+  'insertTemplate',
+  'buildPdf',
+  'sendEmail',
+  'complete',
+  'processWorker',
+  'completeProcess'
+];
+
+// Check all required methods exist
+for (const method of requiredMethods) {
+  if (typeof appraisalController[method] !== 'function') {
+    throw new Error(`Required controller method ${method} is not a function`);
+  }
+}
+
 // Get all appraisals
 router.get('/', authenticate, appraisalController.getAppraisals);
 
