@@ -4,54 +4,23 @@ const { authenticate } = require('../middleware/authenticate');
 const { validateSetValue } = require('../middleware/validateSetValue');
 const { validateWorker } = require('../middleware/validateWorker');
 const appraisalController = require('../controllers/appraisal/appraisal.controller');
+const { API_ROUTES } = require('../constants/routes');
 
-// Validate controller methods exist
-const requiredMethods = [
-  'getAppraisals',
-  'getCompleted',
-  'getDetails',
-  'getDetailsForEdit',
-  'setValue',
-  'mergeDescriptions',
-  'updateTitle',
-  'insertTemplate',
-  'buildPdf',
-  'sendEmail',
-  'complete',
-  'processWorker',
-  'completeProcess'
-];
+// Remove /api prefix as it's added in index.js
+router.get('/appraisals', authenticate, appraisalController.getAppraisals);
+router.get('/appraisals/completed', authenticate, appraisalController.getCompleted);
+router.get('/appraisals/:id/list', authenticate, appraisalController.getDetails);
+router.get('/appraisals/:id/list-edit', authenticate, appraisalController.getDetailsForEdit);
 
-// Check all required methods exist
-for (const method of requiredMethods) {
-  if (typeof appraisalController[method] !== 'function') {
-    throw new Error(`Required controller method ${method} is not a function`);
-  }
-}
+router.post('/appraisals/:id/set-value', authenticate, validateSetValue, appraisalController.setValue);
+router.post('/appraisals/:id/merge-descriptions', authenticate, appraisalController.mergeDescriptions);
+router.post('/appraisals/:id/update-title', authenticate, appraisalController.updateTitle);
+router.post('/appraisals/:id/insert-template', authenticate, appraisalController.insertTemplate);
+router.post('/appraisals/:id/build-pdf', authenticate, appraisalController.buildPdf);
+router.post('/appraisals/:id/send-email', authenticate, appraisalController.sendEmail);
+router.post('/appraisals/:id/complete', authenticate, validateSetValue, appraisalController.complete);
 
-// Get all appraisals
-router.get('/', authenticate, appraisalController.getAppraisals);
-
-// Get completed appraisals
-router.get('/completed', authenticate, appraisalController.getCompleted);
-
-// Get specific appraisal details
-router.get('/:id/list', authenticate, appraisalController.getDetails);
-router.get('/:id/list-edit', authenticate, appraisalController.getDetailsForEdit);
-
-// Process steps endpoints
-router.post('/:id/set-value', authenticate, validateSetValue, appraisalController.setValue);
-router.post('/:id/merge-descriptions', authenticate, appraisalController.mergeDescriptions);
-router.post('/:id/update-title', authenticate, appraisalController.updateTitle);
-router.post('/:id/insert-template', authenticate, appraisalController.insertTemplate);
-router.post('/:id/build-pdf', authenticate, appraisalController.buildPdf);
-router.post('/:id/send-email', authenticate, appraisalController.sendEmail);
-router.post('/:id/complete', authenticate, validateSetValue, appraisalController.complete);
-
-// Worker endpoint
-router.post('/process-worker', validateWorker, appraisalController.processWorker);
-
-// Complete process (starts the workflow)
-router.post('/:id/complete-process', authenticate, validateSetValue, appraisalController.completeProcess);
+router.post('/appraisals/process-worker', validateWorker, appraisalController.processWorker);
+router.post('/appraisals/:id/complete-process', authenticate, validateSetValue, appraisalController.completeProcess);
 
 module.exports = router;

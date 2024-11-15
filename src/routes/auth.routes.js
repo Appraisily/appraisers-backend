@@ -1,13 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth/auth.controller');
+const { API_ROUTES } = require('../constants/routes');
 
-// Basic authentication
-router.post('/login', (req, res) => authController.login(req, res));
-router.post('/logout', (req, res) => authController.logout(req, res));
-router.post('/refresh', (req, res) => authController.refresh(req, res));
-
-// Google authentication
-router.post('/google', (req, res) => authController.googleLogin(req, res));
+// Remove /api prefix as it's added in index.js
+router.post('/auth/login', authController.login);
+router.post('/auth/logout', authController.logout);
+router.post('/auth/refresh', authController.refresh);
+router.post('/auth/google', authController.googleLogin);
 
 module.exports = router;
