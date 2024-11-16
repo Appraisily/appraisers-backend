@@ -46,13 +46,6 @@
 
     <h1>Appraisal Management Backend</h1>
 
-    <h2>OpenAI Integration</h2>
-    <p>This project uses OpenAI's GPT models for text processing:</p>
-    <ul>
-        <li><code>gpt-4o</code> - For image analysis and initial description generation</li>
-        <li><code>gpt-4</code> - For merging and refining text descriptions</li>
-    </ul>
-
     <h2>Authentication</h2>
     
     <h3>Endpoints</h3>
@@ -92,6 +85,38 @@
 JWT_SECRET=
 COOKIE_SECRET=
 ALLOWED_ORIGINS=</code></pre>
+
+    <h2>OpenAI Integration</h2>
+    <p>This project uses OpenAI's GPT models for text processing:</p>
+    <ul>
+        <li><code>gpt-4o</code> - For image analysis and initial description generation</li>
+        <li><code>gpt-4</code> - For merging and refining text descriptions</li>
+    </ul>
+
+    <h2>SendGrid Email Templates</h2>
+    <h3>Dynamic Template Variables</h3>
+    <p>The following variables must be provided when sending emails:</p>
+    <pre><code>{
+  "customer_name": "string",       // Customer's full name
+  "appraisal_link": "string",     // Public URL (converted from WordPress edit URL)
+  "pdf_link": "string",           // PDF download link from Column M
+  "dashboard_link": "string",     // Dashboard URL with customer email
+  "description": "string",        // Appraisal description
+  "appraisal_value": "number",    // Appraisal value
+  "current_year": "number"        // Current year for footer
+}</code></pre>
+
+    <h3>URL Formatting Rules</h3>
+    <ul>
+        <li><code>appraisal_link</code>: Convert WordPress edit URL to public URL
+            <ul>
+                <li>From: <code>https://appraisily.com/wp-admin/post.php?post=141604&action=edit</code></li>
+                <li>To: <code>https://resources.appraisily.com/appraisals/141604</code></li>
+            </ul>
+        </li>
+        <li><code>pdf_link</code>: Use direct link from Google Sheets Column M</li>
+        <li><code>dashboard_link</code>: Format as <code>https://resources.appraisily.com/dashboard/?email=customer@email.com</code></li>
+    </ul>
 
     <h2>Appraisal Workflow</h2>
 
