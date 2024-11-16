@@ -273,19 +273,11 @@ class AppraisalService {
       throw new Error('Required data missing');
     }
 
-    const postId = new URL(wordpressUrl).searchParams.get('post');
-    if (!postId) {
-      throw new Error('Invalid WordPress URL');
-    }
-
-    const wpData = await wordpressService.getPost(postId);
-    const publicUrl = wpData.link;
-
     await emailService.sendAppraisalCompletedEmail(customerEmail, customerName, {
       value: appraisalValue,
       description: description,
       pdfLink: pdfLink,
-      publicUrl: publicUrl
+      wordpressUrl: wordpressUrl
     });
   }
 

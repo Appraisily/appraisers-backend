@@ -46,11 +46,11 @@ class EmailService {
   }
 
   async sendAppraisalCompletedEmail(customerEmail, customerName, appraisalData) {
-    if (!this.isAvailable) {
-      await this.initialize();
-    }
-
     try {
+      if (!this.isAvailable) {
+        await this.initialize();
+      }
+
       const currentYear = new Date().getFullYear();
       const publicUrl = this.convertEditUrlToPublic(appraisalData.wordpressUrl);
       const dashboardUrl = `https://resources.appraisily.com/dashboard/?email=${encodeURIComponent(customerEmail)}`;
@@ -63,8 +63,8 @@ class EmailService {
           customer_name: customerName,
           appraisal_value: appraisalData.value,
           description: appraisalData.description,
-          appraisal_link: publicUrl,
           pdf_link: appraisalData.pdfLink,
+          appraisal_link: publicUrl,
           dashboard_link: dashboardUrl,
           current_year: currentYear,
         },
@@ -84,11 +84,11 @@ class EmailService {
   }
 
   async sendAppraisalUpdateEmail(customerEmail, customerName, description, iaDescription) {
-    if (!this.isAvailable) {
-      await this.initialize();
-    }
-
     try {
+      if (!this.isAvailable) {
+        await this.initialize();
+      }
+
       const currentYear = new Date().getFullYear();
       const delayInMinutes = 1;
       const sendAtTimestamp = Math.floor((Date.now() + (delayInMinutes * 60 * 1000)) / 1000);
