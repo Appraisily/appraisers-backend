@@ -10,7 +10,6 @@ const { getImageUrl } = require('../../utils/getImageUrl');
 const fetch = require('node-fetch');
 
 class AppraisalService {
-  // Get all appraisals
   async getAppraisals() {
     const values = await sheetsService.getValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
@@ -28,7 +27,6 @@ class AppraisalService {
     }));
   }
 
-  // Get completed appraisals
   async getCompletedAppraisals() {
     const values = await sheetsService.getValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
@@ -46,7 +44,6 @@ class AppraisalService {
     }));
   }
 
-  // Get specific appraisal details
   async getDetails(id) {
     const values = await sheetsService.getValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
@@ -88,18 +85,15 @@ class AppraisalService {
     return appraisal;
   }
 
-  // Set appraisal value
   async setValue(id, appraisalValue, description, isEdit = false) {
     const sheetName = isEdit ? config.EDIT_SHEET_NAME : config.GOOGLE_SHEET_NAME;
 
-    // Update Google Sheets
     await sheetsService.updateValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
       `${sheetName}!J${id}:K${id}`,
       [[appraisalValue, description]]
     );
 
-    // Get WordPress URL
     const values = await sheetsService.getValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
       `${sheetName}!G${id}`
@@ -108,15 +102,12 @@ class AppraisalService {
     const wordpressUrl = values[0][0];
     const postId = new URL(wordpressUrl).searchParams.get('post');
 
-    // Update WordPress
     await wordpressService.updatePost(postId, {
       acf: { value: appraisalValue }
     });
   }
 
-  // Merge descriptions
   async mergeDescriptions(id, appraiserDescription) {
-    // Get IA description from sheets
     const values = await sheetsService.getValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
       `${config.GOOGLE_SHEET_NAME}!H${id}`
@@ -127,24 +118,8 @@ class AppraisalService {
       throw new Error('IA description not found');
     }
 
-    // Generate merged description using OpenAI
-    const completion = await openaiService.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: "Merge the appraiser and AI descriptions into a single, cohesive paragraph. Prefer the appraiser's description in case of contradictions. Keep it under 350 characters."
-        },
-        {
-          role: "user",
-          content: `Appraiser: ${appraiserDescription}\nAI: ${iaDescription}`
-        }
-      ]
-    });
+    const mergedDescription = await openaiService.mergeDescriptions(appraiserDescription, iaDescription);
 
-    const mergedDescription = completion.choices[0].message.content.trim();
-
-    // Save merged description
     await sheetsService.updateValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
       `${config.GOOGLE_SHEET_NAME}!L${id}`,
@@ -154,7 +129,6 @@ class AppraisalService {
     return mergedDescription;
   }
 
-  // Update post title
   async updateTitle(id) {
     const values = await sheetsService.getValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
@@ -185,7 +159,6 @@ class AppraisalService {
     return postId;
   }
 
-  // Insert template
   async insertTemplate(id) {
     const values = await sheetsService.getValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
@@ -228,7 +201,6 @@ class AppraisalService {
     });
   }
 
-  // Build PDF
   async buildPdf(id) {
     const values = await sheetsService.getValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
@@ -243,14 +215,12 @@ class AppraisalService {
     const wordpressUrl = row[6];
     const postId = new URL(wordpressUrl).searchParams.get('post');
 
-    // Get session_ID from WordPress
     const wpData = await wordpressService.getPost(postId);
     const session_ID = wpData.acf?.session_id;
     if (!session_ID) {
       throw new Error('session_ID not found');
     }
 
-    // Generate PDF
     const pdfResponse = await fetch(
       'https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf',
       {
@@ -269,7 +239,6 @@ class AppraisalService {
       throw new Error(pdfData.message || 'Failed to generate PDF');
     }
 
-    // Update sheets with links
     await sheetsService.updateValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
       `${config.GOOGLE_SHEET_NAME}!M${id}:N${id}`,
@@ -282,7 +251,6 @@ class AppraisalService {
     };
   }
 
-  // Send email
   async sendEmail(id) {
     const values = await sheetsService.getValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
@@ -310,7 +278,6 @@ class AppraisalService {
       throw new Error('Invalid WordPress URL');
     }
 
-    // Get public URL from WordPress
     const wpData = await wordpressService.getPost(postId);
     const publicUrl = wpData.link;
 
@@ -322,16 +289,13 @@ class AppraisalService {
     });
   }
 
-  // Complete appraisal
   async complete(id, appraisalValue, description) {
-    // Update status to "Completed"
     await sheetsService.updateValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
       `${config.GOOGLE_SHEET_NAME}!F${id}`,
       [['Completed']]
     );
 
-    // Update value and description
     await sheetsService.updateValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
       `${config.GOOGLE_SHEET_NAME}!J${id}:K${id}`,
@@ -339,7 +303,6 @@ class AppraisalService {
     );
   }
 
-  // Process appraisal
   async processAppraisal(id, appraisalValue, description) {
     await this.setValue(id, appraisalValue, description);
     await this.mergeDescriptions(id, description);

@@ -46,6 +46,13 @@
 
     <h1>Appraisal Management Backend</h1>
 
+    <h2>OpenAI Integration</h2>
+    <p>This project uses OpenAI's GPT models for text processing:</p>
+    <ul>
+        <li><code>gpt-4o</code> - For image analysis and initial description generation</li>
+        <li><code>gpt-4</code> - For merging and refining text descriptions</li>
+    </ul>
+
     <h2>Authentication</h2>
     
     <h3>Endpoints</h3>
