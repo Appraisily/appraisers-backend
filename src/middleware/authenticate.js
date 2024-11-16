@@ -6,9 +6,7 @@ function authenticate(req, res, next) {
   console.log('🔒 Starting authentication check');
 
   // Get token from cookie or Authorization header
-  const cookieToken = req.cookies.jwtToken;
-  const authHeader = req.headers.authorization;
-  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+  const token = req.cookies.jwtToken || req.headers.authorization?.split(' ')[1];
   const workerSecret = req.headers['x-worker-secret'];
   
   // Allow worker secret for background tasks
@@ -17,9 +15,6 @@ function authenticate(req, res, next) {
     return next();
   }
 
-  // Check for JWT token
-  const token = cookieToken || bearerToken;
-  
   if (!token) {
     console.log('❌ No token found');
     return res.status(401).json({
