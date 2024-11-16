@@ -1,4 +1,5 @@
 const appraisalService = require('./appraisal.service');
+const { pubsubService } = require('../../services');
 
 class AppraisalController {
   static async getAppraisals(req, res) {
@@ -198,6 +199,7 @@ class AppraisalController {
   }
 }
 
+// Export the static methods directly
 module.exports = {
   getAppraisals: AppraisalController.getAppraisals,
   getCompleted: AppraisalController.getCompleted,
