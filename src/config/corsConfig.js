@@ -2,6 +2,7 @@ const allowedOrigins = [
   'https://earnest-choux-a0ec16.netlify.app',
   'https://jazzy-lollipop-0a3217.netlify.app',
   'https://appraisers-frontend-856401495068.us-central1.run.app',
+  'https://appraisers.appraisily.com',
   'http://localhost:3000'
 ];
 
