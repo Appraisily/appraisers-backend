@@ -124,6 +124,14 @@ class RouteValidator {
 
     return normalize(path1) === normalize(path2);
   }
+
+  static validateSecurity(router) {
+    // Add security-specific validation here
+  }
+
+  static validatePermissions(router) {
+    // Add permission-specific validation here
+  }
 }
 
 module.exports = RouteValidator;
