@@ -84,6 +84,36 @@ Tips for Effective Condensation:
     return response.choices[0].message.content.trim();
   }
 
+  async mergeDescriptions(appraiserDescription, iaDescription) {
+    if (!this.isAvailable || !this.openai) {
+      await this.initialize();
+    }
+
+    if (!appraiserDescription || !iaDescription) {
+      throw new Error('Both appraiser and IA descriptions are required');
+    }
+
+    const maxTitleLength = 350;
+
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an assistant that merges appraiser and AI descriptions into a single, cohesive, and concise paragraph suitable for a WordPress title. The merged description should prefer the appraiser's description in case of any contradictions and must not exceed ${maxTitleLength} characters. Provide only the merged description without any additional text, introductions, or explanations.`
+        },
+        {
+          role: 'user',
+          content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}\n\nPlease merge the above descriptions into a single paragraph that prefers the appraiser's description in case of any contradictions and does not exceed ${maxTitleLength} characters. The output should contain only the merged description without any additional text.`
+        }
+      ],
+      max_tokens: Math.ceil(maxTitleLength / 4) + 10,
+      temperature: 0.7
+    });
+
+    return response.choices[0].message.content.trim();
+  }
+
   get chat() {
     if (!this.isAvailable || !this.openai) {
       throw new Error('OpenAI service is not available');
