@@ -4,7 +4,7 @@ const { authenticate } = require('../middleware/authenticate');
 const { validateSharedSecret } = require('../middleware/validateSharedSecret');
 const { validateSetValue } = require('../middleware/validateSetValue');
 const appraisalController = require('../controllers/appraisal/appraisal.controller');
-const processRequestController = require('../controllers/appraisal/processRequest.controller');
+const ProcessRequestController = require('../controllers/appraisal/processRequest.controller');
 
 // List and View routes
 router.get('/', authenticate, appraisalController.getAppraisals);
@@ -13,7 +13,7 @@ router.get('/:id/list', authenticate, appraisalController.getDetails);
 router.get('/:id/list-edit', authenticate, appraisalController.getDetailsForEdit);
 
 // Process and Update routes
-router.post('/process-request', validateSharedSecret, processRequestController.processRequest);
+router.post('/process-request', validateSharedSecret, ProcessRequestController.processRequest);
 router.post('/:id/set-value', authenticate, validateSetValue, appraisalController.setValue);
 router.post('/:id/merge-descriptions', authenticate, appraisalController.mergeDescriptions);
 router.post('/:id/update-title', authenticate, appraisalController.updateTitle);
