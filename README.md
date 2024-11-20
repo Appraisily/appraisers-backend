@@ -1,298 +1,201 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Appraisal Management Backend</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            padding: 20px;
-            max-width: 1000px;
-            margin: auto;
-        }
-        h1, h2, h3, h4 {
-            color: #333;
-        }
-        pre {
-            background-color: #f4f4f4;
-            padding: 10px;
-            overflow-x: auto;
-        }
-        code {
-            background-color: #f4f4f4;
-            padding: 2px 4px;
-            border-radius: 4px;
-        }
-        ul {
-            list-style-type: disc;
-            margin-left: 20px;
-        }
-        a {
-            color: #0366d6;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        .endpoint {
-            margin-bottom: 20px;
-            border-left: 3px solid #0366d6;
-            padding-left: 15px;
-        }
-    </style>
-</head>
-<body>
+# Appraisal Management Backend
 
-    <h1>Appraisal Management Backend</h1>
+A robust backend service for managing art appraisals, integrating with OpenAI, Google Sheets, and SendGrid.
 
-    <h2>Authentication</h2>
-    
-    <h3>Endpoints</h3>
-    <ul>
-        <li><code>POST /api/auth/google</code> - Google OAuth login</li>
-        <li><code>POST /api/auth/login</code> - Email/password login</li>
-        <li><code>POST /api/auth/logout</code> - Logout</li>
-        <li><code>POST /api/auth/refresh</code> - Refresh JWT token</li>
-    </ul>
+## Authentication
 
-    <h3>Response Format</h3>
-    <pre><code>{
+### Endpoints
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `POST` | `/api/auth/login` | Email/password login | No |
+| `POST` | `/api/auth/logout` | Logout current user | Yes |
+| `POST` | `/api/auth/refresh` | Refresh JWT token | Yes |
+
+### Authentication Response Format
+```json
+{
   "success": true/false,
   "name": "User's name",
   "message": "Optional message",
   "token": "JWT token" // For serverless clients
-}</code></pre>
+}
+```
 
-    <h3>Session Handling</h3>
-    <ul>
-        <li>Supports both HTTP-only cookies and Authorization header for JWT</li>
-        <li>CORS configured to allow credentials</li>
-        <li>Implements token refresh mechanism</li>
-    </ul>
+## Appraisals API
 
-    <h3>Security Requirements</h3>
-    <ul>
-        <li>HTTPS enabled</li>
-        <li>CORS properly configured</li>
-        <li>Rate limiting implemented</li>
-        <li>Input validation</li>
-        <li>Secure password hashing</li>
-    </ul>
+### List and View Endpoints
 
-    <h3>Environment Variables</h3>
-    <pre><code>GOOGLE_CLIENT_ID=
-JWT_SECRET=
-COOKIE_SECRET=
-ALLOWED_ORIGINS=</code></pre>
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/api/appraisals` | Get all pending appraisals | Yes |
+| `GET` | `/api/appraisals/completed` | Get completed appraisals | Yes |
+| `GET` | `/api/appraisals/:id/list` | Get specific appraisal details | Yes |
+| `GET` | `/api/appraisals/:id/list-edit` | Get appraisal details for editing | Yes |
 
-    <h2>OpenAI Integration</h2>
-    <p>This project uses OpenAI's GPT models for text processing:</p>
-    <ul>
-        <li><code>gpt-4o</code> - For image analysis and initial description generation</li>
-        <li><code>gpt-4</code> - For merging and refining text descriptions</li>
-    </ul>
+### Process and Update Endpoints
 
-    <h2>SendGrid Email Templates</h2>
-    <h3>Dynamic Template Variables</h3>
-    <p>The following variables must be provided when sending emails:</p>
-    <pre><code>{
-  "customer_name": "string",       // Customer's full name
-  "appraisal_link": "string",     // Public URL (converted from WordPress edit URL)
-  "pdf_link": "string",           // PDF download link from Column M
-  "dashboard_link": "string",     // Dashboard URL with customer email
-  "description": "string",        // Appraisal description
-  "appraisal_value": "number",    // Appraisal value
-  "current_year": "number"        // Current year for footer
-}</code></pre>
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `POST` | `/api/appraisals/process-request` | Process new appraisal request | Shared Secret |
+| `POST` | `/api/appraisals/:id/set-value` | Set appraisal value and description | Yes |
+| `POST` | `/api/appraisals/:id/merge-descriptions` | Merge AI and appraiser descriptions | Yes |
+| `POST` | `/api/appraisals/:id/update-title` | Update WordPress post title | Yes |
+| `POST` | `/api/appraisals/:id/insert-template` | Insert appraisal template | Yes |
+| `POST` | `/api/appraisals/:id/build-pdf` | Generate PDF document | Yes |
+| `POST` | `/api/appraisals/:id/send-email` | Send email to customer | Yes |
+| `POST` | `/api/appraisals/:id/complete` | Mark appraisal as completed | Yes |
+| `POST` | `/api/appraisals/:id/complete-process` | Start complete appraisal process | Yes |
+| `POST` | `/api/appraisals/process-worker` | Process worker tasks | Yes |
+| `POST` | `/api/update-pending-appraisal` | Update pending appraisal status | Yes |
 
-    <h3>URL Formatting Rules</h3>
-    <ul>
-        <li><code>appraisal_link</code>: Convert WordPress edit URL to public URL
-            <ul>
-                <li>From: <code>https://appraisily.com/wp-admin/post.php?post=141604&action=edit</code></li>
-                <li>To: <code>https://resources.appraisily.com/appraisals/141604</code></li>
-            </ul>
-        </li>
-        <li><code>pdf_link</code>: Use direct link from Google Sheets Column M</li>
-        <li><code>dashboard_link</code>: Format as <code>https://resources.appraisily.com/dashboard/?email=customer@email.com</code></li>
-    </ul>
+## Request/Response Examples
 
-    <h2>Appraisal Workflow</h2>
+### Process New Appraisal Request
 
-    <h3>Step 1: Set Appraisal Value</h3>
-    <div class="endpoint">
-        <p><strong>Endpoint:</strong> <code>POST /api/appraisals/${id}/set-value</code></p>
-        <p><strong>Purpose:</strong> Sets the initial appraisal value and description</p>
-        <p><strong>Payload:</strong></p>
-        <pre><code>{
-  "appraisalValue": number,
-  "description": "string"
-}</code></pre>
-    </div>
+```http
+POST /api/appraisals/process-request
+Headers:
+  x-shared-secret: your-secret-here
+  Content-Type: application/json
 
-    <h3>Step 2: Merge Descriptions</h3>
-    <div class="endpoint">
-        <p><strong>Endpoint:</strong> <code>POST /api/appraisals/${id}/merge-descriptions</code></p>
-        <p><strong>Purpose:</strong> Combines multiple descriptions or updates existing description</p>
-        <p><strong>Payload:</strong></p>
-        <pre><code>{
-  "description": "string"
-}</code></pre>
-    </div>
-
-    <h3>Step 3: Update Post Title</h3>
-    <div class="endpoint">
-        <p><strong>Endpoint:</strong> <code>POST /api/appraisals/${id}/update-title</code></p>
-        <p><strong>Purpose:</strong> Updates the title of the appraisal post</p>
-        <p><strong>Payload:</strong></p>
-        <pre><code>{
-  "title": "Appraisal #${id}"
-}</code></pre>
-    </div>
-
-    <h3>Step 4: Insert Template</h3>
-    <div class="endpoint">
-        <p><strong>Endpoint:</strong> <code>POST /api/appraisals/${id}/insert-template</code></p>
-        <p><strong>Purpose:</strong> Inserts the standard appraisal template into the document</p>
-        <p><strong>Payload:</strong> None</p>
-    </div>
-
-    <h3>Step 5: Build PDF</h3>
-    <div class="endpoint">
-        <p><strong>Endpoint:</strong> <code>POST /api/appraisals/${id}/build-pdf</code></p>
-        <p><strong>Purpose:</strong> Generates the PDF document for the appraisal</p>
-        <p><strong>Payload:</strong> None</p>
-    </div>
-
-    <h3>Step 6: Send Email</h3>
-    <div class="endpoint">
-        <p><strong>Endpoint:</strong> <code>POST /api/appraisals/${id}/send-email</code></p>
-        <p><strong>Purpose:</strong> Sends notification email to the customer with the appraisal details</p>
-        <p><strong>Payload:</strong> None</p>
-    </div>
-
-    <h3>Step 7: Complete Appraisal</h3>
-    <div class="endpoint">
-        <p><strong>Endpoint:</strong> <code>POST /api/appraisals/${id}/complete</code></p>
-        <p><strong>Purpose:</strong> Marks the appraisal as complete and finalizes all data</p>
-        <p><strong>Payload:</strong></p>
-        <pre><code>{
-  "appraisalValue": number,
-  "description": "string"
-}</code></pre>
-    </div>
-
-    <h3>Workflow Requirements</h3>
-    <ul>
-        <li>All endpoints require JWT authentication</li>
-        <li>Steps must be executed sequentially</li>
-        <li>Each step must complete successfully before proceeding to the next</li>
-        <li>Failed requests are retried up to 3 times with exponential backoff</li>
-        <li>Failed operations are moved to DLQ for manual review</li>
-        <li>All operations maintain transaction consistency</li>
-        <li>Final completion only succeeds if all previous steps completed successfully</li>
-    </ul>
-
-    <h3>Response Format</h3>
-    <pre><code>{
-  "success": boolean,
-  "message": "string",
-  "data": {} // Optional response data
-}</code></pre>
-
-    <h2>Pending Appraisals</h2>
-    
-    <h3>List All Pending Appraisals</h3>
-    <pre><code>GET /api/appraisals</code></pre>
-
-    <h4>Response Format</h4>
-    <pre><code>[
-  {
-    "id": "unique_id",
-    "date": "ISO date string",
-    "appraisalType": "string",
-    "identifier": "session_id",
-    "status": "pending",
-    "iaDescription": "AI-generated description",
-    "wordpressUrl": "URL to WordPress post"
-  }
-]</code></pre>
-
-    <h3>Get Appraisal Details</h3>
-    <pre><code>GET /api/appraisals/:id/list</code></pre>
-
-    <h4>Parameters</h4>
-    <ul>
-        <li><code>id</code> - Appraisal ID (URL parameter)</li>
-    </ul>
-
-    <h4>Response Format</h4>
-    <pre><code>{
-  "customerDescription": "string",
-  "iaDescription": "string",
+Body:
+{
+  "session_id": "string",
+  "post_edit_url": "string",
   "images": {
-    "main": "string (URL)",
-    "age": "string (URL)",
-    "signature": "string (URL)"
-  }
-}</code></pre>
+    "main": "url",
+    "signature": "url",
+    "age": "url"
+  },
+  "customer_email": "string",
+  "customer_name": "string"
+}
 
-    <h3>Complete Appraisal</h3>
-    <pre><code>POST /api/tasks</code></pre>
+Response:
+{
+  "success": true,
+  "message": "Appraisal request processed successfully",
+  "title": "Generated description"
+}
+```
 
-    <h4>Request Body</h4>
-    <pre><code>{
-  "appraisalId": "string",
+### Set Appraisal Value
+
+```http
+POST /api/appraisals/:id/set-value
+Headers:
+  Authorization: Bearer <token>
+  Content-Type: application/json
+
+Body:
+{
   "appraisalValue": number,
   "description": "string"
-}</code></pre>
+}
 
-    <h4>Response Format</h4>
-    <pre><code>{
-  "success": boolean,
-  "message": "string"
-}</code></pre>
+Response:
+{
+  "success": true,
+  "message": "Appraisal value set successfully"
+}
+```
 
-    <h3>Authentication</h3>
-    <ul>
-        <li>All endpoints require authentication via:
-            <ul>
-                <li>HTTP-only cookie (<code>jwtToken</code>)</li>
-                <li>Authorization header (<code>Bearer &lt;token&gt;</code>)</li>
-            </ul>
-        </li>
-        <li>Returns 401 if unauthorized</li>
-    </ul>
+### Complete Appraisal Process
 
-    <h3>Response Codes</h3>
-    <ul>
-        <li><code>200 OK</code> - Request successful</li>
-        <li><code>400 Bad Request</code> - Invalid input</li>
-        <li><code>401 Unauthorized</code> - Invalid or missing authentication</li>
-        <li><code>403 Forbidden</code> - Valid authentication but insufficient permissions</li>
-        <li><code>404 Not Found</code> - Resource not found</li>
-        <li><code>500 Internal Server Error</code> - Server-side error</li>
-    </ul>
+```http
+POST /api/appraisals/:id/complete-process
+Headers:
+  Authorization: Bearer <token>
+  Content-Type: application/json
 
-    <h2>Contributing</h2>
-    <p>Contributions are welcome! Please follow these steps:</p>
-    <ol>
-        <li><strong>Fork the Repository</strong></li>
-        <li><strong>Create a New Branch</strong>
-            <pre><code>git checkout -b feature/YourFeatureName</code></pre>
-        </li>
-        <li><strong>Commit Your Changes</strong>
-            <pre><code>git commit -m "Add your message here"</code></pre>
-        </li>
-        <li><strong>Push to the Branch</strong>
-            <pre><code>git push origin feature/YourFeatureName</code></pre>
-        </li>
-        <li><strong>Create a Pull Request</strong></li>
-    </ol>
+Body:
+{
+  "appraisalValue": number,
+  "description": "string"
+}
 
-    <h2>License</h2>
-    <p>This project is licensed under the MIT License.</p>
+Response:
+{
+  "success": true,
+  "message": "Appraisal process started successfully"
+}
+```
 
-</body>
-</html>
+## Environment Variables
+
+```env
+# Authentication
+JWT_SECRET=
+SHARED_SECRET=
+
+# WordPress
+WORDPRESS_API_URL=
+WORDPRESS_USERNAME=
+WORDPRESS_APP_PASSWORD=
+
+# SendGrid
+SENDGRID_API_KEY=
+SENDGRID_EMAIL=
+SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED=
+SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE=
+
+# Google Sheets
+PENDING_APPRAISALS_SPREADSHEET_ID=
+GOOGLE_SHEET_NAME=
+LOG_SPREADSHEET_ID=
+EDIT_SHEET_NAME=
+
+# OpenAI
+OPENAI_API_KEY=
+
+# Google Cloud
+GOOGLE_CLOUD_PROJECT_ID=
+```
+
+## Security
+
+- All endpoints except authentication require valid JWT token
+- Process request endpoint requires shared secret
+- Passwords are hashed using bcrypt
+- CORS configured for specific origins
+- Rate limiting implemented
+- Input validation on all endpoints
+
+## Error Responses
+
+All error responses follow this format:
+
+```json
+{
+  "success": false,
+  "message": "Error description"
+}
+```
+
+Common HTTP status codes:
+- `400` Bad Request - Invalid input
+- `401` Unauthorized - Missing or invalid token
+- `403` Forbidden - Valid token but insufficient permissions
+- `404` Not Found - Resource not found
+- `500` Internal Server Error - Server-side error
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run in development mode
+npm run dev
+
+# Run in production mode
+npm start
+
+# Run tests
+npm test
+```
+
+## License
+
+This project is licensed under the MIT License.
