@@ -23,8 +23,7 @@ const API_ROUTES = {
     UPDATE_ACF_FIELD: 'appraisals/:id/update-acf-field',
     GET_SESSION_ID: 'appraisals/get-session-id',
     SAVE_LINKS: 'appraisals/:id/save-links',
-    UPDATE_LINKS: 'appraisals/:id/update-links',
-    PROCESS_REQUEST: 'appraisals/process-request'
+    UPDATE_LINKS: 'appraisals/:id/update-links'
   },
   UPDATE_PENDING: 'update-pending-appraisal'
 };
