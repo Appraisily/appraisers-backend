@@ -27,24 +27,57 @@ class OpenAIService {
     }
   }
 
-  async mergeDescriptions(appraiserDescription, iaDescription) {
+  async generateDescription(mainImageUrl, signatureImageUrl, ageImageUrl) {
     if (!this.isAvailable || !this.openai) {
       await this.initialize();
     }
 
+    const condensedInstructions = `
+Please condense the following detailed artwork description into a synthetic, concise summary of around 50 words, retaining as much key information as possible. Follow the example format below:
+
+Example Format: "[Style] [Medium] ([Date]), [Size]. [Color Palette]. [Composition details]. [Brushwork/Texture]. [Mood]. [Condition/details]."
+
+Tips for Effective Condensation:
+- Style: Impressionist, Realist, etc.
+- Medium: Oil on canvas, watercolor, etc.
+- Date: Century or specific year if available.
+- Size: Medium, large, specific dimensions if known.
+- Color Palette: Dominant colors used.
+- Composition: Main elements and their arrangement.
+- Brushwork/Texture: Loose, expressive, dynamic, etc.
+- Mood: Serene, tranquil, contemplative, etc.
+- Condition/Details: Missing views, signature, age, etc.
+    `;
+
+    const messages = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: condensedInstructions },
+          { type: "image_url", image_url: { url: mainImageUrl, detail: "high" } }
+        ]
+      }
+    ];
+
+    // Add optional images if provided
+    if (signatureImageUrl) {
+      messages[0].content.push({
+        type: "image_url",
+        image_url: { url: signatureImageUrl, detail: "high" }
+      });
+    }
+
+    if (ageImageUrl) {
+      messages[0].content.push({
+        type: "image_url",
+        image_url: { url: ageImageUrl, detail: "high" }
+      });
+    }
+
     const response = await this.openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: "Merge the appraiser and AI descriptions into a single, cohesive paragraph. Prefer the appraiser's description in case of contradictions. Keep it under 350 characters."
-        },
-        {
-          role: "user",
-          content: `Appraiser Description: ${appraiserDescription}\nAI Description: ${iaDescription}`
-        }
-      ],
-      max_tokens: 350,
+      model: "gpt-4-vision-preview",
+      messages,
+      max_tokens: 300,
       temperature: 0.7
     });
 

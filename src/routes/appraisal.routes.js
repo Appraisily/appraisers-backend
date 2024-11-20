@@ -3,8 +3,9 @@ const router = express.Router();
 const { authenticate } = require('../middleware/authenticate');
 const { validateSetValue } = require('../middleware/validateSetValue');
 const appraisalController = require('../controllers/appraisal/appraisal.controller');
+const { validateSharedSecret } = require('../middleware/validateSharedSecret');
 
-// Ensure all controller methods are properly bound
+// Existing routes
 router.get('/', authenticate, appraisalController.getAppraisals);
 router.get('/completed', authenticate, appraisalController.getCompleted);
 router.get('/:id/list', authenticate, appraisalController.getDetails);
@@ -19,5 +20,8 @@ router.post('/:id/complete', authenticate, validateSetValue, appraisalController
 
 router.post('/process-worker', authenticate, appraisalController.processWorker);
 router.post('/:id/complete-process', authenticate, validateSetValue, appraisalController.completeProcess);
+
+// New route for processing appraisal requests
+router.post('/process-request', validateSharedSecret, appraisalController.processAppraisalRequest);
 
 module.exports = router;

@@ -1,216 +1,118 @@
-const appraisalService = require('./appraisal.service');
-const { pubsubService } = require('../../services');
+// ... existing imports ...
+const { v4: uuidv4 } = require('uuid');
+const { openaiService, sheetsService, emailService } = require('../../services');
 
 class AppraisalController {
-  static async getAppraisals(req, res) {
-    try {
-      const appraisals = await appraisalService.getAppraisals();
-      res.json(appraisals);
-    } catch (error) {
-      console.error('Error getting appraisals:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Error getting appraisals.' 
-      });
-    }
-  }
+  // ... existing methods ...
 
-  static async getCompleted(req, res) {
-    try {
-      const completedAppraisals = await appraisalService.getCompletedAppraisals();
-      res.json(completedAppraisals);
-    } catch (error) {
-      console.error('Error getting completed appraisals:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Error getting completed appraisals.' 
-      });
-    }
-  }
+  static async processAppraisalRequest(req, res) {
+    const executionId = uuidv4();
+    console.log(`[${executionId}] Processing appraisal request`);
 
-  static async getDetails(req, res) {
     try {
-      const appraisal = await appraisalService.getDetails(req.params.id);
-      res.json(appraisal);
-    } catch (error) {
-      console.error('Error getting appraisal details:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Error getting appraisal details.' 
-      });
-    }
-  }
+      const { 
+        session_id, 
+        post_edit_url, 
+        images, 
+        customer_email, 
+        customer_name = 'Customer' 
+      } = req.body;
 
-  static async setValue(req, res) {
-    try {
-      const { id } = req.params;
-      const { appraisalValue, description, isEdit } = req.body;
-      await appraisalService.setValue(id, appraisalValue, description, isEdit);
-      res.json({ 
-        success: true, 
-        message: 'Appraisal value set successfully.' 
-      });
-    } catch (error) {
-      console.error('Error setting appraisal value:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message 
-      });
-    }
-  }
+      // Validate required fields
+      if (!session_id || !post_edit_url || !images || !customer_email) {
+        console.warn(`[${executionId}] Missing required fields`);
+        return res.status(400).json({
+          success: false,
+          message: 'Missing required fields'
+        });
+      }
 
-  static async mergeDescriptions(req, res) {
-    try {
-      const { id } = req.params;
-      const { description } = req.body;
-      const mergedDescription = await appraisalService.mergeDescriptions(id, description);
-      res.json({ 
-        success: true, 
-        description: mergedDescription 
-      });
-    } catch (error) {
-      console.error('Error merging descriptions:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message 
-      });
-    }
-  }
+      // Validate email format
+      if (!this.isValidEmail(customer_email)) {
+        console.warn(`[${executionId}] Invalid email format: ${customer_email}`);
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid email format'
+        });
+      }
 
-  static async updateTitle(req, res) {
-    try {
-      await appraisalService.updateTitle(req.params.id);
-      res.json({ 
-        success: true, 
-        message: 'Title updated successfully.' 
-      });
-    } catch (error) {
-      console.error('Error updating title:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message 
-      });
-    }
-  }
+      // Find row in sheets
+      const rowIndex = await this.findRowBySessionId(session_id);
+      if (!rowIndex) {
+        console.warn(`[${executionId}] Session ID not found: ${session_id}`);
+        return res.status(404).json({
+          success: false,
+          message: 'Session ID not found'
+        });
+      }
 
-  static async insertTemplate(req, res) {
-    try {
-      await appraisalService.insertTemplate(req.params.id);
-      res.json({ 
-        success: true, 
-        message: 'Template inserted successfully.' 
-      });
-    } catch (error) {
-      console.error('Error inserting template:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message 
-      });
-    }
-  }
+      // Update status and URL
+      await sheetsService.updateValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!F${rowIndex}:G${rowIndex}`,
+        [['Identification in progress', post_edit_url]]
+      );
 
-  static async buildPdf(req, res) {
-    try {
-      await appraisalService.buildPdf(req.params.id);
-      res.json({ 
-        success: true, 
-        message: 'PDF built successfully.' 
-      });
-    } catch (error) {
-      console.error('Error building PDF:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message 
-      });
-    }
-  }
+      // Generate description using OpenAI
+      const description = await openaiService.generateDescription(
+        images.main,
+        images.signature,
+        images.age
+      );
 
-  static async sendEmail(req, res) {
-    try {
-      await appraisalService.sendEmail(req.params.id);
-      res.json({ 
-        success: true, 
-        message: 'Email sent successfully.' 
-      });
-    } catch (error) {
-      console.error('Error sending email:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message 
-      });
-    }
-  }
+      // Update description in sheets
+      await sheetsService.updateValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!H${rowIndex}`,
+        [[description]]
+      );
 
-  static async complete(req, res) {
-    try {
-      const { id } = req.params;
-      const { appraisalValue, description } = req.body;
-      await appraisalService.complete(id, appraisalValue, description);
-      res.json({ 
-        success: true, 
-        message: 'Appraisal completed successfully.' 
-      });
-    } catch (error) {
-      console.error('Error completing appraisal:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message 
-      });
-    }
-  }
+      // Send email notification
+      await emailService.sendAppraisalUpdateEmail(
+        customer_email,
+        customer_name,
+        '',
+        description
+      );
 
-  static async processWorker(req, res) {
-    try {
-      const { id, appraisalValue, description } = req.body;
-      await appraisalService.processAppraisal(id, appraisalValue, description);
+      console.log(`[${executionId}] Request processed successfully`);
       res.json({
         success: true,
-        message: 'Worker process completed successfully'
+        message: 'Appraisal request processed successfully',
+        title: description
       });
+
     } catch (error) {
-      console.error('Worker process error:', error);
+      console.error(`[${executionId}] Error processing request:`, error);
       res.status(500).json({
         success: false,
-        message: error.message
+        message: 'Internal server error'
       });
     }
   }
 
-  static async completeProcess(req, res) {
-    try {
-      const { id } = req.params;
-      const { appraisalValue, description } = req.body;
-      await pubsubService.publishMessage('appraisal-tasks', {
-        id,
-        appraisalValue,
-        description
-      });
-      res.json({ 
-        success: true, 
-        message: 'Appraisal process started successfully.' 
-      });
-    } catch (error) {
-      console.error('Error starting appraisal process:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message 
-      });
+  static isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  static async findRowBySessionId(sessionId) {
+    const values = await sheetsService.getValues(
+      config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      `${config.GOOGLE_SHEET_NAME}!C:C`
+    );
+
+    for (let i = 0; i < values.length; i++) {
+      if (values[i][0] === sessionId) {
+        return i + 1;
+      }
     }
+
+    return null;
   }
 }
 
-// Export the static methods directly
 module.exports = {
-  getAppraisals: AppraisalController.getAppraisals,
-  getCompleted: AppraisalController.getCompleted,
-  getDetails: AppraisalController.getDetails,
-  setValue: AppraisalController.setValue,
-  mergeDescriptions: AppraisalController.mergeDescriptions,
-  updateTitle: AppraisalController.updateTitle,
-  insertTemplate: AppraisalController.insertTemplate,
-  buildPdf: AppraisalController.buildPdf,
-  sendEmail: AppraisalController.sendEmail,
-  complete: AppraisalController.complete,
-  processWorker: AppraisalController.processWorker,
-  completeProcess: AppraisalController.completeProcess
+  // ... existing exports ...
+  processAppraisalRequest: AppraisalController.processAppraisalRequest
 };
