@@ -1,42 +1,70 @@
-const UpdatePendingService = require('./updatePending.service');
+const appraisalService = require('./appraisal.service');
+const { sheetsService } = require('../../services');
+const { config } = require('../../config');
 
 class UpdatePendingController {
-  async updatePendingAppraisal(req, res) {
-    try {
-      // Verify shared secret
-      const incomingSecret = req.headers['x-shared-secret'];
-      if (incomingSecret !== config.SHARED_SECRET) {
-        return res.status(403).json({
-          success: false,
-          message: 'Invalid shared secret'
-        });
-      }
+    static async updatePendingAppraisal(req, res) {
+        try {
+            const {
+                session_id,
+                customer_email,
+                customer_name,
+                description,
+                payment_id,
+                wordpress_url,
+                images
+            } = req.body;
 
-      // Validate required fields
-      const { description, images, post_id, post_edit_url, customer_email, session_id } = req.body;
-      if (!session_id || !customer_email || !post_id || !images?.main || !post_edit_url) {
-        return res.status(400).json({
-          success: false,
-          message: 'Missing required fields'
-        });
-      }
+            // Validate required fields
+            if (!session_id || !customer_email || !wordpress_url || !images) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Missing required fields'
+                });
+            }
 
-      // Send immediate response
-      res.json({ success: true });
+            // Get next available row in spreadsheet
+            const values = await sheetsService.getValues(
+                config.PENDING_APPRAISALS_SPREADSHEET_ID,
+                `${config.GOOGLE_SHEET_NAME}!A:A`
+            );
+            const nextRow = values.length + 1;
 
-      // Process in background
-      UpdatePendingService.processUpdate(req.body).catch(error => {
-        console.error('Background processing error:', error);
-      });
-    } catch (error) {
-      if (!res.headersSent) {
-        res.status(500).json({
-          success: false,
-          message: error.message
-        });
-      }
+            // Prepare row data
+            const currentDate = new Date().toISOString().split('T')[0];
+            const rowData = [
+                [
+                    currentDate,           // Date
+                    'RegularArt',         // Type
+                    payment_id || '',      // Identifier
+                    customer_email,        // Customer Email
+                    customer_name || '',   // Customer Name
+                    'Pending',            // Status
+                    wordpress_url,         // WordPress URL
+                    '',                    // IA Description
+                    description || ''      // Customer Description
+                ]
+            ];
+
+            // Update spreadsheet
+            await sheetsService.updateValues(
+                config.PENDING_APPRAISALS_SPREADSHEET_ID,
+                `${config.GOOGLE_SHEET_NAME}!A${nextRow}:I${nextRow}`,
+                rowData
+            );
+
+            res.json({
+                success: true,
+                message: 'Pending appraisal updated successfully'
+            });
+        } catch (error) {
+            console.error('Error updating pending appraisal:', error);
+            res.status(500).json({
+                success: false,
+                message: error.message
+            });
+        }
     }
-  }
 }
 
-module.exports = new UpdatePendingController();
+module.exports = UpdatePendingController;
