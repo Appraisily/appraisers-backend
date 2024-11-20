@@ -21,7 +21,7 @@ router.post('/:id/insert-template', authenticate, appraisalController.insertTemp
 router.post('/:id/build-pdf', authenticate, appraisalController.buildPdf);
 router.post('/:id/send-email', authenticate, appraisalController.sendEmail);
 router.post('/:id/complete', authenticate, validateSetValue, appraisalController.complete);
-router.post('/:id/complete-process', authenticate, validateSetValue, appraisalController.completeProcess);
 router.post('/process-worker', authenticate, appraisalController.processWorker);
+router.post('/:id/complete-process', authenticate, validateSetValue, appraisalController.completeProcess);
 
 module.exports = router;
