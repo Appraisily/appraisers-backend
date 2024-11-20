@@ -12,33 +12,32 @@ class WordPressService {
     try {
       console.log('🔄 Initializing WordPress service...');
 
-      // Check credentials
       if (!config.WORDPRESS_API_URL) {
         throw new Error('WordPress API URL not configured');
       }
-      console.log('✓ WordPress API URL found:', config.WORDPRESS_API_URL);
 
       if (!config.WORDPRESS_USERNAME) {
         throw new Error('WordPress username not configured');
       }
-      console.log('✓ WordPress username found');
 
       if (!config.WORDPRESS_APP_PASSWORD) {
         throw new Error('WordPress app password not configured');
       }
-      console.log('✓ WordPress app password found');
 
-      // Set up service
-      this.baseUrl = config.WORDPRESS_API_URL;
-      this.auth = Buffer.from(
-        `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD}`
-      ).toString('base64');
+      // Fix WordPress URL format
+      this.baseUrl = config.WORDPRESS_API_URL.replace('www.resources', 'resources');
+      
+      // Create auth header with proper encoding
+      const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
+      this.auth = Buffer.from(credentialsString).toString('base64');
 
       console.log('🔄 Testing WordPress connection...');
       
-      // Test connection
+      // Test connection with proper error handling
       const testResponse = await fetch(`${this.baseUrl}/posts?per_page=1`, {
         headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
           'Authorization': `Basic ${this.auth}`
         }
       });
@@ -47,6 +46,8 @@ class WordPressService {
         const errorText = await testResponse.text();
         throw new Error(`WordPress connection test failed (${testResponse.status}): ${errorText}`);
       }
+
+      await testResponse.json(); // Verify JSON parsing works
 
       this.isAvailable = true;
       console.log('✅ WordPress service initialized successfully');
@@ -63,7 +64,6 @@ class WordPressService {
       console.log(`🔄 Fetching WordPress post ${postId}...`);
 
       if (!this.isAvailable) {
-        console.log('WordPress service not initialized, attempting initialization...');
         await this.initialize();
       }
 
@@ -72,6 +72,7 @@ class WordPressService {
 
       const response = await fetch(endpoint, {
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
           'Authorization': `Basic ${this.auth}`
         }
@@ -98,7 +99,6 @@ class WordPressService {
       console.log('Update data:', JSON.stringify(data));
 
       if (!this.isAvailable) {
-        console.log('WordPress service not initialized, attempting initialization...');
         await this.initialize();
       }
 
@@ -108,6 +108,7 @@ class WordPressService {
       const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json',
           'Authorization': `Basic ${this.auth}`
         },
@@ -136,6 +137,7 @@ class WordPressService {
       const response = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf', {
         method: 'POST',
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
