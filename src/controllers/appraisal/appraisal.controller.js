@@ -520,6 +520,22 @@ class AppraisalController {
       });
     }
   }
+
+  static async updateAcfField(req, res) {
+    // Implementation
+  }
+
+  static async getSessionId(req, res) {
+    // Implementation
+  }
+
+  static async saveLinks(req, res) {
+    // Implementation
+  }
+
+  static async updateLinks(req, res) {
+    // Implementation
+  }
 }
 
 module.exports = {
@@ -535,5 +551,9 @@ module.exports = {
   sendEmail: AppraisalController.sendEmail,
   complete: AppraisalController.complete,
   processWorker: AppraisalController.processWorker,
-  completeProcess: AppraisalController.completeProcess
+  completeProcess: AppraisalController.completeProcess,
+  updateAcfField: AppraisalController.updateAcfField,
+  getSessionId: AppraisalController.getSessionId,
+  saveLinks: AppraisalController.saveLinks,
+  updateLinks: AppraisalController.updateLinks,
 };

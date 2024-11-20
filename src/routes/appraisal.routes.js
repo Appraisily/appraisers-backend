@@ -23,5 +23,9 @@ router.post('/:id/send-email', authenticate, appraisalController.sendEmail);
 router.post('/:id/complete', authenticate, validateSetValue, appraisalController.complete);
 router.post('/process-worker', authenticate, appraisalController.processWorker);
 router.post('/:id/complete-process', authenticate, validateSetValue, appraisalController.completeProcess);
+router.post('/:id/update-acf-field', authenticate, appraisalController.updateAcfField);
+router.get('/get-session-id', authenticate, appraisalController.getSessionId);
+router.post('/:id/save-links', authenticate, appraisalController.saveLinks);
+router.post('/:id/update-links', authenticate, appraisalController.updateLinks);
 
 module.exports = router;
