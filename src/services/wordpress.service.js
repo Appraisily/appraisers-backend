@@ -128,6 +128,44 @@ class WordPressService {
       throw error;
     }
   }
+
+  async generatePdf(postId, session_ID) {
+    try {
+      console.log(`🔄 Generating PDF for post ${postId}...`);
+
+      const response = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          postId,
+          session_ID
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('PDF generation error:', errorText);
+        throw new Error(`Failed to generate PDF: ${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.message || 'PDF generation failed');
+      }
+
+      console.log('✅ PDF generated successfully');
+      return {
+        pdfLink: data.pdfLink,
+        docLink: data.docLink
+      };
+    } catch (error) {
+      console.error('❌ Error generating PDF:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new WordPressService();
