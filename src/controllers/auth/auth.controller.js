@@ -1,28 +1,9 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { OAuth2Client } = require('google-auth-library');
 const { config } = require('../../config');
 const { authorizedUsers } = require('../../constants/authorizedUsers');
 
 class AuthController {
-  static generateToken(email, role = 'user') {
-    return jwt.sign(
-      { email, role },
-      config.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-  }
-
-  static setAuthCookie(res, token) {
-    res.cookie('jwtToken', token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    });
-  }
-
   static async login(req, res) {
     try {
       const { email, password } = req.body;
@@ -43,10 +24,7 @@ class AuthController {
       }
 
       // In production, use proper password hashing
-      const hashedPassword = await bcrypt.hash('appraisily2024', 10);
-      const isValidPassword = await bcrypt.compare(password, hashedPassword);
-
-      if (!isValidPassword) {
+      if (password !== 'appraisily2024') {
         console.log('❌ Invalid password attempt for:', email);
         return res.status(401).json({
           success: false,
@@ -54,16 +32,27 @@ class AuthController {
         });
       }
 
-      const token = AuthController.generateToken(email);
+      const token = jwt.sign(
+        { email, role: 'user' },
+        config.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
 
-      // Set both cookie and return token for serverless clients
-      AuthController.setAuthCookie(res, token);
+      // Set cookie with appropriate options
+      res.cookie('jwtToken', token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        path: '/',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      });
 
       console.log('✓ Login successful:', email);
+
       res.json({
         success: true,
         name: 'Appraisily Admin',
-        token: token, // Include token in response for serverless clients
+        token, // Also send token in response for client-side storage
         message: 'Login successful'
       });
     } catch (error) {
@@ -75,54 +64,9 @@ class AuthController {
     }
   }
 
-  static async googleLogin(req, res) {
-    try {
-      const { idToken } = req.body;
-      if (!idToken) {
-        return res.status(400).json({
-          success: false,
-          message: 'ID Token is required'
-        });
-      }
-
-      const client = new OAuth2Client(config.GOOGLE_CLIENT_ID);
-      const ticket = await client.verifyIdToken({
-        idToken,
-        audience: config.GOOGLE_CLIENT_ID
-      });
-
-      const payload = ticket.getPayload();
-      const email = payload.email;
-
-      if (!authorizedUsers.includes(email)) {
-        console.log('❌ Unauthorized Google login:', email);
-        return res.status(403).json({
-          success: false,
-          message: 'User not authorized'
-        });
-      }
-
-      const token = AuthController.generateToken(email);
-      AuthController.setAuthCookie(res, token);
-
-      console.log('✓ Google login successful:', email);
-      res.json({
-        success: true,
-        name: payload.name,
-        token: token, // Include token in response for serverless clients
-        message: 'Login successful'
-      });
-    } catch (error) {
-      console.error('❌ Google authentication error:', error);
-      res.status(401).json({
-        success: false,
-        message: 'Invalid Google token'
-      });
-    }
-  }
-
   static async refresh(req, res) {
     try {
+      // Try to get token from cookie or Authorization header
       const token = req.cookies.jwtToken || req.headers.authorization?.split(' ')[1];
       
       if (!token) {
@@ -133,14 +77,24 @@ class AuthController {
       }
 
       const decoded = jwt.verify(token, config.JWT_SECRET);
-      const newToken = AuthController.generateToken(decoded.email, decoded.role);
-      
-      AuthController.setAuthCookie(res, newToken);
+      const newToken = jwt.sign(
+        { email: decoded.email, role: decoded.role || 'user' },
+        config.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      res.cookie('jwtToken', newToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        path: '/',
+        maxAge: 24 * 60 * 60 * 1000
+      });
 
       console.log('✓ Token refreshed for:', decoded.email);
       res.json({
         success: true,
-        token: newToken, // Include new token in response for serverless clients
+        token: newToken,
         message: 'Token refreshed successfully'
       });
     } catch (error) {
@@ -168,6 +122,7 @@ class AuthController {
       path: '/'
     });
     console.log('✓ Logout successful');
+    
     res.json({
       success: true,
       message: 'Logout successful'
@@ -176,8 +131,7 @@ class AuthController {
 }
 
 module.exports = {
-  login: AuthController.login.bind(AuthController),
-  googleLogin: AuthController.googleLogin.bind(AuthController),
-  refresh: AuthController.refresh.bind(AuthController),
-  logout: AuthController.logout.bind(AuthController)
+  login: AuthController.login,
+  refresh: AuthController.refresh,
+  logout: AuthController.logout
 };

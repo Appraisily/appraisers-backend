@@ -17,9 +17,9 @@ function authenticate(req, res, next) {
 
   if (!token) {
     console.log('❌ No token found');
-    return res.status(401).json({
-      success: false,
-      message: 'Unauthorized. Token not provided.'
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Unauthorized. Token not provided.' 
     });
   }
 
@@ -36,9 +36,9 @@ function authenticate(req, res, next) {
     // Check if user is authorized
     if (!authorizedUsers.includes(decoded.email)) {
       console.log('❌ Unauthorized email:', decoded.email);
-      return res.status(403).json({
-        success: false,
-        message: 'Forbidden. You do not have access to this resource.'
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Forbidden. You do not have access to this resource.' 
       });
     }
 
