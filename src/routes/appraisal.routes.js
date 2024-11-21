@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/authenticate');
-const { validateSharedSecret } = require('../middleware/validateSharedSecret');
-const { validateSetValue } = require('../middleware/validateSetValue');
 const appraisalController = require('../controllers/appraisal/appraisal.controller');
 
 // List and View routes
@@ -12,18 +10,9 @@ router.get('/:id/list', authenticate, appraisalController.getDetails);
 router.get('/:id/list-edit', authenticate, appraisalController.getDetailsForEdit);
 
 // Process and Update routes
-router.post('/:id/set-value', authenticate, validateSetValue, appraisalController.setValue);
-router.post('/:id/merge-descriptions', authenticate, appraisalController.mergeDescriptions);
-router.post('/:id/update-title', authenticate, appraisalController.updateTitle);
-router.post('/:id/insert-template', authenticate, appraisalController.insertTemplate);
-router.post('/:id/build-pdf', authenticate, appraisalController.buildPdf);
+router.post('/:id/set-value', authenticate, appraisalController.setValue);
+router.post('/:id/generate-pdf', authenticate, appraisalController.generatePdf); // Updated endpoint name
+router.post('/:id/complete-process', authenticate, appraisalController.completeProcess);
 router.post('/:id/send-email', authenticate, appraisalController.sendEmail);
-router.post('/:id/complete', authenticate, validateSetValue, appraisalController.complete);
-router.post('/process-worker', authenticate, appraisalController.processWorker);
-router.post('/:id/complete-process', authenticate, validateSetValue, appraisalController.completeProcess);
-router.post('/:id/update-acf-field', authenticate, appraisalController.updateAcfField);
-router.get('/get-session-id', authenticate, appraisalController.getSessionId);
-router.post('/:id/save-links', authenticate, appraisalController.saveLinks);
-router.post('/:id/update-links', authenticate, appraisalController.updateLinks);
 
 module.exports = router;
