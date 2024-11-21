@@ -12,18 +12,9 @@ const API_ROUTES = {
     DETAILS: 'appraisals/:id/list',
     DETAILS_EDIT: 'appraisals/:id/list-edit',
     SET_VALUE: 'appraisals/:id/set-value',
-    MERGE_DESCRIPTIONS: 'appraisals/:id/merge-descriptions',
-    UPDATE_TITLE: 'appraisals/:id/update-title',
-    INSERT_TEMPLATE: 'appraisals/:id/insert-template',
-    BUILD_PDF: 'appraisals/:id/build-pdf',
-    SEND_EMAIL: 'appraisals/:id/send-email',
-    COMPLETE: 'appraisals/:id/complete',
+    GENERATE_PDF: 'appraisals/:id/generate-pdf',
     COMPLETE_PROCESS: 'appraisals/:id/complete-process',
-    PROCESS_WORKER: 'appraisals/process-worker',
-    UPDATE_ACF_FIELD: 'appraisals/:id/update-acf-field',
-    GET_SESSION_ID: 'appraisals/get-session-id',
-    SAVE_LINKS: 'appraisals/:id/save-links',
-    UPDATE_LINKS: 'appraisals/:id/update-links'
+    SEND_EMAIL: 'appraisals/:id/send-email'
   },
   UPDATE_PENDING: 'update-pending-appraisal'
 };
