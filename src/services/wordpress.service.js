@@ -134,7 +134,8 @@ class WordPressService {
     try {
       console.log(`🔄 Generating PDF for post ${postId}...`);
 
-      const response = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf', {
+      // Use the correct backend URL for PDF generation
+      const response = await fetch('https://appraisers-backend-856401495068.us-central1.run.app/api/complete-appraisal-report', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
