@@ -21,7 +21,13 @@ const { initializeConfig } = require('./shared/config');
     app.use(express.json());
     app.use(cookieParser());
     app.use(cors({
-      origin: 'https://appraisers-frontend-856401495068.us-central1.run.app',
+ origin: [
+    'https://lucent-nasturtium-01c2b7.netlify.app',
+    'https://stackblitz.com',
+    'https://stackblitz.io',
+   'https://appraisers-frontend-856401495068.us-central1.run.app',
+    'http://localhost:3000'
+  ],
       credentials: true
     }));
 
