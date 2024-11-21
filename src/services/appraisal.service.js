@@ -2,19 +2,14 @@ const {
   sheetsService, 
   wordpressService,
   pubsubService,
-  emailService,
-  openaiService 
+  emailService 
 } = require('../../services');
 const { config } = require('../../config');
 const fetch = require('node-fetch');
 
 class AppraisalService {
-  // ... other methods ...
-
   async buildPdf(id) {
     try {
-      console.log('🔄 Starting PDF build process for appraisal:', id);
-
       // Get appraisal details
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
@@ -29,8 +24,21 @@ class AppraisalService {
       const wordpressUrl = row[6];
       const postId = new URL(wordpressUrl).searchParams.get('post');
 
-      // First complete the appraisal report
-      console.log('🔄 Completing appraisal report for post:', postId);
+      if (!postId) {
+        throw new Error('Invalid WordPress URL - missing post ID');
+      }
+
+      // Step 1: Complete the appraisal report
+      /*
+       * POST /complete-appraisal-report
+       * Content-Type: application/json
+       * 
+       * Required parameters:
+       * - postId: WordPress post ID (string)
+       * 
+       * This endpoint generates the complete appraisal report content
+       * and must be called before generating the PDF
+       */
       const completeResponse = await fetch(
         'https://appraisals-backend-856401495068.us-central1.run.app/complete-appraisal-report',
         {
@@ -50,17 +58,26 @@ class AppraisalService {
         throw new Error(completeData.message || 'Failed to complete appraisal report');
       }
 
-      console.log('✓ Appraisal report completed successfully');
-
-      // Get session_ID from WordPress
+      // Step 2: Get session_ID from WordPress
       const wpData = await wordpressService.getPost(postId);
       const session_ID = wpData.acf?.session_id;
+      
       if (!session_ID) {
-        throw new Error('session_ID not found');
+        throw new Error('session_ID not found in WordPress post');
       }
 
-      // Generate PDF
-      console.log('🔄 Generating PDF documents');
+      // Step 3: Generate PDF
+      /*
+       * POST /generate-pdf
+       * Content-Type: application/json
+       * 
+       * Required parameters:
+       * - postId: WordPress post ID (string)
+       * - session_ID: Session ID from WordPress ACF fields (string)
+       * 
+       * This endpoint generates both PDF and Doc versions of the appraisal
+       * Returns: { pdfLink: string, docLink: string }
+       */
       const pdfResponse = await fetch(
         'https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf',
         {
@@ -80,29 +97,24 @@ class AppraisalService {
         throw new Error(pdfData.message || 'Failed to generate PDF');
       }
 
-      console.log('✓ PDF generated successfully');
-      console.log('PDF Link:', pdfData.pdfLink);
-      console.log('Doc Link:', pdfData.docLink);
-
-      // Update sheets with links
+      // Step 4: Update sheets with document links
       await sheetsService.updateValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
         `${config.GOOGLE_SHEET_NAME}!M${id}:N${id}`,
         [[pdfData.pdfLink, pdfData.docLink]]
       );
 
-      console.log('✓ Document links updated in sheets');
-      return { 
-        pdfLink: pdfData.pdfLink, 
-        docLink: pdfData.docLink 
+      return {
+        pdfLink: pdfData.pdfLink,
+        docLink: pdfData.docLink
       };
     } catch (error) {
-      console.error('❌ Error in buildPdf:', error);
+      console.error('Error in buildPdf:', error);
       throw error;
     }
   }
 
-  // ... other methods ...
+  // ... rest of the service methods
 }
 
 module.exports = new AppraisalService();
