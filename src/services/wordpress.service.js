@@ -24,16 +24,12 @@ class WordPressService {
         throw new Error('WordPress app password not configured');
       }
 
-      // Fix WordPress URL format
       this.baseUrl = config.WORDPRESS_API_URL.replace('www.resources', 'resources');
-      
-      // Create auth header with proper encoding
       const credentialsString = `${encodeURIComponent(config.WORDPRESS_USERNAME)}:${config.WORDPRESS_APP_PASSWORD.trim()}`;
       this.auth = Buffer.from(credentialsString).toString('base64');
 
       console.log('🔄 Testing WordPress connection...');
       
-      // Test connection with proper error handling
       const testResponse = await fetch(`${this.baseUrl}/posts?per_page=1`, {
         headers: {
           'Accept': 'application/json',
@@ -47,7 +43,7 @@ class WordPressService {
         throw new Error(`WordPress connection test failed (${testResponse.status}): ${errorText}`);
       }
 
-      await testResponse.json(); // Verify JSON parsing works
+      await testResponse.json();
 
       this.isAvailable = true;
       console.log('✅ WordPress service initialized successfully');
@@ -134,17 +130,28 @@ class WordPressService {
     try {
       console.log(`🔄 Generating PDF for post ${postId}...`);
 
-      // Use the correct backend URL for PDF generation
-      const response = await fetch('https://appraisers-backend-856401495068.us-central1.run.app/api/complete-appraisal-report', {
+      // First get post details from WordPress
+      const post = await this.getPost(postId);
+      const acfFields = post.acf || {};
+
+      // Prepare the request payload
+      const payload = {
+        title: post.title.rendered,
+        images: {
+          front: acfFields.main || '',
+          back: acfFields.age || '',
+          signature: acfFields.signature || ''
+        }
+      };
+
+      // Make request to appraisals backend
+      const response = await fetch('https://appraisals-backend-856401495068.us-central1.run.app/build-pdf', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          postId,
-          session_ID
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -161,8 +168,8 @@ class WordPressService {
 
       console.log('✅ PDF generated successfully');
       return {
-        pdfLink: data.pdfLink,
-        docLink: data.docLink
+        pdfLink: data.pdfUrl,
+        docLink: data.docUrl
       };
     } catch (error) {
       console.error('❌ Error generating PDF:', error);

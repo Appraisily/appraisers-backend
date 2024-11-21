@@ -49,6 +49,49 @@ A robust backend service for managing art appraisals, integrating with OpenAI, G
 | `POST` | `/api/appraisals/process-worker` | Process worker tasks | Yes |
 | `POST` | `/api/update-pending-appraisal` | Update pending appraisal status | Yes |
 
+## Worker Process Flow
+
+The worker follows this sequential process for completing appraisals:
+
+1. **Set Value** - `/api/appraisals/:id/set-value`
+   - Sets initial appraisal value and description
+   - Payload: `{ appraisalValue, description }`
+
+2. **Merge Descriptions** - `/api/appraisals/:id/merge-descriptions`
+   - Merges any additional descriptions
+   - Payload: `{ description }`
+
+3. **Update Title** - `/api/appraisals/:id/update-title`
+   - Updates the post title
+   - Payload: `{ title }` (formatted as "Appraisal #:id")
+
+4. **Insert Template** - `/api/appraisals/:id/insert-template`
+   - Inserts the appraisal template
+   - No payload required
+
+5. **Build PDF** - `/api/appraisals/:id/build-pdf`
+   - Generates the PDF document using Appraisals Backend
+   - Makes request to: `https://appraisals-backend-856401495068.us-central1.run.app/build-pdf`
+   - Payload:
+     ```json
+     {
+       "title": "string",
+       "images": {
+         "front": "string (URL)",
+         "back": "string (URL)",
+         "signature": "string (URL)"
+       }
+     }
+     ```
+
+6. **Send Email** - `/api/appraisals/:id/send-email`
+   - Sends notification email
+   - No payload required
+
+7. **Complete** - `/api/appraisals/:id/complete`
+   - Marks the appraisal as complete
+   - Payload: `{ appraisalValue, description }`
+
 ## Request/Response Examples
 
 ### Process New Appraisal Request
