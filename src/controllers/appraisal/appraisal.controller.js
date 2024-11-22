@@ -1,4 +1,4 @@
-const { sheetsService, pubsubService } = require('../../services');
+const { sheetsService, pubsubService, wordpressService } = require('../../services');
 const { config } = require('../../config');
 const { getImageUrl } = require('../../utils/getImageUrl');
 
