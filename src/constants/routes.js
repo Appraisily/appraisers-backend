@@ -12,6 +12,7 @@ const API_ROUTES = {
     DETAILS: 'appraisals/:id/list',
     DETAILS_EDIT: 'appraisals/:id/list-edit',
     SET_VALUE: 'appraisals/:id/set-value',
+    MERGE_DESCRIPTIONS: 'appraisals/:id/merge-descriptions',
     GENERATE_PDF: 'appraisals/:id/generate-pdf',
     COMPLETE_PROCESS: 'appraisals/:id/complete-process',
     SEND_EMAIL: 'appraisals/:id/send-email'

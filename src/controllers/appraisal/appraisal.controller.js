@@ -3,6 +3,7 @@ const {
   wordpressService,
   pubsubService,
   emailService,
+  openaiService,
   pdfService 
 } = require('../../services');
 const { config } = require('../../config');
@@ -204,6 +205,59 @@ class AppraisalController {
     }
   }
 
+  static async mergeDescriptions(req, res) {
+    try {
+      const { id } = req.params;
+      const { description } = req.body;
+
+      if (!description) {
+        return res.status(400).json({
+          success: false,
+          message: 'Description is required'
+        });
+      }
+
+      // Get IA description from sheets
+      const values = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!H${id}`
+      );
+
+      const iaDescription = values[0][0];
+      if (!iaDescription) {
+        return res.status(404).json({
+          success: false,
+          message: 'IA description not found'
+        });
+      }
+
+      // Use OpenAI to merge descriptions
+      const mergedDescription = await openaiService.mergeDescriptions(
+        description,
+        iaDescription
+      );
+
+      // Save merged description to sheets
+      await sheetsService.updateValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!L${id}`,
+        [[mergedDescription]]
+      );
+
+      res.json({
+        success: true,
+        message: 'Descriptions merged successfully',
+        mergedDescription
+      });
+    } catch (error) {
+      console.error('Error merging descriptions:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
+
   static async generatePdf(req, res) {
     try {
       const { id } = req.params;
@@ -302,6 +356,7 @@ module.exports = {
   getDetails: AppraisalController.getDetails,
   getDetailsForEdit: AppraisalController.getDetailsForEdit,
   setValue: AppraisalController.setValue,
+  mergeDescriptions: AppraisalController.mergeDescriptions,
   generatePdf: AppraisalController.generatePdf,
   completeProcess: AppraisalController.completeProcess,
   sendEmail: AppraisalController.sendEmail

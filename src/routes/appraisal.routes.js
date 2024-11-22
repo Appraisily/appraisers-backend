@@ -11,7 +11,8 @@ router.get('/:id/list-edit', authenticate, appraisalController.getDetailsForEdit
 
 // Process and Update routes
 router.post('/:id/set-value', authenticate, appraisalController.setValue);
-router.post('/:id/generate-pdf', authenticate, appraisalController.generatePdf); // Updated endpoint name
+router.post('/:id/merge-descriptions', authenticate, appraisalController.mergeDescriptions);
+router.post('/:id/generate-pdf', authenticate, appraisalController.generatePdf);
 router.post('/:id/complete-process', authenticate, appraisalController.completeProcess);
 router.post('/:id/send-email', authenticate, appraisalController.sendEmail);
 
