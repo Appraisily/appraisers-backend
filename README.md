@@ -49,6 +49,27 @@ A robust backend service for managing art appraisals, integrating with OpenAI, G
 | `POST` | `/api/appraisals/process-worker` | Process worker tasks | Yes |
 | `POST` | `/api/update-pending-appraisal` | Update pending appraisal status | Yes |
 
+## External Appraisals Backend
+
+The external appraisals backend service (https://appraisals-backend-856401495068.us-central1.run.app) provides additional functionality for document generation and AI processing.
+
+### External Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/update-metadata` | Updates post metadata with OpenAI generated text. Required: postId, custom_post_type_name |
+| `POST` | `/complete-appraisal-report` | Completes the full appraisal report. Required: postId |
+| `POST` | `/generate-pdf` | Generates a PDF report from the appraisal. Required: postId, Optional: session_ID |
+
+The external backend handles specialized tasks including:
+- Text generation with OpenAI
+- Image analysis with Google Vision
+- Document creation with Google Docs
+- PDF generation and storage
+- WordPress metadata updates
+
+All external endpoints require proper WordPress authentication credentials.
+
 ## Worker Process Flow
 
 The worker follows this sequential process for completing appraisals:
@@ -70,7 +91,7 @@ The worker follows this sequential process for completing appraisals:
    - No payload required
 
 5. **Build PDF** - `/api/appraisals/:id/build-pdf`
-   - Generates the PDF document using Appraisals Backend
+   - Generates the PDF document using External Appraisals Backend
    - Makes request to: `https://appraisals-backend-856401495068.us-central1.run.app/build-pdf`
    - Payload:
      ```json
