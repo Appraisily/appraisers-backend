@@ -3,8 +3,7 @@ const {
   wordpressService,
   pubsubService,
   emailService,
-  openaiService,
-  pdfService 
+  openaiService 
 } = require('../../services');
 const { config } = require('../../config');
 const { getImageUrl } = require('../../utils/getImageUrl');
