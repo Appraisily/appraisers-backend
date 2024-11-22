@@ -13,9 +13,12 @@ const API_ROUTES = {
     DETAILS_EDIT: 'appraisals/:id/list-edit',
     SET_VALUE: 'appraisals/:id/set-value',
     MERGE_DESCRIPTIONS: 'appraisals/:id/merge-descriptions',
+    UPDATE_TITLE: 'appraisals/:id/update-title',
+    INSERT_TEMPLATE: 'appraisals/:id/insert-template',
     GENERATE_PDF: 'appraisals/:id/generate-pdf',
-    COMPLETE_PROCESS: 'appraisals/:id/complete-process',
-    SEND_EMAIL: 'appraisals/:id/send-email'
+    SEND_EMAIL: 'appraisals/:id/send-email',
+    COMPLETE: 'appraisals/:id/complete',
+    COMPLETE_PROCESS: 'appraisals/:id/complete-process'
   },
   UPDATE_PENDING: 'update-pending-appraisal'
 };
