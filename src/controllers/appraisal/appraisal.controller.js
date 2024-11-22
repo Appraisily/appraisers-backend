@@ -1,10 +1,4 @@
-const { 
-  sheetsService, 
-  wordpressService,
-  pubsubService,
-  emailService,
-  openaiService 
-} = require('../../services');
+const { sheetsService, pubsubService } = require('../../services');
 const { config } = require('../../config');
 const { getImageUrl } = require('../../utils/getImageUrl');
 
@@ -168,119 +162,17 @@ class AppraisalController {
     }
   }
 
-  static async setValue(req, res) {
-    try {
-      const { id } = req.params;
-      const { appraisalValue, description, isEdit } = req.body;
-
-      await sheetsService.updateValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${isEdit ? config.EDIT_SHEET_NAME : config.GOOGLE_SHEET_NAME}!J${id}:K${id}`,
-        [[appraisalValue, description]]
-      );
-
-      const values = await sheetsService.getValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${isEdit ? config.EDIT_SHEET_NAME : config.GOOGLE_SHEET_NAME}!G${id}`
-      );
-
-      const wordpressUrl = values[0][0];
-      const postId = new URL(wordpressUrl).searchParams.get('post');
-
-      await wordpressService.updatePost(postId, {
-        acf: { value: appraisalValue }
-      });
-
-      res.json({ 
-        success: true, 
-        message: 'Appraisal value set successfully.' 
-      });
-    } catch (error) {
-      console.error('Error setting appraisal value:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message 
-      });
-    }
-  }
-
-  static async mergeDescriptions(req, res) {
-    try {
-      const { id } = req.params;
-      const { description } = req.body;
-
-      if (!description) {
-        return res.status(400).json({
-          success: false,
-          message: 'Description is required'
-        });
-      }
-
-      // Get IA description from sheets
-      const values = await sheetsService.getValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!H${id}`
-      );
-
-      const iaDescription = values[0][0];
-      if (!iaDescription) {
-        return res.status(404).json({
-          success: false,
-          message: 'IA description not found'
-        });
-      }
-
-      // Use OpenAI to merge descriptions
-      const mergedDescription = await openaiService.mergeDescriptions(
-        description,
-        iaDescription
-      );
-
-      // Save merged description to sheets
-      await sheetsService.updateValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!L${id}`,
-        [[mergedDescription]]
-      );
-
-      res.json({
-        success: true,
-        message: 'Descriptions merged successfully',
-        mergedDescription
-      });
-    } catch (error) {
-      console.error('Error merging descriptions:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
-  static async generatePdf(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await pdfService.generatePdf(id);
-
-      res.json({
-        success: true,
-        message: 'PDF generated successfully',
-        pdfLink: result.pdfLink,
-        docLink: result.docLink
-      });
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  }
-
   static async completeProcess(req, res) {
     try {
       const { id } = req.params;
       const { appraisalValue, description } = req.body;
+
+      if (!appraisalValue || !description) {
+        return res.status(400).json({
+          success: false,
+          message: 'Appraisal value and description are required'
+        });
+      }
 
       await pubsubService.publishMessage('appraisal-tasks', {
         type: 'COMPLETE_APPRAISAL',
@@ -303,50 +195,6 @@ class AppraisalController {
       });
     }
   }
-
-  static async sendEmail(req, res) {
-    try {
-      const { id } = req.params;
-      const values = await sheetsService.getValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!A${id}:N${id}`
-      );
-
-      const row = values[0];
-      if (!row) {
-        throw new Error('Appraisal not found');
-      }
-
-      const customerEmail = row[3];
-      const customerName = row[4];
-      const wordpressUrl = row[6];
-      const appraisalValue = row[9];
-      const description = row[10];
-      const pdfLink = row[12];
-
-      if (!customerEmail || !wordpressUrl) {
-        throw new Error('Required data missing');
-      }
-
-      await emailService.sendAppraisalCompletedEmail(customerEmail, customerName, {
-        value: appraisalValue,
-        description: description,
-        pdfLink: pdfLink,
-        wordpressUrl: wordpressUrl
-      });
-
-      res.json({ 
-        success: true, 
-        message: 'Email sent successfully.' 
-      });
-    } catch (error) {
-      console.error('Error sending email:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: error.message 
-      });
-    }
-  }
 }
 
 module.exports = {
@@ -354,9 +202,5 @@ module.exports = {
   getCompleted: AppraisalController.getCompleted,
   getDetails: AppraisalController.getDetails,
   getDetailsForEdit: AppraisalController.getDetailsForEdit,
-  setValue: AppraisalController.setValue,
-  mergeDescriptions: AppraisalController.mergeDescriptions,
-  generatePdf: AppraisalController.generatePdf,
-  completeProcess: AppraisalController.completeProcess,
-  sendEmail: AppraisalController.sendEmail
+  completeProcess: AppraisalController.completeProcess
 };

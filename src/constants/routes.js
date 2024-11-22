@@ -2,24 +2,18 @@ const API_ROUTES = {
   AUTH: {
     LOGIN: 'auth/login',
     LOGOUT: 'auth/logout',
-    REFRESH: 'auth/refresh',
-    GOOGLE: 'auth/google'
+    REFRESH: 'auth/refresh'
   },
   APPRAISALS: {
     BASE: 'appraisals',
     COMPLETED: 'appraisals/completed',
     DETAILS: 'appraisals/:id/list',
     DETAILS_EDIT: 'appraisals/:id/list-edit',
-    SET_VALUE: 'appraisals/:id/set-value',
-    MERGE_DESCRIPTIONS: 'appraisals/:id/merge-descriptions',
-    GENERATE_PDF: 'appraisals/:id/generate-pdf',
-    COMPLETE_PROCESS: 'appraisals/:id/complete-process',
-    SEND_EMAIL: 'appraisals/:id/send-email'
+    COMPLETE_PROCESS: 'appraisals/:id/complete-process'
   },
   UPDATE_PENDING: 'update-pending-appraisal'
 };
 
-// Route helpers
 const routeHelpers = {
   getFullPath: (route) => `/api/${route.replace(/^\/+/, '')}`,
   validatePath: (path) => {

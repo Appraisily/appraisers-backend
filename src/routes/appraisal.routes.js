@@ -9,11 +9,7 @@ router.get('/completed', authenticate, appraisalController.getCompleted);
 router.get('/:id/list', authenticate, appraisalController.getDetails);
 router.get('/:id/list-edit', authenticate, appraisalController.getDetailsForEdit);
 
-// Process and Update routes
-router.post('/:id/set-value', authenticate, appraisalController.setValue);
-router.post('/:id/merge-descriptions', authenticate, appraisalController.mergeDescriptions);
-router.post('/:id/generate-pdf', authenticate, appraisalController.generatePdf);
+// Process route - only publishes to PubSub
 router.post('/:id/complete-process', authenticate, appraisalController.completeProcess);
-router.post('/:id/send-email', authenticate, appraisalController.sendEmail);
 
 module.exports = router;
