@@ -3,14 +3,14 @@ const { config } = require('../config');
 const { authorizedUsers } = require('../constants/authorizedUsers');
 
 function authenticate(req, res, next) {
-  // Check shared secret first (for worker/backend access)
+  // First check for shared secret (backend-to-backend)
   const sharedSecret = req.headers['x-shared-secret'];
   if (sharedSecret === config.SHARED_SECRET) {
     req.user = { role: 'worker' };
     return next();
   }
 
-  // Get JWT token from cookie or Authorization header
+  // Then check for JWT token
   const token = req.cookies.jwtToken || req.headers.authorization?.split(' ')[1];
   if (!token) {
     return res.status(401).json({
@@ -22,8 +22,8 @@ function authenticate(req, res, next) {
   try {
     const decoded = jwt.verify(token, config.JWT_SECRET);
 
-    // Allow worker tokens
-    if (decoded.role === 'worker') {
+    // Allow worker tokens and shared secret auth
+    if (decoded.role === 'worker' || req.headers['x-shared-secret'] === config.SHARED_SECRET) {
       req.user = decoded;
       return next();
     }
@@ -42,15 +42,13 @@ function authenticate(req, res, next) {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,
-        message: 'Token expired',
-        code: 'TOKEN_EXPIRED'
+        message: 'Token expired'
       });
     }
 
     res.status(401).json({
       success: false,
-      message: 'Invalid token',
-      code: 'INVALID_TOKEN'
+      message: 'Invalid token'
     });
   }
 }

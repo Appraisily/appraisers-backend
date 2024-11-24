@@ -9,10 +9,14 @@ const { errorHandler } = require('./middleware/errorHandler');
 const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// CORS must be before other middleware
+app.use(cors(corsOptions));
 
 // Standard middleware
-app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -30,7 +34,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Mount API routes with prefix
+// Mount API routes
 app.use('/api', routes);
 
 // Error handling
