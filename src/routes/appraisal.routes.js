@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authenticate = require('../middleware/authenticate');
+const { API_ROUTES } = require('../constants/routes');
 const { 
   getAppraisals,
   getCompleted,

@@ -9,13 +9,15 @@ const API_ROUTES = {
     COMPLETED: 'appraisals/completed',
     DETAILS: 'appraisals/:id/list',
     DETAILS_EDIT: 'appraisals/:id/list-edit',
-    COMPLETE_PROCESS: 'appraisals/:id/complete-process'
-  },
-  UPDATE_PENDING: 'update-pending-appraisal'
+    SET_VALUE: 'appraisals/:id/set-value',
+    COMPLETE_PROCESS: 'appraisals/:id/complete-process',
+    PROCESS_WORKER: 'appraisals/process-worker'
+  }
 };
 
 const routeHelpers = {
   getFullPath: (route) => `/api/${route.replace(/^\/+/, '')}`,
+  
   validatePath: (path) => {
     const normalizedPath = path
       .replace(/^\/+|\/+$/g, '')
@@ -30,7 +32,9 @@ const routeHelpers = {
       );
     });
   },
+
   withId: (route, id) => route.replace(':id', id),
+  
   appraisalRoute: (route, id) => `/api/appraisals/${route.replace(':id', id)}`,
 };
 
