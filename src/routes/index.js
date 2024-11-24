@@ -4,14 +4,14 @@ const RouteValidator = require('../middleware/routeValidator');
 
 const authRoutes = require('./auth.routes');
 const appraisalRoutes = require('./appraisal.routes');
-const updatePendingAppraisalRoutes = require('./updatePendingAppraisal.routes');
+const updatePendingRoutes = require('./updatePending.routes');
 
 // Mount routes
 router.use('/auth', authRoutes);
 router.use('/appraisals', appraisalRoutes);
-router.use('/update-pending-appraisal', updatePendingAppraisalRoutes);
+router.use('/update-pending-appraisal', updatePendingRoutes);
 
-// Validate all routes after mounting
+// Validate routes
 RouteValidator.validateRoutes(router);
 
 module.exports = router;

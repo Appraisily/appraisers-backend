@@ -3,56 +3,42 @@ const { config } = require('../config');
 const { authorizedUsers } = require('../constants/authorizedUsers');
 
 function authenticate(req, res, next) {
-  console.log('🔒 Starting authentication check');
-
-  // Get token from cookie, Authorization header, or check for worker secret
-  const token = req.cookies.jwtToken || req.headers.authorization?.split(' ')[1];
-  const workerSecret = req.headers['x-shared-secret'];
-  
-  // Allow worker secret
-  if (workerSecret === config.SHARED_SECRET) {
-    // Generate a worker JWT token valid for 1 hour
-    const workerToken = jwt.sign(
-      { role: 'worker' },
-      config.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-    req.user = { role: 'worker', token: workerToken };
+  // Check shared secret first (for worker/backend access)
+  const sharedSecret = req.headers['x-shared-secret'];
+  if (sharedSecret === config.SHARED_SECRET) {
+    req.user = { role: 'worker' };
     return next();
   }
 
+  // Get JWT token from cookie or Authorization header
+  const token = req.cookies.jwtToken || req.headers.authorization?.split(' ')[1];
   if (!token) {
-    console.log('❌ No token found');
-    return res.status(401).json({ 
-      success: false, 
-      message: 'Unauthorized. Token not provided.' 
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required'
     });
   }
 
   try {
     const decoded = jwt.verify(token, config.JWT_SECRET);
-    console.log('✓ Token verified successfully');
 
-    // Skip authorization check for worker requests
+    // Allow worker tokens
     if (decoded.role === 'worker') {
       req.user = decoded;
       return next();
     }
 
-    // Check if user is authorized
+    // Check user authorization
     if (!authorizedUsers.includes(decoded.email)) {
-      console.log('❌ Unauthorized email:', decoded.email);
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Forbidden. You do not have access to this resource.' 
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
       });
     }
 
     req.user = decoded;
     next();
   } catch (error) {
-    console.error('❌ JWT verification error:', error);
-    
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,

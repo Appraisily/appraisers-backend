@@ -14,16 +14,13 @@ async function login(req, res) {
     }
 
     if (!authorizedUsers.includes(email)) {
-      console.log('❌ Unauthorized email:', email);
       return res.status(403).json({
         success: false,
         message: 'User not authorized.'
       });
     }
 
-    // In production, this should use proper password hashing
     if (password !== 'appraisily2024') {
-      console.log('❌ Invalid password attempt for:', email);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
@@ -31,11 +28,12 @@ async function login(req, res) {
     }
 
     const token = jwt.sign(
-      { email, role: 'user' },
+      { email },
       config.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
+    // Set cookie with appropriate options
     const cookieOptions = {
       httpOnly: true,
       secure: true,
@@ -45,15 +43,16 @@ async function login(req, res) {
     };
 
     res.cookie('jwtToken', token, cookieOptions);
-    console.log('✓ Login successful:', email);
 
+    // Return response in required format
     res.json({
       success: true,
       name: 'Appraisily Admin',
-      message: 'Login successful'
+      message: 'Login successful',
+      token // Include token for serverless clients
     });
   } catch (error) {
-    console.error('❌ Authentication error:', error);
+    console.error('Authentication error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -63,7 +62,7 @@ async function login(req, res) {
 
 async function refresh(req, res) {
   try {
-    const token = req.cookies.jwtToken || req.headers.authorization?.split(' ')[1];
+    const token = req.cookies.jwtToken;
 
     if (!token) {
       return res.status(401).json({
@@ -74,7 +73,7 @@ async function refresh(req, res) {
 
     const decoded = jwt.verify(token, config.JWT_SECRET);
     const newToken = jwt.sign(
-      { email: decoded.email, role: decoded.role || 'user' },
+      { email: decoded.email },
       config.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -88,25 +87,22 @@ async function refresh(req, res) {
     };
 
     res.cookie('jwtToken', newToken, cookieOptions);
-    console.log('✓ Token refreshed for:', decoded.email);
 
     res.json({
       success: true,
-      message: 'Token refreshed successfully'
+      message: 'Token refreshed successfully',
+      token: newToken // Include new token for serverless clients
     });
   } catch (error) {
-    console.error('❌ Token refresh error:', error);
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,
-        message: 'Token expired',
-        code: 'TOKEN_EXPIRED'
+        message: 'Token expired'
       });
     }
     res.status(401).json({
       success: false,
-      message: 'Invalid token',
-      code: 'INVALID_TOKEN'
+      message: 'Invalid token'
     });
   }
 }
@@ -120,7 +116,6 @@ async function logout(req, res) {
   };
 
   res.clearCookie('jwtToken', cookieOptions);
-  console.log('✓ Logout successful');
   
   res.json({
     success: true,
