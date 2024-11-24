@@ -5,13 +5,19 @@ const { authorizedUsers } = require('../constants/authorizedUsers');
 function authenticate(req, res, next) {
   console.log('🔒 Starting authentication check');
 
-  // Get token from cookie or Authorization header
+  // Get token from cookie, Authorization header, or check for worker secret
   const token = req.cookies.jwtToken || req.headers.authorization?.split(' ')[1];
-  const workerSecret = req.headers['x-worker-secret'];
+  const workerSecret = req.headers['x-shared-secret'];
   
-  // Allow worker secret for background tasks
+  // Allow worker secret
   if (workerSecret === config.SHARED_SECRET) {
-    req.user = { role: 'worker' };
+    // Generate a worker JWT token valid for 1 hour
+    const workerToken = jwt.sign(
+      { role: 'worker' },
+      config.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+    req.user = { role: 'worker', token: workerToken };
     return next();
   }
 
@@ -62,5 +68,3 @@ function authenticate(req, res, next) {
     });
   }
 }
-
-module.exports = { authenticate };
