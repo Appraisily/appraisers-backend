@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/authenticate');
+const authenticate = require('../middleware/authenticate');
 const { 
   getAppraisals,
   getCompleted,
@@ -16,6 +16,9 @@ router.get('/', authenticate, getAppraisals);
 router.get('/completed', authenticate, getCompleted);
 router.get('/:id/list', authenticate, getDetails);
 router.get('/:id/list-edit', authenticate, getDetailsForEdit);
+
+// Value update route
+router.post('/:id/set-value', authenticate, setValue);
 
 // Process route - only publishes to PubSub
 router.post('/:id/complete-process', authenticate, completeProcess);
