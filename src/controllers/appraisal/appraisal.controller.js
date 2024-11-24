@@ -5,6 +5,8 @@ const { getImageUrl } = require('../../utils/getImageUrl');
 class AppraisalController {
   static async getAppraisals(req, res) {
     try {
+      await sheetsService.initialize();
+
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
         `${config.GOOGLE_SHEET_NAME}!A2:H`
@@ -25,13 +27,16 @@ class AppraisalController {
       console.error('Error getting appraisals:', error);
       res.status(500).json({ 
         success: false, 
-        message: 'Error getting appraisals.' 
+        message: 'Error getting appraisals',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
 
   static async getCompletedAppraisals(req, res) {
     try {
+      await sheetsService.initialize();
+
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
         'Completed Appraisals!A2:H'
@@ -52,7 +57,8 @@ class AppraisalController {
       console.error('Error getting completed appraisals:', error);
       res.status(500).json({ 
         success: false, 
-        message: 'Error getting completed appraisals.' 
+        message: 'Error getting completed appraisals',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -60,6 +66,8 @@ class AppraisalController {
   static async getDetails(req, res) {
     const { id } = req.params;
     try {
+      await sheetsService.initialize();
+
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
         `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`
@@ -69,7 +77,7 @@ class AppraisalController {
       if (!row) {
         return res.status(404).json({ 
           success: false, 
-          message: 'Appraisal not found.' 
+          message: 'Appraisal not found' 
         });
       }
 
@@ -105,7 +113,8 @@ class AppraisalController {
       console.error('Error getting appraisal details:', error);
       res.status(500).json({ 
         success: false, 
-        message: 'Error getting appraisal details.' 
+        message: 'Error getting appraisal details',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -113,6 +122,8 @@ class AppraisalController {
   static async getDetailsForEdit(req, res) {
     const { id } = req.params;
     try {
+      await sheetsService.initialize();
+
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
         `${config.GOOGLE_SHEET_NAME}!A${id}:I${id}`
@@ -122,7 +133,7 @@ class AppraisalController {
       if (!row) {
         return res.status(404).json({ 
           success: false, 
-          message: 'Appraisal not found.' 
+          message: 'Appraisal not found' 
         });
       }
 
@@ -157,7 +168,8 @@ class AppraisalController {
       console.error('Error getting appraisal details for edit:', error);
       res.status(500).json({ 
         success: false, 
-        message: 'Error getting appraisal details.' 
+        message: 'Error getting appraisal details',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   }
@@ -167,6 +179,7 @@ class AppraisalController {
     const { appraisalValue, description } = req.body;
 
     try {
+      await sheetsService.initialize();
       await sheetsService.updateAppraisalValue(id, appraisalValue, description);
 
       const row = await sheetsService.getAppraisalRow(id);
@@ -183,7 +196,7 @@ class AppraisalController {
 
       res.json({ 
         success: true, 
-        message: 'Appraisal value set successfully.' 
+        message: 'Appraisal value set successfully' 
       });
     } catch (error) {
       console.error('Error setting appraisal value:', error);
@@ -210,7 +223,7 @@ class AppraisalController {
 
       res.json({ 
         success: true, 
-        message: 'Appraisal process started successfully.' 
+        message: 'Appraisal process started successfully' 
       });
     } catch (error) {
       console.error('Error starting appraisal process:', error);
@@ -232,6 +245,7 @@ class AppraisalController {
     }
 
     try {
+      await sheetsService.initialize();
       await sheetsService.updateAppraisalValue(id, appraisalValue, description);
 
       const row = await sheetsService.getAppraisalRow(id);
