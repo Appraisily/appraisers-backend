@@ -12,7 +12,8 @@ const API_ROUTES = {
     SET_VALUE: 'appraisals/:id/set-value',
     COMPLETE_PROCESS: 'appraisals/:id/complete-process',
     PROCESS_WORKER: 'appraisals/process-worker'
-  }
+  },
+  UPDATE_PENDING: 'update-pending-appraisal'
 };
 
 const routeHelpers = {
