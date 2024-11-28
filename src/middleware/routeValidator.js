@@ -1,39 +1,52 @@
 const { API_ROUTES } = require('../constants/routes');
-const { RouteParser } = require('../utils/routeParser');
-const { RouteNormalizer } = require('../utils/routeNormalizer');
 
 class RouteValidator {
   static validateRoutes(router) {
-    const routeParser = new RouteParser();
-    const routes = routeParser.parseRoutes(router);
-    const definedRoutes = this.getDefinedRoutes();
+    const routes = this.getRouterPaths(router);
+    const validRoutes = this.getValidRoutes();
 
-    for (const route of routes) {
-      const normalizedPath = RouteNormalizer.normalize(route.path);
-      if (!this.isValidRoute(normalizedPath, definedRoutes)) {
-        throw new Error(`Route '${route.path}' is not defined in API_ROUTES`);
+    routes.forEach(route => {
+      const normalizedPath = this.normalizePath(route);
+      if (!validRoutes.has(normalizedPath)) {
+        throw new Error(`Invalid route: ${route}`);
       }
-    }
+    });
 
     return router;
   }
 
-  static isValidRoute(path, definedRoutes) {
-    return definedRoutes.some(route => 
-      RouteNormalizer.normalize(route) === path
-    );
+  static getRouterPaths(router, prefix = '') {
+    const paths = new Set();
+
+    router.stack.forEach(layer => {
+      if (layer.route) {
+        const path = prefix + layer.route.path;
+        paths.add(this.normalizePath(path));
+      } else if (layer.name === 'router') {
+        const newPrefix = prefix + (layer.regexp.source === '/' ? '' : layer.regexp.source);
+        const nestedPaths = this.getRouterPaths(layer.handle, newPrefix);
+        nestedPaths.forEach(path => paths.add(path));
+      }
+    });
+
+    return Array.from(paths);
   }
 
-  static getDefinedRoutes() {
-    const routes = [];
-    
+  static getValidRoutes() {
+    const routes = new Set();
+
+    const addRoute = (route) => {
+      if (typeof route === 'string') {
+        routes.add(this.normalizePath(route));
+      } else if (typeof route === 'function') {
+        routes.add(this.normalizePath(route(':id')));
+      }
+    };
+
     const processRoutes = (obj) => {
       Object.values(obj).forEach(value => {
-        if (typeof value === 'string') {
-          routes.push(value);
-        } else if (typeof value === 'function') {
-          // Handle dynamic routes with :id parameter
-          routes.push(value(':id'));
+        if (typeof value === 'string' || typeof value === 'function') {
+          addRoute(value);
         } else if (typeof value === 'object' && value !== null) {
           processRoutes(value);
         }
@@ -42,6 +55,16 @@ class RouteValidator {
 
     processRoutes(API_ROUTES);
     return routes;
+  }
+
+  static normalizePath(path) {
+    if (typeof path !== 'string') return '';
+    
+    return path
+      .replace(/^\/+|\/+$/g, '')  // Remove leading/trailing slashes
+      .replace(/\/+/g, '/')       // Replace multiple slashes
+      .replace(/:\w+/g, ':id')    // Normalize parameters
+      .toLowerCase();             // Case insensitive
   }
 }
 

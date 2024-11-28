@@ -10,9 +10,15 @@ const updatePendingRoutes = require('./updatePending.routes');
 // Mount routes with proper prefixes
 router.use('/auth', authRoutes);
 router.use('/appraisals', appraisalRoutes);
-router.use('/', updatePendingRoutes);
+router.use('/update-pending-appraisal', updatePendingRoutes);
 
-// Validate all routes
-RouteValidator.validateRoutes(router);
+// Validate routes
+try {
+  RouteValidator.validateRoutes(router);
+  console.log('✓ All routes validated successfully');
+} catch (error) {
+  console.error('❌ Route validation failed:', error.message);
+  process.exit(1);
+}
 
 module.exports = router;
