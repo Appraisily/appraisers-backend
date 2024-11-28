@@ -1,19 +1,18 @@
 const API_ROUTES = {
   AUTH: {
-    LOGIN: 'auth/login',
-    LOGOUT: 'auth/logout',
-    REFRESH: 'auth/refresh'
+    LOGIN: '/auth/login',
+    LOGOUT: '/auth/logout',
+    REFRESH: '/auth/refresh'
   },
   APPRAISALS: {
-    LIST: 'appraisals',
-    COMPLETED: 'appraisals/completed',
-    DETAILS: 'appraisals/:id/list',
-    DETAILS_EDIT: 'appraisals/:id/list-edit',
-    SET_VALUE: 'appraisals/:id/set-value',
-    COMPLETE_PROCESS: 'appraisals/:id/complete-process',
-    PROCESS_WORKER: 'appraisals/process-worker'
+    BASE: '/appraisals',
+    COMPLETED: '/appraisals/completed',
+    DETAILS: (id) => `/appraisals/${id}/list`,
+    DETAILS_EDIT: (id) => `/appraisals/${id}/list-edit`,
+    SET_VALUE: (id) => `/appraisals/${id}/set-value`,
+    COMPLETE_PROCESS: (id) => `/appraisals/${id}/complete-process`
   },
-  UPDATE_PENDING: 'update-pending-appraisal'
+  UPDATE_PENDING: '/update-pending-appraisal'
 };
 
 module.exports = { API_ROUTES };

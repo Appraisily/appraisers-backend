@@ -4,9 +4,9 @@ const {
   pubsubService,
   emailService,
   openaiService 
-} = require('./index');
-const { config } = require('../config');
-const { getImageUrl } = require('../utils/getImageUrl');
+} = require('../../services');
+const { config } = require('../../config');
+const { getImageUrl } = require('../../utils/getImageUrl');
 
 class AppraisalService {
   async processAppraisal(id, appraisalValue, description) {
@@ -68,28 +68,36 @@ class AppraisalService {
   }
 
   async mergeDescriptions(id, appraiserDescription) {
-    const values = await sheetsService.getValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!H${id}`
-    );
+    try {
+      // Get IA description from sheets
+      const values = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!H${id}`
+      );
 
-    const iaDescription = values[0][0];
-    if (!iaDescription) {
-      throw new Error('IA description not found');
+      const iaDescription = values[0][0];
+      if (!iaDescription) {
+        throw new Error('IA description not found');
+      }
+
+      // Use our OpenAI service to merge descriptions
+      const mergedDescription = await openaiService.mergeDescriptions(
+        appraiserDescription,
+        iaDescription
+      );
+
+      // Save merged description to sheets
+      await sheetsService.updateValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!L${id}`,
+        [[mergedDescription]]
+      );
+
+      return mergedDescription;
+    } catch (error) {
+      console.error('Error merging descriptions:', error);
+      throw error;
     }
-
-    const mergedDescription = await openaiService.mergeDescriptions(
-      appraiserDescription,
-      iaDescription
-    );
-
-    await sheetsService.updateValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!L${id}`,
-      [[mergedDescription]]
-    );
-
-    return mergedDescription;
   }
 
   async updateTitle(id, mergedDescription) {
@@ -151,15 +159,30 @@ class AppraisalService {
     const wpData = await wordpressService.getPost(postId);
     const session_ID = wpData.acf?.session_id;
 
-    const pdfData = await wordpressService.generatePdf(postId, session_ID);
+    const response = await fetch(
+      'https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId, session_ID })
+      }
+    );
 
+    if (!response.ok) {
+      throw new Error('Failed to generate PDF');
+    }
+
+    const data = await response.json();
     await sheetsService.updateValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
       `${config.GOOGLE_SHEET_NAME}!M${id}:N${id}`,
-      [[pdfData.pdfLink, pdfData.docLink]]
+      [[data.pdfLink, data.docLink]]
     );
 
-    return pdfData;
+    return {
+      pdfLink: data.pdfLink,
+      docLink: data.docLink
+    };
   }
 
   async sendEmail(id) {

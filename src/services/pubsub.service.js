@@ -34,7 +34,6 @@ class PubSubService {
 
   async publishMessage(topicName, data) {
     try {
-      // Initialize if not already initialized
       if (!this.isAvailable) {
         await this.initialize();
       }

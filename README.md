@@ -1,6 +1,27 @@
 # Appraisal Management Backend
 
-A robust backend service for managing art appraisals, integrating with OpenAI, Google Sheets, and SendGrid.
+A robust backend service for managing art appraisals, integrating with Google Cloud PubSub for asynchronous processing.
+
+## Architecture Overview
+
+```
+┌─────────────────┐         ┌──────────────┐         ┌─────────────────┐
+│  Frontend App   │ ──────> │   Backend    │ ──────> │  Google PubSub  │
+└─────────────────┘         └──────────────┘         └─────────────────┘
+                                                             │
+                                                             │
+                                                             ▼
+                                                    ┌─────────────────┐
+                                                    │ Worker Service  │
+                                                    └─────────────────┘
+```
+
+## Process Flow
+
+1. Frontend sends appraisal data to backend
+2. Backend validates and publishes message to PubSub
+3. Worker service (separate application) processes the appraisal
+4. Results are stored in Google Sheets and WordPress
 
 ## Authentication
 
@@ -30,72 +51,35 @@ The backend supports three authentication methods:
 - Generated after shared secret validation
 - Used for long-running background tasks
 
-## Authentication Endpoints
+## API Endpoints
 
+### Authentication
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
 | `POST` | `/api/auth/login` | Email/password login | No |
 | `POST` | `/api/auth/logout` | Logout current user | Yes |
 | `POST` | `/api/auth/refresh` | Refresh JWT token | Yes |
 
-## Appraisals API
+### Appraisals
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| `GET` | `/api/appraisals` | List pending appraisals | Yes |
+| `GET` | `/api/appraisals/completed` | List completed appraisals | Yes |
+| `GET` | `/api/appraisals/:id/list` | Get appraisal details | Yes |
+| `POST` | `/api/appraisals/:id/complete-process` | Start appraisal processing | Yes |
 
-### List and View Endpoints
+## Message Format
 
-| Method | Endpoint | Description | Auth Required | Auth Methods |
-|--------|----------|-------------|---------------|--------------|
-| `GET` | `/api/appraisals` | Get all pending appraisals | Yes | JWT, Shared Secret |
-| `GET` | `/api/appraisals/completed` | Get completed appraisals | Yes | JWT, Shared Secret |
-| `GET` | `/api/appraisals/:id/list` | Get specific appraisal details | Yes | JWT |
-| `GET` | `/api/appraisals/:id/list-edit` | Get appraisal details for editing | Yes | JWT |
+When publishing to PubSub, messages follow this format:
 
-### Process and Update Endpoints
-
-| Method | Endpoint | Description | Auth Required | Auth Methods |
-|--------|----------|-------------|---------------|--------------|
-| `POST` | `/api/appraisals/process-request` | Process new appraisal request | Yes | Shared Secret |
-| `POST` | `/api/appraisals/:id/set-value` | Set appraisal value and description | Yes | JWT |
-| `POST` | `/api/appraisals/:id/merge-descriptions` | Merge AI and appraiser descriptions | Yes | JWT |
-| `POST` | `/api/appraisals/:id/update-title` | Update WordPress post title | Yes | JWT |
-| `POST` | `/api/appraisals/:id/insert-template` | Insert appraisal template | Yes | JWT |
-| `POST` | `/api/appraisals/:id/build-pdf` | Generate PDF document | Yes | JWT |
-| `POST` | `/api/appraisals/:id/send-email` | Send email to customer | Yes | JWT |
-| `POST` | `/api/appraisals/:id/complete` | Mark appraisal as completed | Yes | JWT |
-| `POST` | `/api/appraisals/:id/complete-process` | Start complete appraisal process | Yes | JWT |
-| `POST` | `/api/appraisals/process-worker` | Process worker tasks | Yes | JWT, Shared Secret |
-| `POST` | `/api/update-pending-appraisal` | Update pending appraisal status | Yes | Shared Secret |
-
-## CORS Configuration
-
-The backend supports requests from the following origins:
-
-### Frontend Origins
-- `https://earnest-choux-a0ec16.netlify.app`
-- `https://jazzy-lollipop-0a3217.netlify.app`
-- `https://lucent-nasturtium-01c2b7.netlify.app`
-- `https://appraisers-frontend-856401495068.us-central1.run.app`
-- `https://appraisers.appraisily.com`
-
-### Backend Origins
-- `https://michelle-gmail-856401495068.us-central1.run.app`
-- `https://appraisers-task-queue-856401495068.us-central1.run.app`
-
-### Development Origins
-- `http://localhost:3000`
-- `http://localhost:8080`
-
-### CORS Options
-```javascript
+```json
 {
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'Cookie', 
-    'x-shared-secret'
-  ],
-  exposedHeaders: ['Set-Cookie']
+  "type": "COMPLETE_APPRAISAL",
+  "data": {
+    "id": "string",
+    "appraisalValue": "number",
+    "description": "string"
+  }
 }
 ```
 
@@ -106,28 +90,27 @@ The backend supports requests from the following origins:
 JWT_SECRET=<strong-random-secret>
 SHARED_SECRET=<strong-random-secret>
 
-# WordPress
-WORDPRESS_API_URL=<api-url>
-WORDPRESS_USERNAME=<username>
-WORDPRESS_APP_PASSWORD=<secure-password>
-
-# SendGrid
-SENDGRID_API_KEY=<api-key>
-SENDGRID_EMAIL=<email>
-SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED=<template-id>
-SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE=<template-id>
-
-# Google Sheets
-PENDING_APPRAISALS_SPREADSHEET_ID=<spreadsheet-id>
-GOOGLE_SHEET_NAME=<sheet-name>
-LOG_SPREADSHEET_ID=<log-id>
-EDIT_SHEET_NAME=<edit-sheet>
-
-# OpenAI
-OPENAI_API_KEY=<api-key>
-
 # Google Cloud
 GOOGLE_CLOUD_PROJECT_ID=<project-id>
+
+# PubSub Topics
+PUBSUB_APPRAISAL_TOPIC=appraisal-tasks
+```
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run in development mode
+npm run dev
+
+# Run in production mode
+npm start
+
+# Run tests
+npm test
 ```
 
 ## Security
@@ -157,22 +140,6 @@ Common HTTP status codes:
 - `403` Forbidden - Valid token but insufficient permissions
 - `404` Not Found - Resource not found
 - `500` Internal Server Error - Server-side error
-
-## Development
-
-```bash
-# Install dependencies
-npm install
-
-# Run in development mode
-npm run dev
-
-# Run in production mode
-npm start
-
-# Run tests
-npm test
-```
 
 ## License
 
