@@ -15,9 +15,9 @@ router.use('/update-pending-appraisal', updatePendingRoutes);
 // Validate routes
 try {
   RouteValidator.validateRoutes(router);
-  console.log('✓ All routes validated successfully');
+  console.log('✓ Routes initialized successfully');
 } catch (error) {
-  console.error('❌ Route validation failed:', error.message);
+  console.error('❌ Route initialization failed:', error.message);
   process.exit(1);
 }
 
