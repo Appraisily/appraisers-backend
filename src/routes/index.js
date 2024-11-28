@@ -10,7 +10,7 @@ const updatePendingRoutes = require('./updatePending.routes');
 // Mount routes with proper prefixes
 router.use('/auth', authRoutes);
 router.use('/appraisals', appraisalRoutes);
-router.use('/update-pending-appraisal', updatePendingRoutes);
+router.use('/', updatePendingRoutes);
 
 // Validate all routes
 RouteValidator.validateRoutes(router);

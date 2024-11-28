@@ -1,61 +1,46 @@
 const { API_ROUTES } = require('../constants/routes');
-const { normalizeRoute, cleanPath } = require('../utils/routeUtils');
+const { RouteParser } = require('../utils/routeParser');
+const { RouteNormalizer } = require('../utils/routeNormalizer');
 
 class RouteValidator {
   static validateRoutes(router) {
-    const routes = this.getRoutes(router);
-    const definedRoutes = this.getAllDefinedRoutes();
-    
+    const routeParser = new RouteParser();
+    const routes = routeParser.parseRoutes(router);
+    const definedRoutes = this.getDefinedRoutes();
+
     for (const route of routes) {
-      const normalizedPath = normalizeRoute(route.path);
+      const normalizedPath = RouteNormalizer.normalize(route.path);
       if (!this.isValidRoute(normalizedPath, definedRoutes)) {
-        throw new Error(`Route ${route.path} is not defined in API_ROUTES`);
+        throw new Error(`Route '${route.path}' is not defined in API_ROUTES`);
       }
     }
 
     return router;
   }
 
-  static getRoutes(router, prefix = '') {
-    const routes = [];
-
-    router.stack.forEach(layer => {
-      if (layer.route) {
-        routes.push({
-          path: prefix + layer.route.path,
-          methods: Object.keys(layer.route.methods)
-        });
-      } else if (layer.name === 'router') {
-        const newPrefix = prefix + (layer.regexp.source === '/' ? '' : cleanPath(layer.regexp));
-        routes.push(...this.getRoutes(layer.handle, newPrefix));
-      }
-    });
-
-    return routes;
-  }
-
   static isValidRoute(path, definedRoutes) {
     return definedRoutes.some(route => 
-      normalizeRoute(route) === path
+      RouteNormalizer.normalize(route) === path
     );
   }
 
-  static getAllDefinedRoutes() {
+  static getDefinedRoutes() {
     const routes = [];
     
-    const addRoutes = (obj) => {
+    const processRoutes = (obj) => {
       Object.values(obj).forEach(value => {
         if (typeof value === 'string') {
           routes.push(value);
         } else if (typeof value === 'function') {
+          // Handle dynamic routes with :id parameter
           routes.push(value(':id'));
         } else if (typeof value === 'object' && value !== null) {
-          addRoutes(value);
+          processRoutes(value);
         }
       });
     };
 
-    addRoutes(API_ROUTES);
+    processRoutes(API_ROUTES);
     return routes;
   }
 }

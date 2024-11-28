@@ -9,14 +9,16 @@ const API_ROUTES = {
     REFRESH: 'auth/refresh'
   },
   APPRAISALS: {
-    BASE: 'appraisals',
+    LIST: 'appraisals',
     COMPLETED: 'appraisals/completed',
     DETAILS: (id) => `appraisals/${id}/list`,
     DETAILS_EDIT: (id) => `appraisals/${id}/list-edit`,
     SET_VALUE: (id) => `appraisals/${id}/set-value`,
     COMPLETE_PROCESS: (id) => `appraisals/${id}/complete-process`
   },
-  UPDATE_PENDING: 'update-pending-appraisal'
+  UPDATE_PENDING: {
+    CREATE: 'update-pending-appraisal'
+  }
 };
 
 module.exports = { API_ROUTES };
