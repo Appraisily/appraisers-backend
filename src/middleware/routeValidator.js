@@ -1,13 +1,15 @@
 const { API_ROUTES } = require('../constants/routes');
+const { normalizeRoute, cleanPath } = require('../utils/routeUtils');
 
 class RouteValidator {
   static validateRoutes(router) {
     const routes = this.getRoutes(router);
+    const definedRoutes = this.getAllDefinedRoutes();
     
     for (const route of routes) {
-      const normalizedPath = this.normalizePath(route.path);
-      if (!this.isValidRoute(normalizedPath)) {
-        throw new Error(`Invalid route: ${route.path}`);
+      const normalizedPath = normalizeRoute(route.path);
+      if (!this.isValidRoute(normalizedPath, definedRoutes)) {
+        throw new Error(`Route ${route.path} is not defined in API_ROUTES`);
       }
     }
 
@@ -24,7 +26,7 @@ class RouteValidator {
           methods: Object.keys(layer.route.methods)
         });
       } else if (layer.name === 'router') {
-        const newPrefix = prefix + (layer.regexp.source === '/' ? '' : this.cleanPath(layer.regexp));
+        const newPrefix = prefix + (layer.regexp.source === '/' ? '' : cleanPath(layer.regexp));
         routes.push(...this.getRoutes(layer.handle, newPrefix));
       }
     });
@@ -32,33 +34,9 @@ class RouteValidator {
     return routes;
   }
 
-  static normalizePath(path) {
-    if (typeof path !== 'string') {
-      return '';
-    }
-    return path
-      .replace(/^\/+|\/+$/g, '')
-      .replace(/\/+/g, '/')
-      .replace(/:\w+/g, ':id');
-  }
-
-  static cleanPath(regexp) {
-    const path = regexp.toString()
-      .replace(/^\^\\\//, '')
-      .replace(/\\\/\?\(\?\=.*$/, '')
-      .replace(/\\\//g, '/')
-      .replace(/^\^|\$$/g, '')
-      .replace(/\(\?:\([^\)]+\)\)\?/g, '')
-      .replace(/\([^\)]+\)/g, '')
-      .replace(/\\(.)/g, '$1');
-    return path;
-  }
-
-  static isValidRoute(path) {
-    const definedRoutes = this.getAllDefinedRoutes();
-    const normalizedPath = this.normalizePath(path);
+  static isValidRoute(path, definedRoutes) {
     return definedRoutes.some(route => 
-      this.normalizePath(route) === normalizedPath
+      normalizeRoute(route) === path
     );
   }
 
