@@ -23,65 +23,122 @@ A robust backend service for managing art appraisals, integrating with Google Cl
 3. Worker service (separate application) processes the appraisal
 4. Results are stored in Google Sheets and WordPress
 
-## Authentication
+## API Endpoints
 
-The backend supports three authentication methods:
+### Authentication
+
+| Method | Endpoint | Description | Auth Required | Request Body | Response |
+|--------|----------|-------------|---------------|--------------|-----------|
+| `POST` | `/api/auth/login` | Login with email/password | No | `{ email: string, password: string }` | `{ success: true, name: string, token?: string }` |
+| `POST` | `/api/auth/logout` | Logout current user | Yes | - | `{ success: true, message: string }` |
+| `POST` | `/api/auth/refresh` | Refresh JWT token | Yes | - | `{ success: true, token?: string }` |
+
+### Appraisals
+
+| Method | Endpoint | Description | Auth Required | Request Body | Response |
+|--------|----------|-------------|---------------|--------------|-----------|
+| `GET` | `/api/appraisals` | List pending appraisals | Yes | - | `Array<Appraisal>` |
+| `GET` | `/api/appraisals/completed` | List completed appraisals | Yes | - | `Array<Appraisal>` |
+| `GET` | `/api/appraisals/:id/list` | Get appraisal details | Yes | - | `Appraisal` |
+| `GET` | `/api/appraisals/:id/list-edit` | Get appraisal details for editing | Yes | - | `Appraisal` |
+| `POST` | `/api/appraisals/:id/set-value` | Set appraisal value | Yes | `{ appraisalValue: number, description: string }` | `{ success: true }` |
+| `POST` | `/api/appraisals/:id/complete-process` | Start appraisal processing | Yes | `{ appraisalValue: number, description: string }` | `{ success: true }` |
+
+### Update Pending Appraisal
+
+| Method | Endpoint | Description | Auth Required | Headers | Request Body |
+|--------|----------|-------------|---------------|---------|--------------|
+| `POST` | `/api/update-pending-appraisal` | Update pending appraisal | Yes | `x-shared-secret` | `{ description: string, images: object, post_id: string, customer_email: string, session_id: string }` |
+
+## Data Models
+
+### Appraisal Object
+```typescript
+interface Appraisal {
+  id: number;
+  date: string;
+  appraisalType: string;
+  identifier: string;
+  status: string;
+  wordpressUrl: string;
+  iaDescription: string;
+  customerEmail?: string;
+  customerName?: string;
+  customerDescription?: string;
+  images?: {
+    main?: string;
+    age?: string;
+    signature?: string;
+  };
+  acfFields?: Record<string, any>;
+}
+```
+
+## Route Initialization
+
+Routes are initialized and validated in the following order:
+
+1. Individual route modules define their specific endpoints:
+   - `auth.routes.js` - Authentication routes
+   - `appraisal.routes.js` - Appraisal management routes
+   - `updatePending.routes.js` - Update pending appraisal route
+
+2. Routes are mounted in `routes/index.js`:
+```javascript
+router.use('/auth', authRoutes);
+router.use('/appraisals', appraisalRoutes);
+router.use('/update-pending-appraisal', updatePendingRoutes);
+```
+
+3. Route validation ensures all mounted routes are valid Express.Router instances
+
+## Authentication Methods
 
 ### 1. JWT Token Authentication (Frontend Clients)
-- Used for frontend web applications
-- Token is set in httpOnly cookie
-- Also returned in response for serverless clients
+- Token stored in httpOnly cookie
+- 24-hour expiration
+- Automatic refresh mechanism
 
-```json
+```javascript
+// Login Response
 {
-  "success": true,
-  "name": "User's name",
-  "message": "Login successful",
-  "token": "JWT token" // For serverless clients
+  success: true,
+  name: string,
+  message: "Login successful",
+  token?: string // Optional, for serverless clients
 }
 ```
 
 ### 2. Shared Secret Authentication (Backend-to-Backend)
-- Used for service-to-service communication
-- Requires `x-shared-secret` header
-- More secure than JWT for backend services
-
-### 3. Worker Token Authentication
-- Special JWT tokens for worker processes
-- Generated after shared secret validation
-- Used for long-running background tasks
-
-## API Endpoints
-
-### Authentication
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| `POST` | `/api/auth/login` | Email/password login | No |
-| `POST` | `/api/auth/logout` | Logout current user | Yes |
-| `POST` | `/api/auth/refresh` | Refresh JWT token | Yes |
-
-### Appraisals
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| `GET` | `/api/appraisals` | List pending appraisals | Yes |
-| `GET` | `/api/appraisals/completed` | List completed appraisals | Yes |
-| `GET` | `/api/appraisals/:id/list` | Get appraisal details | Yes |
-| `POST` | `/api/appraisals/:id/complete-process` | Start appraisal processing | Yes |
-
-## Message Format
-
-When publishing to PubSub, messages follow this format:
-
-```json
+```javascript
+// Headers
 {
-  "type": "COMPLETE_APPRAISAL",
-  "data": {
-    "id": "string",
-    "appraisalValue": "number",
-    "description": "string"
-  }
+  'x-shared-secret': 'your-shared-secret'
 }
 ```
+
+### 3. Worker Token Authentication
+- Generated after shared secret validation
+- Used for background processing tasks
+
+## Error Handling
+
+All endpoints return errors in a consistent format:
+
+```javascript
+{
+  success: false,
+  message: string,
+  error?: string // Only in development
+}
+```
+
+Common HTTP Status Codes:
+- `400` Bad Request - Invalid input data
+- `401` Unauthorized - Missing/invalid authentication
+- `403` Forbidden - Valid auth but insufficient permissions
+- `404` Not Found - Resource doesn't exist
+- `500` Internal Server Error - Server-side error
 
 ## Environment Variables
 
@@ -93,8 +150,23 @@ SHARED_SECRET=<strong-random-secret>
 # Google Cloud
 GOOGLE_CLOUD_PROJECT_ID=<project-id>
 
-# PubSub Topics
-PUBSUB_APPRAISAL_TOPIC=appraisal-tasks
+# WordPress
+WORDPRESS_API_URL=<api-url>
+WORDPRESS_USERNAME=<username>
+WORDPRESS_APP_PASSWORD=<app-password>
+
+# SendGrid
+SENDGRID_API_KEY=<api-key>
+SENDGRID_EMAIL=<sender-email>
+SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED=<template-id>
+SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE=<template-id>
+
+# Google Sheets
+PENDING_APPRAISALS_SPREADSHEET_ID=<spreadsheet-id>
+GOOGLE_SHEET_NAME=<sheet-name>
+
+# OpenAI
+OPENAI_API_KEY=<api-key>
 ```
 
 ## Development
@@ -113,33 +185,16 @@ npm start
 npm test
 ```
 
-## Security
+## Security Features
 
-- JWT tokens stored in httpOnly cookies
-- Shared secrets for backend-to-backend communication
+- JWT tokens in httpOnly cookies
+- Shared secret for service-to-service communication
 - CORS configured for specific origins
-- Helmet.js for security headers
+- Helmet.js security headers
 - Input validation on all endpoints
-- Rate limiting implemented
-
-## Error Responses
-
-All error responses follow this format:
-
-```json
-{
-  "success": false,
-  "message": "Error description",
-  "error": "Detailed error in development" // Only in development
-}
-```
-
-Common HTTP status codes:
-- `400` Bad Request - Invalid input
-- `401` Unauthorized - Missing or invalid token
-- `403` Forbidden - Valid token but insufficient permissions
-- `404` Not Found - Resource not found
-- `500` Internal Server Error - Server-side error
+- Rate limiting
+- Request logging
+- Error tracking
 
 ## License
 
