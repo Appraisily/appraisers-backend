@@ -12,6 +12,5 @@ router.get('/:id/list-edit', authenticate, appraisalController.getDetailsForEdit
 // Process routes
 router.post('/:id/set-value', authenticate, appraisalController.setValue);
 router.post('/:id/complete-process', authenticate, appraisalController.completeProcess);
-router.post('/process-worker', authenticate, appraisalController.processWorker);
 
 module.exports = router;
