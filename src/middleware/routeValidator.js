@@ -4,12 +4,12 @@ class RouteValidator {
   static validateRoutes(router) {
     const routes = this.getRoutes(router);
     
-    routes.forEach(route => {
+    for (const route of routes) {
       const normalizedPath = this.normalizePath(route.path);
       if (!this.isValidRoute(normalizedPath)) {
-        throw new Error(`Route ${route.path} is not defined in API_ROUTES`);
+        throw new Error(`Invalid route: ${route.path}`);
       }
-    });
+    }
 
     return router;
   }
@@ -24,7 +24,7 @@ class RouteValidator {
           methods: Object.keys(layer.route.methods)
         });
       } else if (layer.name === 'router') {
-        const newPrefix = prefix + (layer.regexp.source === '/' ? '' : this.cleanPath(layer.regexp.source));
+        const newPrefix = prefix + (layer.regexp.source === '/' ? '' : this.cleanPath(layer.regexp));
         routes.push(...this.getRoutes(layer.handle, newPrefix));
       }
     });
@@ -33,38 +33,52 @@ class RouteValidator {
   }
 
   static normalizePath(path) {
+    if (typeof path !== 'string') {
+      return '';
+    }
     return path
-      .replace(/^\/+|\/+$/g, '') // Remove leading/trailing slashes
-      .replace(/\/+/g, '/') // Remove duplicate slashes
-      .replace(/:\w+/g, ':id'); // Normalize params to :id
+      .replace(/^\/+|\/+$/g, '')
+      .replace(/\/+/g, '/')
+      .replace(/:\w+/g, ':id');
   }
 
-  static cleanPath(path) {
-    return path
-      .replace(/^\^\\\//, '') // Remove leading ^\/
-      .replace(/\\\/\?\(\?\=.*$/, '') // Remove trailing regex
-      .replace(/\\\//g, '/') // Replace \/ with /
-      .replace(/^\^|\$$/g, '') // Remove ^ and $ anchors
-      .replace(/\(\?:\([^\)]+\)\)\?/g, '') // Remove optional groups
-      .replace(/\([^\)]+\)/g, '') // Remove remaining groups
-      .replace(/\\(.)/g, '$1'); // Unescape characters
+  static cleanPath(regexp) {
+    const path = regexp.toString()
+      .replace(/^\^\\\//, '')
+      .replace(/\\\/\?\(\?\=.*$/, '')
+      .replace(/\\\//g, '/')
+      .replace(/^\^|\$$/g, '')
+      .replace(/\(\?:\([^\)]+\)\)\?/g, '')
+      .replace(/\([^\)]+\)/g, '')
+      .replace(/\\(.)/g, '$1');
+    return path;
   }
 
   static isValidRoute(path) {
-    // Get all defined routes
-    const routes = [];
-    Object.values(API_ROUTES).forEach(group => {
-      if (typeof group === 'string') {
-        routes.push(this.normalizePath(group));
-      } else {
-        Object.values(group).forEach(route => {
-          routes.push(this.normalizePath(route));
-        });
-      }
-    });
+    const definedRoutes = this.getAllDefinedRoutes();
+    const normalizedPath = this.normalizePath(path);
+    return definedRoutes.some(route => 
+      this.normalizePath(route) === normalizedPath
+    );
+  }
 
-    // Check if normalized path matches any defined route
-    return routes.includes(path);
+  static getAllDefinedRoutes() {
+    const routes = [];
+    
+    const addRoutes = (obj) => {
+      Object.values(obj).forEach(value => {
+        if (typeof value === 'string') {
+          routes.push(value);
+        } else if (typeof value === 'function') {
+          routes.push(value(':id'));
+        } else if (typeof value === 'object' && value !== null) {
+          addRoutes(value);
+        }
+      });
+    };
+
+    addRoutes(API_ROUTES);
+    return routes;
   }
 }
 
