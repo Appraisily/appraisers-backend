@@ -11,8 +11,15 @@ class AIService {
 
   async initialize() {
     try {
-      if (!this.apiKey) {
-        throw new Error('API key not configured');
+      const response = await fetch(this.endpoint, {
+        method: 'HEAD',
+        headers: {
+          'X-API-Key': this.apiKey
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI service not available: ${response.status}`);
       }
 
       this.isAvailable = true;

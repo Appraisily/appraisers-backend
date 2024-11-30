@@ -1,7 +1,7 @@
 const emailService = require('./email.service');
 const sheetsService = require('./sheets.service');
 const pubsubService = require('./pubsub.service');
-const aiService = require('./ai.service');
+const openaiService = require('./openai.service');
 const wordpressService = require('./wordpress.service');
 const ServiceValidator = require('../middleware/validateService');
 
@@ -38,10 +38,10 @@ async function initializeServices() {
       validator: ServiceValidator.validateEmailService 
     },
     { 
-      name: 'ai', 
-      service: aiService, 
+      name: 'openai', 
+      service: openaiService, 
       required: false,
-      validator: ServiceValidator.validateAIService 
+      validator: ServiceValidator.validateOpenAIService 
     },
     { 
       name: 'pubsub', 
@@ -86,6 +86,6 @@ module.exports = {
   emailService,
   sheetsService,
   pubsubService,
-  aiService,
+  openaiService,
   wordpressService
 };
