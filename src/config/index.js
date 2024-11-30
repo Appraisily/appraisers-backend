@@ -10,6 +10,7 @@ async function initializeConfig() {
     config.JWT_SECRET = await getSecret('jwt-secret');
     config.SHARED_SECRET = await getSecret('SHARED_SECRET');
     config.GOOGLE_CLOUD_PROJECT_ID = await getSecret('GOOGLE_CLOUD_PROJECT_ID');
+    config.DIRECT_API_KEY = await getSecret('DIRECT_API_KEY');
 
     // WordPress configuration
     config.WORDPRESS_API_URL = (await getSecret('WORDPRESS_API_URL')).trim().replace('www.resources', 'resources');
@@ -31,12 +32,6 @@ async function initializeConfig() {
     config.LOG_SPREADSHEET_ID = (await getSecret('LOG_SPREADSHEET_ID')).trim();
     config.EDIT_SHEET_NAME = (await getSecret('EDIT_SHEET_NAME')).trim();
     config.GOOGLE_DOCS_CREDENTIALS = await getSecret('GOOGLE_DOCS_CREDENTIALS');
-
-    // OpenAI configuration
-    config.OPENAI_API_KEY = (await getSecret('OPENAI_API_KEY')).trim();
-    if (!config.OPENAI_API_KEY.startsWith('sk-')) {
-      throw new Error('Invalid OpenAI API key format');
-    }
 
     console.log('Configuration initialized successfully');
     return config;
