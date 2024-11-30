@@ -11,7 +11,7 @@ class UpdatePendingController {
         const requestId = Math.random().toString(36).substring(7);
         console.log(`[${requestId}] ⭐ Starting update-pending-appraisal request`);
         console.log(`[${requestId}] Headers:`, JSON.stringify(req.headers, null, 2));
-        console.log(`[${requestId}] Body:`, JSON.stringify(req.body, null, 2));
+        console.log(`[${requestId}] Raw Body:`, JSON.stringify(req.body, null, 2));
 
         try {
             // Verify shared secret
@@ -25,22 +25,34 @@ class UpdatePendingController {
             }
             console.log(`[${requestId}] ✅ Shared secret verified`);
 
+            // Map fields from WordPress payload
             const { 
-                description, 
-                images, 
-                wordpress_url, 
-                customer_email, 
                 session_id,
-                customer_name 
+                customer_email,
+                customer_name,
+                description = '',  // Optional field
+                post_edit_url,    // Changed from wordpress_url to match WordPress
+                images,
+                payment_id        // New field from WordPress
             } = req.body;
+
+            console.log(`[${requestId}] 🔄 Mapped fields from request:`, {
+                session_id,
+                customer_email,
+                customer_name,
+                description: description || '[not provided]',
+                post_edit_url,
+                payment_id,
+                images: images ? Object.keys(images) : 'no images'
+            });
 
             // Validate required fields
             const validationErrors = [];
             if (!session_id) validationErrors.push('session_id is required');
             if (!customer_email) validationErrors.push('customer_email is required');
-            if (!wordpress_url) validationErrors.push('wordpress_url is required');
+            if (!post_edit_url) validationErrors.push('post_edit_url is required');
             if (!images || typeof images !== 'object') validationErrors.push('images object is required');
-            if (!images.main) validationErrors.push('main image is required');
+            if (!images?.main) validationErrors.push('main image URL is required');
 
             if (validationErrors.length > 0) {
                 console.error(`[${requestId}] ❌ Validation errors:`, validationErrors);
@@ -52,10 +64,10 @@ class UpdatePendingController {
             }
             console.log(`[${requestId}] ✅ Request validation passed`);
 
-            // Extract post_id from wordpress_url
+            // Extract post_id from post_edit_url
             let post_id;
             try {
-                const url = new URL(wordpress_url);
+                const url = new URL(post_edit_url);
                 post_id = url.searchParams.get('post');
                 if (!post_id) throw new Error('Could not extract post ID from URL');
                 console.log(`[${requestId}] ✅ Extracted post_id: ${post_id}`);
@@ -63,7 +75,7 @@ class UpdatePendingController {
                 console.error(`[${requestId}] ❌ Error extracting post_id:`, error);
                 return res.status(400).json({
                     success: false,
-                    message: 'Invalid WordPress URL'
+                    message: 'Invalid WordPress URL format'
                 });
             }
 
@@ -79,9 +91,22 @@ class UpdatePendingController {
                 try {
                     console.log(`[${requestId}] 🔄 Starting background processing`);
 
+                    // Initialize services if needed
+                    await Promise.all([
+                        openaiService.initialize(),
+                        wordpressService.initialize(),
+                        sheetsService.initialize(),
+                        emailService.initialize()
+                    ]);
+                    console.log(`[${requestId}] ✅ Services initialized`);
+
                     // Generate AI description
                     console.log(`[${requestId}] 🔄 Generating AI description for image:`, images.main);
-                    const iaDescription = await openaiService.generateDescription(images.main);
+                    const iaDescription = await openaiService.generateDescription(
+                        images.main,
+                        images.signature,
+                        images.age
+                    );
                     console.log(`[${requestId}] ✅ Generated AI description:`, iaDescription);
 
                     // Update WordPress title
@@ -131,7 +156,8 @@ class UpdatePendingController {
     }
 
     static async updateGoogleSheets(session_id, iaDescription, description, images) {
-        console.log(`🔄 Finding row for session_id: ${session_id}`);
+        const logPrefix = `[Sheets:${session_id}]`;
+        console.log(`${logPrefix} 🔄 Finding row for session_id: ${session_id}`);
         
         const values = await sheetsService.getValues(
             config.PENDING_APPRAISALS_SPREADSHEET_ID,
@@ -145,18 +171,18 @@ class UpdatePendingController {
             if (values[i][2] === session_id) {
                 rowIndex = i + 1;
                 customer_name = values[i][4] || '';
-                console.log(`✅ Found matching row: ${rowIndex}, customer_name: ${customer_name}`);
+                console.log(`${logPrefix} ✅ Found matching row: ${rowIndex}, customer_name: ${customer_name}`);
                 break;
             }
         }
 
         if (!rowIndex) {
-            console.error(`❌ Session ID ${session_id} not found in spreadsheet`);
+            console.error(`${logPrefix} ❌ Session ID not found in spreadsheet`);
             throw new Error(`Session ID ${session_id} not found`);
         }
 
         // Update sheets in parallel
-        console.log(`🔄 Updating spreadsheet row ${rowIndex}`);
+        console.log(`${logPrefix} 🔄 Updating spreadsheet row ${rowIndex}`);
         await Promise.all([
             sheetsService.updateValues(
                 config.PENDING_APPRAISALS_SPREADSHEET_ID,
@@ -175,7 +201,7 @@ class UpdatePendingController {
             )
         ]);
 
-        console.log(`✅ Spreadsheet updates completed for row ${rowIndex}`);
+        console.log(`${logPrefix} ✅ Spreadsheet updates completed for row ${rowIndex}`);
         return { customer_name };
     }
 }
