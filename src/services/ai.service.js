@@ -4,13 +4,34 @@ const { config } = require('../config');
 
 class AIService {
   constructor() {
-    this.isAvailable = true;
+    this.isAvailable = false;
     this.endpoint = 'https://michelle-gmail-856401495068.us-central1.run.app/api/process-message';
-    this.apiKey = config.DIRECT_API_KEY;
+    this.apiKey = null;
+    this.initialize();
+  }
+
+  initialize() {
+    try {
+      if (!config.DIRECT_API_KEY) {
+        throw new Error('DIRECT_API_KEY not found in config');
+      }
+      this.apiKey = config.DIRECT_API_KEY;
+      this.isAvailable = true;
+      console.log('✓ AI Service initialized with API key');
+      return true;
+    } catch (error) {
+      console.error('❌ AI Service initialization failed:', error);
+      this.isAvailable = false;
+      return false;
+    }
   }
 
   async processImages(images, prompt) {
     try {
+      if (!this.isAvailable || !this.apiKey) {
+        this.initialize();
+      }
+
       if (!this.apiKey) {
         throw new Error('API key not configured');
       }
@@ -87,6 +108,10 @@ Keep the description concise but informative, suitable for an art appraisal cont
     }
 
     try {
+      if (!this.isAvailable || !this.apiKey) {
+        this.initialize();
+      }
+
       const formData = new FormData();
       formData.append('text', `Please merge these two artwork descriptions into a single, cohesive paragraph that prioritizes the appraiser's description while incorporating relevant details from the AI description. Keep it under 350 characters.
 
