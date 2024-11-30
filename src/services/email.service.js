@@ -42,7 +42,7 @@ class EmailService {
             }
 
             const currentYear = new Date().getFullYear();
-            const delayInMinutes = 1;
+            const delayInMinutes = 12; // Increased delay to 12 minutes
             const sendAtTimestamp = Math.floor((Date.now() + (delayInMinutes * 60 * 1000)) / 1000);
             const dashboardUrl = `https://resources.appraisily.com/dashboard/?email=${encodeURIComponent(customerEmail)}`;
 
@@ -64,9 +64,11 @@ class EmailService {
                 sendAt: sendAtTimestamp,
             };
 
-            console.log('Sending email with content:', JSON.stringify(emailContent, null, 2));
+            console.log('Scheduling email with content:', JSON.stringify(emailContent, null, 2));
+            console.log(`Email will be sent in ${delayInMinutes} minutes at:`, new Date(sendAtTimestamp * 1000).toISOString());
+            
             const response = await sendGridMail.send(emailContent);
-            console.log('Email sent successfully. Response:', response);
+            console.log('Email scheduled successfully. Response:', response);
 
             return true;
         } catch (error) {
