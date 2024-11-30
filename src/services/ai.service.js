@@ -85,13 +85,19 @@ class AIService {
   }
 
   async generateDescription(mainImageUrl, signatureImageUrl = '', ageImageUrl = '') {
-    const prompt = `Please provide a detailed description of this artwork, focusing on:
-- Style and artistic technique
-- Medium and materials used
-- Color palette and composition
-- Notable features or characteristics
-- Any visible signatures or age-related details
-Keep the description concise but informative, suitable for an art appraisal context.`;
+    const prompt = `Please provide a comprehensive and detailed description of the artwork or antique shown in the image. Focus on the following aspects:
+
+Overall Visual Appearance: Describe the subject matter, scene, or objects depicted.
+Artistic Style and Techniques: Identify the style, genre, and any specific techniques used by the artist or craftsman.
+Medium and Materials: Specify the materials, mediums, and any notable textures or finishes.
+Color Palette and Composition: Analyze the use of colors, lighting, perspective, and compositional elements.
+Notable Features and Characteristics: Point out any unique features, symbols, motifs, or intricate details.
+Signatures and Markings: Note any visible signatures, inscriptions, marks, or labels, including their placement and appearance.
+Age and Condition: Observe any signs of aging, wear, restoration, or provenance details that may indicate the item's history.
+Historical and Cultural Context: Provide insights into the possible historical period, cultural background, or artistic movement associated with the piece.
+
+Please make the description as detailed and thorough as possible, suitable for an expert appraisal or analysis of the artwork or antique.
+Format: Write a paragraph of less than 200 words, no titles or subtitles or sections, just the text`;
 
     const images = {
       main: mainImageUrl,
