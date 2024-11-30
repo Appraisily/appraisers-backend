@@ -2,11 +2,11 @@
   "name": "appraisers-backend",
   "version": "1.0.0",
   "description": "Backend service for Appraisers Dashboard",
-  "main": "src/index.js",
+  "main": "appraisers-backend/app.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
-    "lint": "eslint src/**/*.js",
+    "start": "node appraisers-backend/app.js",
+    "dev": "nodemon appraisers-backend/app.js",
+    "lint": "eslint appraisers-backend/**/*.js",
     "test": "jest"
   },
   "dependencies": {
