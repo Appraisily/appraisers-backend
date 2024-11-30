@@ -1,5 +1,5 @@
 const { 
-  openaiService, 
+  aiService, 
   sheetsService, 
   emailService, 
   wordpressService 
@@ -91,9 +91,8 @@ class UpdatePendingController {
                 try {
                     console.log(`[${requestId}] 🔄 Starting background processing`);
 
-                    // Initialize services if needed
+                    // Initialize only required services
                     await Promise.all([
-                        openaiService.initialize(),
                         wordpressService.initialize(),
                         sheetsService.initialize(),
                         emailService.initialize()
@@ -102,7 +101,7 @@ class UpdatePendingController {
 
                     // Generate AI description
                     console.log(`[${requestId}] 🔄 Generating AI description for image:`, images.main);
-                    const iaDescription = await openaiService.generateDescription(
+                    const iaDescription = await aiService.generateDescription(
                         images.main,
                         images.signature,
                         images.age

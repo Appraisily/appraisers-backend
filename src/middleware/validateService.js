@@ -75,9 +75,10 @@ class ServiceValidator {
     this.validateRequiredMethods(service, requiredMethods);
   }
 
-  static validateOpenAIService(service) {
+  static validateAIService(service) {
     const requiredMethods = [
-      'generateDescription'
+      'generateDescription',
+      'mergeDescriptions'
     ];
 
     this.validateRequiredMethods(service, requiredMethods);
