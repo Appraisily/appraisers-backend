@@ -25,16 +25,11 @@ class ServiceValidator {
     }
   }
 
-  static validateAppraisalService(service) {
+  static validateAIService(service) {
     const requiredMethods = [
-      'getAppraisals',
-      'getCompletedAppraisals',
-      'getDetails',
-      'getDetailsForEdit',
-      'setValue',
-      'buildPdf',
-      'processWorker',
-      'completeProcess'
+      'generateDescription',
+      'mergeDescriptions',
+      'initialize'
     ];
 
     this.validateRequiredMethods(service, requiredMethods);
@@ -70,14 +65,6 @@ class ServiceValidator {
   static validatePubSubService(service) {
     const requiredMethods = [
       'publishMessage'
-    ];
-
-    this.validateRequiredMethods(service, requiredMethods);
-  }
-
-  static validateOpenAIService(service) {
-    const requiredMethods = [
-      'generateDescription'
     ];
 
     this.validateRequiredMethods(service, requiredMethods);
