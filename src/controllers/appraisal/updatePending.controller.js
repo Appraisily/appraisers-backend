@@ -8,24 +8,62 @@ const { config } = require('../../config');
 
 class UpdatePendingController {
     static async updatePendingAppraisal(req, res) {
-        try {
-            console.log('Received payload:', JSON.stringify(req.body));
+        const requestId = Math.random().toString(36).substring(7);
+        console.log(`[${requestId}] ⭐ Starting update-pending-appraisal request`);
+        console.log(`[${requestId}] Headers:`, JSON.stringify(req.headers, null, 2));
+        console.log(`[${requestId}] Body:`, JSON.stringify(req.body, null, 2));
 
+        try {
             // Verify shared secret
             const incomingSecret = req.headers['x-shared-secret'];
             if (incomingSecret !== config.SHARED_SECRET) {
+                console.error(`[${requestId}] ❌ Authentication failed - Invalid shared secret`);
                 return res.status(403).json({ 
                     success: false, 
                     message: 'Forbidden: Invalid shared secret.' 
                 });
             }
+            console.log(`[${requestId}] ✅ Shared secret verified`);
 
-            const { description, images, post_id, post_edit_url, customer_email, session_id } = req.body;
+            const { 
+                description, 
+                images, 
+                wordpress_url, 
+                customer_email, 
+                session_id,
+                customer_name 
+            } = req.body;
 
-            if (!session_id || !customer_email || !post_id || typeof images !== 'object' || !post_edit_url) {
+            // Validate required fields
+            const validationErrors = [];
+            if (!session_id) validationErrors.push('session_id is required');
+            if (!customer_email) validationErrors.push('customer_email is required');
+            if (!wordpress_url) validationErrors.push('wordpress_url is required');
+            if (!images || typeof images !== 'object') validationErrors.push('images object is required');
+            if (!images.main) validationErrors.push('main image is required');
+
+            if (validationErrors.length > 0) {
+                console.error(`[${requestId}] ❌ Validation errors:`, validationErrors);
                 return res.status(400).json({ 
                     success: false, 
-                    message: 'Missing required fields.' 
+                    message: 'Missing required fields', 
+                    errors: validationErrors 
+                });
+            }
+            console.log(`[${requestId}] ✅ Request validation passed`);
+
+            // Extract post_id from wordpress_url
+            let post_id;
+            try {
+                const url = new URL(wordpress_url);
+                post_id = url.searchParams.get('post');
+                if (!post_id) throw new Error('Could not extract post ID from URL');
+                console.log(`[${requestId}] ✅ Extracted post_id: ${post_id}`);
+            } catch (error) {
+                console.error(`[${requestId}] ❌ Error extracting post_id:`, error);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid WordPress URL'
                 });
             }
 
@@ -34,71 +72,55 @@ class UpdatePendingController {
                 success: true, 
                 message: 'Appraisal status update initiated.' 
             });
+            console.log(`[${requestId}] ✅ Sent immediate response to client`);
 
             // Process in background
             (async () => {
                 try {
-                    const mainImageUrl = images.main;
-                    if (!mainImageUrl) {
-                        throw new Error('Main image URL is required.');
-                    }
-
-                    // Initialize services if needed
-                    await emailService.initialize();
-                    await openaiService.initialize();
+                    console.log(`[${requestId}] 🔄 Starting background processing`);
 
                     // Generate AI description
-                    const iaDescription = await openaiService.generateDescription(mainImageUrl);
-                    console.log('Generated IA description:', iaDescription);
+                    console.log(`[${requestId}] 🔄 Generating AI description for image:`, images.main);
+                    const iaDescription = await openaiService.generateDescription(images.main);
+                    console.log(`[${requestId}] ✅ Generated AI description:`, iaDescription);
 
                     // Update WordPress title
+                    console.log(`[${requestId}] 🔄 Updating WordPress title for post:`, post_id);
                     await wordpressService.updatePost(post_id, {
                         title: `Preliminary Analysis: ${iaDescription}`
                     });
-                    console.log('Updated WordPress title');
+                    console.log(`[${requestId}] ✅ WordPress title updated`);
 
-                    // Update Google Sheets and get customer name
-                    const sheetData = await this.updateGoogleSheets(
+                    // Update Google Sheets
+                    console.log(`[${requestId}] 🔄 Updating Google Sheets for session:`, session_id);
+                    const sheetData = await UpdatePendingController.updateGoogleSheets(
                         session_id, 
                         iaDescription, 
                         description, 
                         images
                     );
-                    console.log('Updated Google Sheets, customer name:', sheetData.customer_name);
+                    console.log(`[${requestId}] ✅ Google Sheets updated`);
 
-                    // Send email notification with retry logic
-                    let emailSent = false;
-                    let retryCount = 0;
-                    const maxRetries = 3;
+                    // Send email notification
+                    console.log(`[${requestId}] 🔄 Sending email notification to:`, customer_email);
+                    await emailService.sendAppraisalUpdateEmail(
+                        customer_email,
+                        customer_name || sheetData.customer_name,
+                        description,
+                        iaDescription
+                    );
+                    console.log(`[${requestId}] ✅ Email notification sent`);
 
-                    while (!emailSent && retryCount < maxRetries) {
-                        try {
-                            await emailService.sendAppraisalUpdateEmail(
-                                customer_email,
-                                sheetData.customer_name,
-                                description,
-                                iaDescription
-                            );
-                            emailSent = true;
-                            console.log('Email notification sent successfully');
-                        } catch (emailError) {
-                            retryCount++;
-                            console.error(`Email sending attempt ${retryCount} failed:`, emailError);
-                            if (retryCount < maxRetries) {
-                                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-                            } else {
-                                throw emailError;
-                            }
-                        }
-                    }
-
+                    console.log(`[${requestId}] ✅ Background processing completed successfully`);
                 } catch (error) {
-                    console.error('Background processing error:', error);
+                    console.error(`[${requestId}] ❌ Background processing error:`, error);
+                    console.error(`[${requestId}] Stack trace:`, error.stack);
                 }
             })();
 
         } catch (error) {
-            console.error('Error in updatePendingAppraisal:', error);
+            console.error(`[${requestId}] ❌ Unhandled error:`, error);
+            console.error(`[${requestId}] Stack trace:`, error.stack);
             if (!res.headersSent) {
                 res.status(500).json({ 
                     success: false, 
@@ -109,7 +131,8 @@ class UpdatePendingController {
     }
 
     static async updateGoogleSheets(session_id, iaDescription, description, images) {
-        // Find row with matching session_id
+        console.log(`🔄 Finding row for session_id: ${session_id}`);
+        
         const values = await sheetsService.getValues(
             config.PENDING_APPRAISALS_SPREADSHEET_ID,
             `${config.GOOGLE_SHEET_NAME}!A:O`
@@ -122,29 +145,29 @@ class UpdatePendingController {
             if (values[i][2] === session_id) {
                 rowIndex = i + 1;
                 customer_name = values[i][4] || '';
+                console.log(`✅ Found matching row: ${rowIndex}, customer_name: ${customer_name}`);
                 break;
             }
         }
 
         if (!rowIndex) {
+            console.error(`❌ Session ID ${session_id} not found in spreadsheet`);
             throw new Error(`Session ID ${session_id} not found`);
         }
 
         // Update sheets in parallel
+        console.log(`🔄 Updating spreadsheet row ${rowIndex}`);
         await Promise.all([
-            // Update IA description
             sheetsService.updateValues(
                 config.PENDING_APPRAISALS_SPREADSHEET_ID,
                 `${config.GOOGLE_SHEET_NAME}!H${rowIndex}`,
                 [[iaDescription]]
             ),
-            // Update customer description
             sheetsService.updateValues(
                 config.PENDING_APPRAISALS_SPREADSHEET_ID,
                 `${config.GOOGLE_SHEET_NAME}!I${rowIndex}`,
                 [[description || '']]
             ),
-            // Update images
             sheetsService.updateValues(
                 config.PENDING_APPRAISALS_SPREADSHEET_ID,
                 `${config.GOOGLE_SHEET_NAME}!O${rowIndex}`,
@@ -152,6 +175,7 @@ class UpdatePendingController {
             )
         ]);
 
+        console.log(`✅ Spreadsheet updates completed for row ${rowIndex}`);
         return { customer_name };
     }
 }
