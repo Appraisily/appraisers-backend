@@ -9,20 +9,12 @@ class AIService {
     this.apiKey = config.DIRECT_API_KEY;
   }
 
-  async initialize() {
-    try {
-      this.isAvailable = true;
-      console.log('✓ AI service initialized successfully');
-      return true;
-    } catch (error) {
-      console.error('❌ AI service initialization failed:', error);
-      this.isAvailable = false;
-      throw error;
-    }
-  }
-
   async processImages(images, prompt) {
     try {
+      if (!this.apiKey) {
+        throw new Error('API key not configured');
+      }
+
       const formData = new FormData();
       formData.append('text', prompt);
 
@@ -31,6 +23,9 @@ class AIService {
         if (url) {
           try {
             const imageResponse = await fetch(url);
+            if (!imageResponse.ok) {
+              throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+            }
             const buffer = await imageResponse.buffer();
             formData.append('images', buffer, `${key}.jpg`);
           } catch (error) {
@@ -39,20 +34,29 @@ class AIService {
         }
       }
 
+      console.log('Making request to Michelle with API key:', this.apiKey.substring(0, 4) + '...');
+      
       const response = await fetch(this.endpoint, {
         method: 'POST',
         headers: {
-          'X-API-Key': this.apiKey
+          'X-API-Key': this.apiKey,
+          'Accept': 'application/json'
         },
         body: formData
       });
 
       if (!response.ok) {
-        throw new Error(`AI service error: ${response.status}`);
+        const errorText = await response.text();
+        console.error('Michelle API error response:', errorText);
+        throw new Error(`AI service error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      return data.response?.text || '';
+      if (!data.response?.text) {
+        throw new Error('Invalid response format from AI service');
+      }
+
+      return data.response.text;
     } catch (error) {
       console.error('Error in processImages:', error);
       throw error;
@@ -78,6 +82,10 @@ Keep the description concise but informative, suitable for an art appraisal cont
   }
 
   async mergeDescriptions(appraiserDescription, iaDescription) {
+    if (!appraiserDescription || !iaDescription) {
+      throw new Error('Both descriptions are required for merging');
+    }
+
     try {
       const formData = new FormData();
       formData.append('text', `Please merge these two artwork descriptions into a single, cohesive paragraph that prioritizes the appraiser's description while incorporating relevant details from the AI description. Keep it under 350 characters.
@@ -89,17 +97,23 @@ AI Description: ${iaDescription}`);
       const response = await fetch(this.endpoint, {
         method: 'POST',
         headers: {
-          'X-API-Key': this.apiKey
+          'X-API-Key': this.apiKey,
+          'Accept': 'application/json'
         },
         body: formData
       });
 
       if (!response.ok) {
-        throw new Error('Failed to merge descriptions');
+        const errorText = await response.text();
+        throw new Error(`Failed to merge descriptions: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      return data.response?.text || '';
+      if (!data.response?.text) {
+        throw new Error('Invalid response format from AI service');
+      }
+
+      return data.response.text;
     } catch (error) {
       console.error('Error merging descriptions:', error);
       throw error;
