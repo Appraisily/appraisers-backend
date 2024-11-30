@@ -31,9 +31,9 @@ class UpdatePendingController {
                 customer_email,
                 customer_name,
                 description = '',  // Optional field
-                post_edit_url,    // Changed from wordpress_url to match WordPress
+                wordpress_url,     // This matches the WordPress payload
                 images,
-                payment_id        // New field from WordPress
+                payment_id        
             } = req.body;
 
             console.log(`[${requestId}] 🔄 Mapped fields from request:`, {
@@ -41,7 +41,7 @@ class UpdatePendingController {
                 customer_email,
                 customer_name,
                 description: description || '[not provided]',
-                post_edit_url,
+                wordpress_url,
                 payment_id,
                 images: images ? Object.keys(images) : 'no images'
             });
@@ -50,7 +50,7 @@ class UpdatePendingController {
             const validationErrors = [];
             if (!session_id) validationErrors.push('session_id is required');
             if (!customer_email) validationErrors.push('customer_email is required');
-            if (!post_edit_url) validationErrors.push('post_edit_url is required');
+            if (!wordpress_url) validationErrors.push('wordpress_url is required');
             if (!images || typeof images !== 'object') validationErrors.push('images object is required');
             if (!images?.main) validationErrors.push('main image URL is required');
 
@@ -64,10 +64,10 @@ class UpdatePendingController {
             }
             console.log(`[${requestId}] ✅ Request validation passed`);
 
-            // Extract post_id from post_edit_url
+            // Extract post_id from wordpress_url
             let post_id;
             try {
-                const url = new URL(post_edit_url);
+                const url = new URL(wordpress_url);
                 post_id = url.searchParams.get('post');
                 if (!post_id) throw new Error('Could not extract post ID from URL');
                 console.log(`[${requestId}] ✅ Extracted post_id: ${post_id}`);
