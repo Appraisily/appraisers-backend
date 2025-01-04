@@ -8,12 +8,14 @@ class ServiceValidator {
   }
 
   static validateRequiredMethods(service, requiredMethods) {
+    if (!service) {
+      throw new Error('Service instance is required');
+    }
+
     const missingMethods = [];
     
     for (const method of requiredMethods) {
-      try {
-        this.validateMethod(service, method);
-      } catch (error) {
+      if (typeof service[method] !== 'function') {
         missingMethods.push(method);
       }
     }
@@ -25,23 +27,9 @@ class ServiceValidator {
     }
   }
 
-  static validateAppraisalService(service) {
-    const requiredMethods = [
-      'getAppraisals',
-      'getCompletedAppraisals',
-      'getDetails',
-      'getDetailsForEdit',
-      'setValue',
-      'buildPdf',
-      'processWorker',
-      'completeProcess'
-    ];
-
-    this.validateRequiredMethods(service, requiredMethods);
-  }
-
   static validateWordPressService(service) {
     const requiredMethods = [
+      'initialize',
       'getPost',
       'updatePost'
     ];
@@ -51,6 +39,7 @@ class ServiceValidator {
 
   static validateSheetsService(service) {
     const requiredMethods = [
+      'initialize',
       'getValues',
       'updateValues'
     ];
@@ -60,6 +49,7 @@ class ServiceValidator {
 
   static validateEmailService(service) {
     const requiredMethods = [
+      'initialize',
       'sendAppraisalCompletedEmail',
       'sendAppraisalUpdateEmail'
     ];
@@ -69,6 +59,7 @@ class ServiceValidator {
 
   static validatePubSubService(service) {
     const requiredMethods = [
+      'initialize',
       'publishMessage'
     ];
 
@@ -77,6 +68,7 @@ class ServiceValidator {
 
   static validateAIService(service) {
     const requiredMethods = [
+      'initialize',
       'generateDescription',
       'mergeDescriptions'
     ];

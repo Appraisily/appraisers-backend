@@ -21,33 +21,33 @@ async function initializeServices() {
   const services = [
     { 
       name: 'wordpress', 
-      service: wordpressService, 
+      instance: wordpressService, 
       required: true,
-      validator: ServiceValidator.validateWordPressService 
+      validate: () => ServiceValidator.validateWordPressService(wordpressService)
     },
     { 
       name: 'sheets', 
-      service: sheetsService, 
+      instance: sheetsService, 
       required: true,
-      validator: ServiceValidator.validateSheetsService 
+      validate: () => ServiceValidator.validateSheetsService(sheetsService)
     },
     { 
       name: 'email', 
-      service: emailService, 
+      instance: emailService, 
       required: false,
-      validator: ServiceValidator.validateEmailService 
+      validate: () => ServiceValidator.validateEmailService(emailService)
     },
     { 
       name: 'ai', 
-      service: aiService, 
+      instance: aiService, 
       required: false,
-      validator: ServiceValidator.validateAIService 
+      validate: () => ServiceValidator.validateAIService(aiService)
     },
     { 
       name: 'pubsub', 
-      service: pubsubService, 
+      instance: pubsubService, 
       required: false,
-      validator: ServiceValidator.validatePubSubService 
+      validate: () => ServiceValidator.validatePubSubService(pubsubService)
     }
   ];
 
@@ -56,15 +56,17 @@ async function initializeServices() {
     failed: []
   };
 
-  for (const { name, service, required, validator } of services) {
+  for (const { name, instance, required, validate } of services) {
     try {
       console.log(`Initializing ${name} service...`);
       
       // Validate service methods
-      validator(service);
+      validate();
       
       // Initialize service
-      await service.initialize();
+      if (instance.initialize) {
+        await instance.initialize();
+      }
       
       console.log(`✓ ${name} service initialized`);
       results.success.push(name);

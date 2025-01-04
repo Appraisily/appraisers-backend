@@ -1,4 +1,4 @@
-# Appraisers Backend Service.
+# Appraisers Backend Service
 
 A robust Node.js backend service for managing art appraisals, providing secure API endpoints for authentication, appraisal management, and integration with various services.
 
