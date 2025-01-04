@@ -12,6 +12,7 @@
   "dependencies": {
     "@google-cloud/pubsub": "^3.7.1",
     "@google-cloud/secret-manager": "^5.6.0",
+    "google-auth-library": "^9.4.1",
     "@sendgrid/mail": "^7.7.0",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",

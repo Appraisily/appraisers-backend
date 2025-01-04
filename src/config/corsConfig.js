@@ -6,6 +6,10 @@ const allowedOrigins = [
   'https://appraisers-frontend-856401495068.us-central1.run.app',
   'https://appraisers.appraisily.com',
   
+  // WebContainer origins
+  '.webcontainer.io',
+  'stackblitz.com',
+  
   // Backend origins
   'https://michelle-gmail-856401495068.us-central1.run.app',
   'https://appraisers-task-queue-856401495068.us-central1.run.app',
@@ -18,12 +22,25 @@ const allowedOrigins = [
 const corsOptions = {
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps, workers or curl requests)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) {
       callback(null, true);
-    } else {
-      console.log('❌ [CORS] Blocked request from origin:', origin);
-      callback(new Error('Not allowed by CORS'));
+      return;
     }
+
+    // Check exact matches first
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    // Check for WebContainer domains
+    if (origin.endsWith('.webcontainer.io') || origin.includes('stackblitz')) {
+      callback(null, true);
+      return;
+    }
+
+    console.log('❌ [CORS] Blocked request from origin:', origin);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
