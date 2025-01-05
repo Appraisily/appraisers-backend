@@ -2,36 +2,41 @@
 
 A robust Node.js backend service for managing art appraisals, providing secure API endpoints for authentication, appraisal management, and integration with various services.
 
-## Features
+## Core Features
 
 ### Authentication
-- JWT-based authentication with secure cookie storage
-- Authorized users whitelist
-- Token refresh mechanism
-- Backend-to-backend authentication using shared secrets
+- Multiple authentication methods:
+  - Email/Password login
+  - Google Sign-In integration
+  - JWT-based session management
+  - Secure HTTP-only cookies
+  - Token refresh mechanism
+  - Backend-to-backend authentication using shared secrets
 
 ### Appraisal Management
-- List pending and completed appraisals
-- Detailed appraisal information retrieval
-- Value setting and updating
-- Automated appraisal processing pipeline
-- PDF generation and document management
-- Email notifications with customizable delays
+- Comprehensive appraisal workflow:
+  - List pending and completed appraisals
+  - Detailed appraisal information retrieval
+  - Value setting and updating
+  - Automated appraisal processing pipeline
+  - PDF generation and document management
+  - Email notifications with customizable delays
 
-### Integrations
-- WordPress CMS for content management
+### Service Integrations
+- WordPress CMS integration
 - Google Sheets for data storage
 - SendGrid for email communications
-- Michelle AI service for image analysis
-- Google Cloud PubSub for asynchronous processing
+- OpenAI/Michelle AI for image analysis
+- Google Cloud PubSub for async processing
 
 ## API Endpoints
 
 ### Authentication
 ```
-POST /api/auth/login         - User login
+POST /api/auth/login         - Traditional login
+POST /api/auth/google        - Google Sign-In
+POST /api/auth/refresh       - Refresh JWT token
 POST /api/auth/logout        - User logout
-POST /api/auth/refresh      - Refresh JWT token
 ```
 
 ### Appraisals
@@ -49,43 +54,43 @@ POST /api/appraisals/:id/complete-process - Start appraisal processing
 POST /api/update-pending-appraisal - Update pending appraisal with new data
 ```
 
-## Services
+## Services Architecture
 
 ### AI Service
-- Image analysis and description generation
-- Description merging capabilities
-- Integration with Michelle AI service
-- Handles image processing and text generation
+- Image analysis capabilities
+- Description generation
+- Description merging
+- Integration with Michelle AI
 
 ### Email Service
-- Automated email notifications
-- Customizable email templates
-- Delayed sending capability (12-minute delay)
+- Automated notifications
+- Customizable templates
+- Delayed sending capability
 - SendGrid integration
 
 ### WordPress Service
 - Content management
-- Post creation and updates
+- Post creation/updates
 - ACF fields handling
-- Template insertion
+- Template management
 
 ### Sheets Service
-- Data storage and retrieval
+- Data storage/retrieval
 - Value updates
 - Status tracking
 - Google Sheets integration
 
 ### PubSub Service
-- Asynchronous task processing
+- Async task processing
 - Message queuing
 - Background job handling
 
 ## Security Features
 
-- JWT-based authentication
+- Multiple authentication methods
 - HTTP-only cookies
 - CORS protection
-- Shared secret for service-to-service communication
+- Service-to-service authentication
 - API key validation
 - Request validation middleware
 
@@ -93,50 +98,16 @@ POST /api/update-pending-appraisal - Update pending appraisal with new data
 
 Required environment variables:
 ```
-JWT_SECRET                   - Secret for JWT signing
-SHARED_SECRET               - Secret for service-to-service auth
+JWT_SECRET                   - JWT signing secret
+GOOGLE_CLIENT_ID            - Google OAuth client ID
+SHARED_SECRET               - Service-to-service auth secret
 WORDPRESS_API_URL           - WordPress API endpoint
-WORDPRESS_USERNAME          - WordPress authentication
+WORDPRESS_USERNAME          - WordPress auth username
 WORDPRESS_APP_PASSWORD      - WordPress app password
 SENDGRID_API_KEY           - SendGrid API key
 SENDGRID_EMAIL             - SendGrid sender email
 GOOGLE_CLOUD_PROJECT_ID    - GCP project ID
-DIRECT_API_KEY             - Michelle AI service API key
 ```
-
-## Processing Pipeline
-
-1. **Initial Update**
-   - Receive appraisal data
-   - Generate AI description
-   - Update WordPress post
-   - Store data in Google Sheets
-
-2. **Value Setting**
-   - Set appraisal value
-   - Update WordPress ACF fields
-   - Update sheets data
-
-3. **Description Processing**
-   - Merge AI and appraiser descriptions
-   - Update post title
-   - Insert templates
-
-4. **Document Generation**
-   - Generate PDF document
-   - Create supporting documents
-   - Store document links
-
-5. **Notification**
-   - Send email to customer (12-minute delay)
-   - Include relevant links and information
-
-## Error Handling
-
-- Comprehensive error logging
-- Error response standardization
-- Automatic retry mechanisms
-- Fallback strategies
 
 ## Development
 
@@ -152,11 +123,14 @@ npm start
 
 # Run tests
 npm test
+
+# Run linting
+npm run lint
 ```
 
 ## Deployment
 
-The service is deployed on Google Cloud Run with the following specifications:
+The service is deployed on Google Cloud Run with:
 - Memory: 512Mi
 - CPU: 1
 - Min instances: 1
@@ -179,18 +153,48 @@ The service is deployed on Google Cloud Run with the following specifications:
               └───────────┘             └─────────────┘
 ```
 
+## Service Validation
+
+Each service must implement and validate required methods:
+
+### WordPress Service
+- initialize()
+- getPost()
+- updatePost()
+
+### Sheets Service
+- initialize()
+- getValues()
+- updateValues()
+
+### Email Service
+- initialize()
+- sendAppraisalCompletedEmail()
+- sendAppraisalUpdateEmail()
+
+### PubSub Service
+- initialize()
+- publishMessage()
+
+### AI Service
+- initialize()
+- generateDescription()
+- mergeDescriptions()
+
 ## Dependencies
 
-Main dependencies include:
+Main dependencies:
 - express
 - @google-cloud/pubsub
 - @google-cloud/secret-manager
+- google-auth-library
 - @sendgrid/mail
 - googleapis
 - jsonwebtoken
 - node-fetch
 - cookie-parser
 - cors
+- helmet
 
 ## License
 
