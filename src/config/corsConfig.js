@@ -6,11 +6,8 @@ const allowedOrigins = [
   'https://appraisers-frontend-856401495068.us-central1.run.app',
   'https://appraisers.appraisily.com',
   
-  // Specific WebContainer domain
-  'https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3-cy4yoqmk--3000--c8c182a3.local-credentialless.webcontainer-api.io',
-  
   // WebContainer origins
-  '.webcontainer.io',
+  '.webcontainer-api.io',
   'stackblitz.com',
   
   // Backend origins
@@ -37,7 +34,7 @@ const corsOptions = {
     }
 
     // Check for WebContainer domains
-    if (origin.endsWith('.webcontainer.io') || origin.includes('stackblitz')) {
+    if (origin.endsWith('.webcontainer-api.io') || origin.includes('stackblitz')) {
       callback(null, true);
       return;
     }
