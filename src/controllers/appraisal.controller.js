@@ -259,7 +259,14 @@ class AppraisalController {
 
   static async completeProcess(req, res) {
     const { id } = req.params;
-    const { appraisalValue, description } = req.body;
+    const { appraisalValue, description, appraisalType } = req.body;
+
+    if (!appraisalValue || !description || !appraisalType) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'appraisalValue, description, and appraisalType are required.' 
+      });
+    }
 
     try {
       await pubsubService.publishMessage('appraisal-tasks', {
