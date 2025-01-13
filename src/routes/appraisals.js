@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const appraisalController = require('../controllers/appraisal.controller');
-const authenticate = require('../middleware/authenticate');
-const { validateSetValue } = require('../middleware/validateSetValue');
+const AppraisalController = require('../controllers/appraisal.controller');
+const authenticate = require('../middleware/authenticate'); 
+const { validateSetValue } = require('../middleware/validateSetValue'); 
 
 // List and View routes
-router.get('/', authenticate, appraisalController.getAppraisals);
-router.get('/completed', authenticate, appraisalController.getCompletedAppraisals);
-router.get('/:id/list', authenticate, appraisalController.getDetails);
-router.get('/:id/list-edit', authenticate, appraisalController.getDetailsForEdit);
+router.get('/', authenticate, AppraisalController.getAppraisals);
+router.get('/completed', authenticate, AppraisalController.getCompletedAppraisals);
+router.get('/:id/list', authenticate, AppraisalController.getDetails);
+router.get('/:id/list-edit', authenticate, AppraisalController.getDetailsForEdit);
 
 // Process routes
 router.post('/:id/set-value', authenticate, validateSetValue, appraisalController.setValue);
