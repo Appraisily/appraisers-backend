@@ -12,7 +12,7 @@ class AppraisalController {
     try {
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!A2:H`
+        `${config.GOOGLE_SHEET_NAME}!A2:G`
       );
 
       const appraisals = (values || []).map((row, index) => ({
@@ -20,9 +20,10 @@ class AppraisalController {
         date: row[0] || '',
         appraisalType: row[1] || '',
         identifier: row[2] || '',
+        customerEmail: row[3] || '',
+        customerName: row[4] || '',
         status: row[5] || '',
-        wordpressUrl: row[6] || '',
-        iaDescription: row[7] || '',
+        wordpressUrl: row[6] || ''
       }));
 
       res.json(appraisals);
@@ -36,7 +37,7 @@ class AppraisalController {
     try {
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        'Completed Appraisals!A2:H'
+        'Completed Appraisals!A2:G'
       );
 
       const completedAppraisals = (values || []).map((row, index) => ({
@@ -44,9 +45,10 @@ class AppraisalController {
         date: row[0] || '',
         appraisalType: row[1] || '',
         identifier: row[2] || '',
+        customerEmail: row[3] || '',
+        customerName: row[4] || '',
         status: row[5] || '',
-        wordpressUrl: row[6] || '',
-        iaDescription: row[7] || '',
+        wordpressUrl: row[6] || ''
       }));
 
       res.json(completedAppraisals);
@@ -62,7 +64,7 @@ class AppraisalController {
       console.log(`[getDetails] Starting to fetch details for appraisal ID: ${id}`);
 
       // Log the range we're querying
-      const range = `${config.GOOGLE_SHEET_NAME}!A${id}:K${id}`;
+      const range = `${config.GOOGLE_SHEET_NAME}!A${id}:Q${id}`;
       console.log(`[getDetails] Querying Google Sheets range: ${range}`);
 
       const values = await sheetsService.getValues(
@@ -104,7 +106,8 @@ class AppraisalController {
         iaDescription: row[7] || '',
         customerDescription: row[8] || '',
         value: row[9] || '',
-        appraisersDescription: row[10] || ''
+        appraisersDescription: row[10] || '',
+        gcsBackupUrl: row[16] || '' // Column Q
       };
 
       console.log(`[getDetails] Mapped appraisal object:`, appraisal);
