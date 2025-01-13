@@ -1,22 +1,22 @@
 const express = require('express');
 const router = express.Router();
-const AppraisalController = require('../controllers/appraisalController');
+const appraisalController = require('../controllers/appraisal.controller');
 const authenticate = require('../middleware/authenticate');
-const validateWorker = require('../middleware/validateWorker');
+const { validateSetValue } = require('../middleware/validateSetValue');
 
-// Get all appraisals
-router.get('/', authenticate, AppraisalController.getAppraisals);
+// List and View routes
+router.get('/', authenticate, appraisalController.getAppraisals);
+router.get('/completed', authenticate, appraisalController.getCompletedAppraisals);
+router.get('/:id/list', authenticate, appraisalController.getDetails);
+router.get('/:id/list-edit', authenticate, appraisalController.getDetailsForEdit);
 
-// Get specific appraisal details
-router.get('/:id/list', authenticate, AppraisalController.getAppraisalDetails);
-
-// Get appraisal details for editing
-router.get('/:id/list-edit', authenticate, AppraisalController.getAppraisalDetailsForEdit);
-
-// Complete appraisal process
-router.post('/:id/complete-process', authenticate, AppraisalController.completeProcess);
-
-// Worker endpoint to process appraisals
-router.post('/process-worker', validateWorker, AppraisalController.processWorker);
+// Process routes
+router.post('/:id/set-value', authenticate, validateSetValue, appraisalController.setValue);
+router.post('/:id/complete-process', authenticate, appraisalController.completeProcess);
+router.post('/:id/update-acf-field', authenticate, appraisalController.updateAcfField);
+router.post('/get-session-id', authenticate, appraisalController.getSessionId);
+router.post('/:id/save-links', authenticate, appraisalController.saveLinks);
+router.post('/:id/update-links', authenticate, appraisalController.updateLinks);
+router.post('/:id/complete', authenticate, appraisalController.complete);
 
 module.exports = router;
