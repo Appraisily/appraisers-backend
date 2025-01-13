@@ -11,12 +11,12 @@ router.get('/:id/list', authenticate, AppraisalController.getDetails);
 router.get('/:id/list-edit', authenticate, AppraisalController.getDetailsForEdit);
 
 // Process routes
-router.post('/:id/set-value', authenticate, validateSetValue, appraisalController.setValue);
-router.post('/:id/complete-process', authenticate, appraisalController.completeProcess);
-router.post('/:id/update-acf-field', authenticate, appraisalController.updateAcfField);
-router.post('/get-session-id', authenticate, appraisalController.getSessionId);
-router.post('/:id/save-links', authenticate, appraisalController.saveLinks);
-router.post('/:id/update-links', authenticate, appraisalController.updateLinks);
-router.post('/:id/complete', authenticate, appraisalController.complete);
+router.post('/:id/set-value', authenticate, validateSetValue, AppraisalController.setValue);
+router.post('/:id/complete-process', authenticate, AppraisalController.completeProcess);
+router.post('/:id/update-acf-field', authenticate, AppraisalController.updateAcfField);
+router.post('/get-session-id', authenticate, AppraisalController.getSessionId);
+router.post('/:id/save-links', authenticate, AppraisalController.saveLinks);
+router.post('/:id/update-links', authenticate, AppraisalController.updateLinks);
+router.post('/:id/complete', authenticate, AppraisalController.complete);
 
 module.exports = router;
