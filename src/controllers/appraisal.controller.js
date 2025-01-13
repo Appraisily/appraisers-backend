@@ -59,15 +59,38 @@ class AppraisalController {
   static async getDetails(req, res) {
     const { id } = req.params;
     try {
+      console.log(`[getDetails] Starting to fetch details for appraisal ID: ${id}`);
+
+      // Log the range we're querying
+      const range = `${config.GOOGLE_SHEET_NAME}!A${id}:K${id}`;
+      console.log(`[getDetails] Querying Google Sheets range: ${range}`);
+
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!A${id}:K${id}`
+        range
       );
+
+      console.log(`[getDetails] Raw values from sheets:`, values);
 
       const row = values[0];
       if (!row) {
+        console.log(`[getDetails] No data found for ID ${id}`);
         return res.status(404).json({ success: false, message: 'Appraisal not found.' });
       }
+
+      console.log(`[getDetails] Row data:`, {
+        date: row[0],
+        appraisalType: row[1],
+        identifier: row[2],
+        customerEmail: row[3],
+        customerName: row[4],
+        status: row[5],
+        wordpressUrl: row[6],
+        iaDescription: row[7],
+        customerDescription: row[8],
+        value: row[9],
+        appraisersDescription: row[10]
+      });
 
       const appraisal = {
         id,
@@ -84,12 +107,18 @@ class AppraisalController {
         appraisersDescription: row[10] || ''
       };
 
+      console.log(`[getDetails] Mapped appraisal object:`, appraisal);
+
       const postId = new URL(appraisal.wordpressUrl).searchParams.get('post');
       if (!postId) {
+        console.error(`[getDetails] Invalid WordPress URL: ${appraisal.wordpressUrl}`);
         throw new Error('Invalid WordPress URL');
       }
 
+      console.log(`[getDetails] Fetching WordPress data for post ID: ${postId}`);
       const wpData = await wordpressService.getPost(postId);
+      console.log(`[getDetails] WordPress ACF fields:`, wpData.acf);
+
       const acfFields = wpData.acf || {};
 
       appraisal.images = {
@@ -98,9 +127,11 @@ class AppraisalController {
         signature: await getImageUrl(acfFields.signature),
       };
 
+      console.log(`[getDetails] Final response object:`, appraisal);
       res.json(appraisal);
     } catch (error) {
-      console.error('Error getting appraisal details:', error);
+      console.error('[getDetails] Error:', error);
+      console.error('[getDetails] Stack trace:', error.stack);
       res.status(500).json({ success: false, message: 'Error getting appraisal details.' });
     }
   }
