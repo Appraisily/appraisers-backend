@@ -7,33 +7,54 @@ class AIService {
     this.isAvailable = false;
     this.endpoint = 'https://michelle-gmail-856401495068.us-central1.run.app/api/process-message';
     this.apiKey = null;
-    this.initialize();
   }
 
-  initialize() {
+  async initialize() {
     try {
-      if (!config.DIRECT_API_KEY) {
-        throw new Error('DIRECT_API_KEY not found in config');
+      if (this.isAvailable && this.apiKey) {
+        return true;
       }
-      this.apiKey = config.DIRECT_API_KEY;
+
+      // Get API key from Secret Manager
+      const { getSecret } = require('../utils/secretManager');
+      this.apiKey = await getSecret('DIRECT_API_KEY');
+
+      if (!this.apiKey) {
+        throw new Error('Failed to retrieve DIRECT_API_KEY from Secret Manager');
+      }
+
+      // Test connection to AI service
+      const response = await fetch(this.endpoint, {
+        method: 'HEAD',
+        headers: {
+          'X-API-Key': this.apiKey
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('AI service not available');
+      }
+      
       this.isAvailable = true;
-      console.log('✓ AI Service initialized with API key');
+      console.log('✓ AI service initialized');
       return true;
     } catch (error) {
       console.error('❌ AI Service initialization failed:', error);
       this.isAvailable = false;
-      return false;
+      this.apiKey = null;
+      // Don't throw error, just log it
+      return false; 
     }
   }
 
   async processImages(images, prompt) {
     try {
       if (!this.isAvailable || !this.apiKey) {
-        this.initialize();
+        await this.initialize();
       }
 
       if (!this.apiKey) {
-        throw new Error('API key not configured');
+        throw new Error('Failed to initialize AI service');
       }
 
       const formData = new FormData();
@@ -115,7 +136,11 @@ Format: Write a paragraph of less than 200 words, no titles or subtitles or sect
 
     try {
       if (!this.isAvailable || !this.apiKey) {
-        this.initialize();
+        await this.initialize();
+      }
+
+      if (!this.apiKey) {
+        throw new Error('Failed to initialize AI service');
       }
 
       const formData = new FormData();

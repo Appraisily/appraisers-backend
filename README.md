@@ -2,40 +2,40 @@
 
 A robust Node.js backend service for managing art appraisals, providing secure API endpoints for authentication, appraisal management, and integration with various services.
 
-## Core Features
+## Features
 
 ### Authentication
-- Multiple authentication methods:
-  - Email/Password login
-  - Google Sign-In integration
-  - JWT-based session management
-  - Secure HTTP-only cookies
-  - Token refresh mechanism
-  - Backend-to-backend authentication using shared secrets
+- JWT-based authentication with HTTP-only cookies
+- Secure token refresh mechanism
+- Role-based access control
+- Backend-to-backend authentication using shared secrets
 
 ### Appraisal Management
-- Comprehensive appraisal workflow:
-  - List pending and completed appraisals
-  - Detailed appraisal information retrieval
-  - Value setting and updating
-  - Automated appraisal processing pipeline
-  - PDF generation and document management
-  - Email notifications with customizable delays
+- List pending and completed appraisals
+- Detailed appraisal information retrieval
+- Value setting and updating
+- Automated appraisal processing pipeline
+- PDF generation and document management
+- Email notifications with customizable delays
+
+### AI Integration
+- Image analysis using Michelle AI service
+- Automated artwork description generation
+- Description merging capabilities
+- Secure API key management through Secret Manager
 
 ### Service Integrations
-- WordPress CMS integration
+- WordPress CMS integration for content management
 - Google Sheets for data storage
 - SendGrid for email communications
-- OpenAI/Michelle AI for image analysis
 - Google Cloud PubSub for async processing
+- Google Secret Manager for secure configuration
 
 ## API Endpoints
 
 ### Authentication
 ```
-POST /api/auth/login         - Traditional login
-POST /api/auth/google        - Google Sign-In
-POST /api/auth/refresh       - Refresh JWT token
+POST /api/auth/login         - User login
 POST /api/auth/logout        - User logout
 ```
 
@@ -47,6 +47,11 @@ GET  /api/appraisals/:id/list     - Get appraisal details
 GET  /api/appraisals/:id/list-edit - Get appraisal details for editing
 POST /api/appraisals/:id/set-value - Set appraisal value
 POST /api/appraisals/:id/complete-process - Start appraisal processing
+POST /api/appraisals/:id/update-acf-field - Update WordPress ACF field
+POST /api/appraisals/get-session-id - Get session ID
+POST /api/appraisals/:id/save-links - Save document links
+POST /api/appraisals/:id/update-links - Update document links
+POST /api/appraisals/:id/complete - Mark appraisal as complete
 ```
 
 ### Update Pending Appraisal
@@ -57,56 +62,91 @@ POST /api/update-pending-appraisal - Update pending appraisal with new data
 ## Services Architecture
 
 ### AI Service
-- Image analysis capabilities
-- Description generation
-- Description merging
-- Integration with Michelle AI
+- Endpoint: Michelle AI service
+- Features:
+  - Image analysis
+  - Description generation
+  - Description merging
+- Security:
+  - API key from Secret Manager
+  - Secure image processing
+  - Error handling and retries
 
 ### Email Service
-- Automated notifications
-- Customizable templates
-- Delayed sending capability
-- SendGrid integration
+- Provider: SendGrid
+- Features:
+  - Automated notifications
+  - Customizable templates
+  - Delayed sending capability
+- Templates:
+  - Appraisal update notification
+  - Appraisal completion notification
 
 ### WordPress Service
-- Content management
-- Post creation/updates
-- ACF fields handling
-- Template management
+- Features:
+  - Content management
+  - ACF fields handling
+  - Post updates
+  - Document links management
 
 ### Sheets Service
-- Data storage/retrieval
-- Value updates
-- Status tracking
-- Google Sheets integration
+- Features:
+  - Data storage/retrieval
+  - Value updates
+  - Status tracking
+  - Document links management
 
 ### PubSub Service
-- Async task processing
-- Message queuing
-- Background job handling
+- Features:
+  - Async task processing
+  - Message queuing
+  - Background job handling
 
 ## Security Features
 
-- Multiple authentication methods
-- HTTP-only cookies
-- CORS protection
-- Service-to-service authentication
-- API key validation
+### Authentication
+- JWT tokens with HTTP-only cookies
+- Secure token refresh mechanism
+- Role-based access control
+- Backend-to-backend shared secrets
+
+### API Security
 - Request validation middleware
+- CORS protection
+- Rate limiting
+- Error handling middleware
 
-## Configuration
+### Secrets Management
+- Google Secret Manager integration
+- Secure configuration loading
+- Environment-based settings
 
-Required environment variables:
-```
+## Required Environment Variables
+
+```bash
+# Authentication
 JWT_SECRET                   - JWT signing secret
-GOOGLE_CLIENT_ID            - Google OAuth client ID
 SHARED_SECRET               - Service-to-service auth secret
+
+# WordPress
 WORDPRESS_API_URL           - WordPress API endpoint
 WORDPRESS_USERNAME          - WordPress auth username
 WORDPRESS_APP_PASSWORD      - WordPress app password
+
+# SendGrid
 SENDGRID_API_KEY           - SendGrid API key
 SENDGRID_EMAIL             - SendGrid sender email
+SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED - Template ID
+SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE    - Template ID
+
+# Google Cloud
 GOOGLE_CLOUD_PROJECT_ID    - GCP project ID
+PENDING_APPRAISALS_SPREADSHEET_ID - Google Sheets ID
+GOOGLE_SHEET_NAME          - Sheet name
+EDIT_SHEET_NAME           - Edit sheet name
+
+# AI Service
+DIRECT_API_KEY            - Michelle AI service API key
 ```
 
 ## Development
@@ -123,9 +163,6 @@ npm start
 
 # Run tests
 npm test
-
-# Run linting
-npm run lint
 ```
 
 ## Deployment
@@ -151,50 +188,30 @@ The service is deployed on Google Cloud Run with:
               │ WordPress │             │ Google       │
               │   CMS     │             │ Sheets      │
               └───────────┘             └─────────────┘
+                                             │
+                                      ┌──────┴──────┐
+                                      │ Michelle AI │
+                                      └────────────┘
 ```
-
-## Service Validation
-
-Each service must implement and validate required methods:
-
-### WordPress Service
-- initialize()
-- getPost()
-- updatePost()
-
-### Sheets Service
-- initialize()
-- getValues()
-- updateValues()
-
-### Email Service
-- initialize()
-- sendAppraisalCompletedEmail()
-- sendAppraisalUpdateEmail()
-
-### PubSub Service
-- initialize()
-- publishMessage()
-
-### AI Service
-- initialize()
-- generateDescription()
-- mergeDescriptions()
 
 ## Dependencies
 
 Main dependencies:
-- express
-- @google-cloud/pubsub
-- @google-cloud/secret-manager
-- google-auth-library
-- @sendgrid/mail
-- googleapis
-- jsonwebtoken
-- node-fetch
-- cookie-parser
-- cors
-- helmet
+```json
+{
+  "dependencies": {
+    "@google-cloud/pubsub": "^3.7.1",
+    "@google-cloud/secret-manager": "^5.6.0",
+    "@sendgrid/mail": "^7.7.0",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "googleapis": "^105.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-fetch": "^2.6.7"
+  }
+}
+```
 
 ## License
 
