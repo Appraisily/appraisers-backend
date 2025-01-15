@@ -5,6 +5,8 @@ const {
   wordpressService 
 } = require('../services');
 const { config } = require('../config');
+const OpenAI = require('openai');
+const { initializeSheets } = require('../services/googleSheets');
 
 class UpdatePendingAppraisalController {
   static async updatePendingAppraisal(req, res) {
