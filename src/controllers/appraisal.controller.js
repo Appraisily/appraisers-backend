@@ -261,22 +261,29 @@ class AppraisalController {
     const { id } = req.params;
     const { appraisalValue, description, appraisalType } = req.body;
 
-    if (!appraisalValue || !description || !appraisalType) {
+    if (!appraisalValue || !description) {
       return res.status(400).json({ 
         success: false, 
-        message: 'appraisalValue, description, and appraisalType are required.' 
+        message: 'appraisalValue and description are required.' 
       });
     }
 
     try {
-      await pubsubService.publishMessage('appraisal-tasks', {
+      const message = {
         type: 'COMPLETE_APPRAISAL',
         data: {
           id,
           appraisalValue,
           description
         }
-      });
+      };
+
+      // Only add appraisalType if it's provided
+      if (appraisalType) {
+        message.data.appraisalType = appraisalType;
+      }
+
+      await pubsubService.publishMessage('appraisal-tasks', message);
 
       res.json({ success: true, message: 'Appraisal process started successfully.' });
     } catch (error) {
