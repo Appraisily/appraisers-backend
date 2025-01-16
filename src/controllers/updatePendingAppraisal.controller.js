@@ -54,7 +54,7 @@ class UpdatePendingAppraisalController {
           });
 
           // Update Google Sheets
-          const sheetData = await this.updateGoogleSheets(
+          const sheetData = await UpdatePendingAppraisalController.updateGoogleSheets(
             session_id, 
             iaDescription, 
             description, 
