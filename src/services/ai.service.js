@@ -11,10 +11,6 @@ class AIService {
 
   async initialize() {
     try {
-      if (this.isAvailable && this.apiKey) {
-        return true;
-      }
-
       // Get API key from Secret Manager
       const { getSecret } = require('../utils/secretManager');
       this.apiKey = await getSecret('DIRECT_API_KEY');
@@ -23,26 +19,13 @@ class AIService {
         throw new Error('Failed to retrieve DIRECT_API_KEY from Secret Manager');
       }
 
-      // Test connection to AI service
-      const response = await fetch(this.endpoint, {
-        method: 'HEAD',
-        headers: {
-          'X-API-Key': this.apiKey
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('AI service not available');
-      }
-      
       this.isAvailable = true;
       console.log('✓ AI service initialized');
       return true;
     } catch (error) {
-      console.error('❌ AI Service initialization failed:', error);
+      console.error('❌ AI Service initialization failed:', error.message);
       this.isAvailable = false;
       this.apiKey = null;
-      // Don't throw error, just log it
       return false; 
     }
   }
