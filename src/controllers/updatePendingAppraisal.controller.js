@@ -5,8 +5,9 @@ const {
   wordpressService 
 } = require('../services');
 const { config } = require('../config');
-const OpenAI = require('openai');
+const aiService = require('../services/ai.service');
 const { initializeSheets } = require('../services/googleSheets');
+const emailService = require('../services/emailService');
 
 class UpdatePendingAppraisalController {
   static async updatePendingAppraisal(req, res) {
@@ -46,7 +47,7 @@ class UpdatePendingAppraisalController {
           }
 
           // Generate AI description
-          const iaDescription = await openaiService.generateDescription(mainImageUrl);
+          const iaDescription = await aiService.generateDescription(mainImageUrl);
 
           // Update WordPress title
           await wordpressService.updatePost(post_id, {
