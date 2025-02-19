@@ -116,13 +116,6 @@ class UpdatePendingAppraisalController {
       [[iaDescription]]
     );
 
-    // Update customer description
-    await sheetsService.updateValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!I${rowIndex}`,
-      [[description || '']]
-    );
-
     // Update images
     await sheetsService.updateValues(
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
