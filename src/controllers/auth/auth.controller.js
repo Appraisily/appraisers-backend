@@ -1,6 +1,14 @@
 const jwt = require('jsonwebtoken');
 const { config } = require('../../config');
 const { authorizedUsers } = require('../../constants/authorizedUsers');
+const crypto = require('crypto');
+
+// Store for refresh token rotation
+const refreshTokens = new Map();
+
+function generateRefreshToken(email) {
+  return crypto.randomBytes(40).toString('hex');
+}
 
 async function login(req, res) {
   try {
@@ -27,11 +35,19 @@ async function login(req, res) {
       });
     }
 
+    // Generate access token (24h)
     const token = jwt.sign(
       { email },
       config.JWT_SECRET,
       { expiresIn: '24h' }
     );
+
+    // Generate refresh token (30 days)
+    const refreshToken = generateRefreshToken(email);
+    refreshTokens.set(refreshToken, {
+      email,
+      expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000) // 30 days
+    });
 
     // Set cookie with appropriate options
     const cookieOptions = {
@@ -39,10 +55,11 @@ async function login(req, res) {
       secure: true,
       sameSite: 'none',
       path: '/',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
     };
 
     res.cookie('jwtToken', token, cookieOptions);
+    res.cookie('refreshToken', refreshToken, cookieOptions);
 
     // Return response in required format
     res.json({
@@ -62,44 +79,67 @@ async function login(req, res) {
 
 async function refresh(req, res) {
   try {
-    const token = req.cookies.jwtToken;
+    const refreshToken = req.cookies.refreshToken;
 
-    if (!token) {
+    if (!refreshToken) {
       return res.status(401).json({
         success: false,
-        message: 'No token provided'
+        message: 'No refresh token provided'
       });
     }
 
-    const decoded = jwt.verify(token, config.JWT_SECRET);
+    // Validate refresh token
+    const tokenData = refreshTokens.get(refreshToken);
+    if (!tokenData) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid refresh token'
+      });
+    }
+
+    // Check if refresh token is expired
+    if (tokenData.expiresAt < Date.now()) {
+      refreshTokens.delete(refreshToken);
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token expired'
+      });
+    }
+
+    // Generate new tokens
+    const { email } = tokenData;
     const newToken = jwt.sign(
-      { email: decoded.email },
+      { email },
       config.JWT_SECRET,
       { expiresIn: '24h' }
     );
+
+    // Rotate refresh token
+    const newRefreshToken = generateRefreshToken(email);
+    refreshTokens.delete(refreshToken);
+    refreshTokens.set(newRefreshToken, {
+      email,
+      expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000)
+    });
 
     const cookieOptions = {
       httpOnly: true,
       secure: true,
       sameSite: 'none',
       path: '/',
-      maxAge: 24 * 60 * 60 * 1000
+      maxAge: 30 * 24 * 60 * 60 * 1000
     };
 
     res.cookie('jwtToken', newToken, cookieOptions);
+    res.cookie('refreshToken', newRefreshToken, cookieOptions);
 
     res.json({
       success: true,
       message: 'Token refreshed successfully',
-      token: newToken // Include new token for serverless clients
+      token: newToken
     });
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token expired'
-      });
-    }
+    console.error('Token refresh error:', error);
     res.status(401).json({
       success: false,
       message: 'Invalid token'
@@ -108,14 +148,22 @@ async function refresh(req, res) {
 }
 
 async function logout(req, res) {
+  const refreshToken = req.cookies.refreshToken;
+  if (refreshToken) {
+    refreshTokens.delete(refreshToken);
+  }
+
   const cookieOptions = {
     httpOnly: true,
     secure: true,
     sameSite: 'none',
     path: '/'
+    path: '/',
+    maxAge: 0
   };
 
   res.clearCookie('jwtToken', cookieOptions);
+  res.clearCookie('refreshToken', cookieOptions);
   
   res.json({
     success: true,

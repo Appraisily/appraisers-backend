@@ -5,7 +5,7 @@ const { authorizedUsers } = require('../constants/authorizedUsers');
 function authenticate(req, res, next) {
   try {
     // Get token from cookie or Authorization header
-    const token = req.cookies?.jwtToken || req.headers.authorization?.split(' ')[1];
+    let token = req.cookies?.jwtToken || req.headers.authorization?.split(' ')[1];
     const sharedSecret = req.headers['x-shared-secret'];
 
     // Allow shared secret for backend-to-backend
@@ -25,21 +25,6 @@ function authenticate(req, res, next) {
     // Verify JWT token
     if (token) {
       const decoded = jwt.verify(token, config.JWT_SECRET);
-
-      // Allow worker tokens
-      if (decoded.role === 'worker') {
-        req.user = decoded;
-        return next();
-      }
-
-      // Check user authorization
-      if (!authorizedUsers.includes(decoded.email)) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
-      }
-
       req.user = decoded;
       return next();
     }
@@ -47,22 +32,22 @@ function authenticate(req, res, next) {
     // If we get here, no valid auth method was found
     return res.status(401).json({
       success: false,
-      message: 'Invalid authentication'
+      message: 'Authentication required'
     });
 
   } catch (error) {
-    console.error('Authentication error:', error);
-
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,
-        message: 'Token expired'
+        message: 'Token expired',
+        code: 'TOKEN_EXPIRED'
       });
     }
 
     return res.status(401).json({
       success: false,
-      message: 'Invalid token'
+      message: 'Invalid token',
+      code: 'INVALID_TOKEN'
     });
   }
 }
