@@ -3,6 +3,7 @@ const sheetsService = require('./sheets.service');
 const pubsubService = require('./pubsub.service');
 const aiService = require('./ai.service');
 const wordpressService = require('./wordpress.service');
+const storageService = require('./storage.service');
 const ServiceValidator = require('../middleware/validateService');
 
 async function initializeServices() {
@@ -48,6 +49,12 @@ async function initializeServices() {
       instance: pubsubService, 
       required: false,
       validate: () => ServiceValidator.validatePubSubService(pubsubService)
+    },
+    {
+      name: 'storage',
+      instance: storageService,
+      required: true,
+      validate: () => true
     }
   ];
 
@@ -89,5 +96,6 @@ module.exports = {
   sheetsService,
   pubsubService,
   aiService,
-  wordpressService
+  wordpressService,
+  storageService
 };

@@ -157,7 +157,6 @@ async function logout(req, res) {
     httpOnly: true,
     secure: true,
     sameSite: 'none',
-    path: '/'
     path: '/',
     maxAge: 0
   };
