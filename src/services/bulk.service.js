@@ -20,30 +20,39 @@ class BulkService {
     }
 
     const bulkIdentifier = values[0][0];
-    const wordpressUrl = values[0][5];
+    const gcsPathOrUrl = values[0][5];
     
-    if (!wordpressUrl) {
-      throw new Error('WordPress URL not found for this appraisal');
+    if (!gcsPathOrUrl) {
+      throw new Error('GCS path or WordPress URL not found for this appraisal');
     }
 
-    try {
-    const postId = new URL(wordpressUrl).searchParams.get('post');
-
-    if (!postId) {
-      throw new Error('Invalid WordPress URL');
+    // Check if this is a bulk appraisal by looking at the identifier
+    const isBulkAppraisal = bulkIdentifier.startsWith('Bulk_');
+    
+    let bucketPath;
+    if (isBulkAppraisal) {
+      // For bulk appraisals, column G contains the GCS path directly
+      bucketPath = gcsPathOrUrl;
+    } else {
+      try {
+        // For regular appraisals, extract post ID from WordPress URL
+        const postId = new URL(gcsPathOrUrl).searchParams.get('post');
+        if (!postId) {
+          throw new Error('Invalid WordPress URL');
+        }
+        bucketPath = `appraisily-bulk-requests-403609/bulk_${postId}`;
+      } catch (error) {
+        if (error instanceof TypeError && error.code === 'ERR_INVALID_URL') {
+          throw new Error(`Invalid WordPress URL format: ${gcsPathOrUrl}`);
+        }
+        throw error;
+      }
     }
 
-    const bucketPath = `appraisily-bulk-requests-403609/bulk_${postId}`;
     const files = await storageService.listFiles(bucketPath);
 
-    console.log(`[getBulkImages] Found ${files.length} files for post ${postId}`);
+    console.log(`[getBulkImages] Found ${files.length} files in bucket path: ${bucketPath}`);
     return files;
-    } catch (error) {
-      if (error instanceof TypeError && error.code === 'ERR_INVALID_URL') {
-        throw new Error(`Invalid WordPress URL format: ${wordpressUrl}`);
-      }
-      throw error;
-    }
   }
 
   async createNewAppraisalRow(originalRow, session_id, appraisalType, combinedDescription, images) {
