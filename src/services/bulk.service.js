@@ -3,6 +3,7 @@ const { storageService } = require('../services');
 const { config } = require('../config');
 const { v4: uuidv4 } = require('uuid');
 const fetch = require('node-fetch');
+const FormData = require('form-data');
 const { extractImageMetadata } = require('../utils/imageUtils');
 const { extractBulkInfo } = require('../utils/appraisalUtils');
 
