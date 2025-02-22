@@ -31,19 +31,31 @@ class StorageService {
       const [bucketName, ...folderParts] = bucketPath.split('/');
       const folderPath = folderParts.join('/');
       console.log(`[StorageService] Listing files in bucket: ${bucketName}, path: ${folderPath}`);
+      console.log(`[StorageService] Full bucket path: gs://${bucketPath}`);
 
       const [files] = await this.storage.bucket(bucketName).getFiles({
-        prefix: folderPath,
-        delimiter: '/'
+        prefix: `${folderPath}/`
       });
 
-      console.log(`[StorageService] Found ${files.length} files in bucket`);
+      // Filter out the folder itself and any metadata folders
+      const filteredFiles = files.filter(file => {
+        const name = file.name;
+        return name.startsWith(folderPath + '/') &&
+               !name.endsWith('/') && 
+               !name.includes('metadata/') && 
+               !name.endsWith('metadata.json');
+      });
+
+      console.log(`[StorageService] Found ${filteredFiles.length} files in bucket after filtering`);
+      console.log('[StorageService] Files found:', filteredFiles.map(f => ({
+        name: f.name,
+        size: f.metadata.size
+      })));
 
       // Generate signed URLs for each file (valid for 1 hour)
       console.log('[StorageService] Generating signed URLs...');
       const signedUrls = await Promise.all(
-        files
-          .filter(file => !file.name.endsWith('/')) // Exclude folders
+        filteredFiles
           .map(async file => {
             console.log(`[StorageService] Processing file: ${file.name}`);
             const [url] = await file.getSignedUrl({
