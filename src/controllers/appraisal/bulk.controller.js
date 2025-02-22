@@ -86,7 +86,7 @@ class BulkController {
       // Get row data from sheets
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!A${id}:E${id}`
+        `${config.GOOGLE_SHEET_NAME}!A${id}:G${id}`
       );
 
       if (!values?.[0]) {
@@ -102,21 +102,45 @@ class BulkController {
       // Get current date in YYYY-MM-DD format
       const currentDate = new Date().toISOString().split('T')[0];
 
-      // Get metadata file from GCS
-      const gcsPath = values[0][6]; // Column G contains GCS path
-      const metadataFiles = await storageService.listFiles(`${gcsPath}/metadata`);
-      const metadataFile = metadataFiles.find(f => f.name === 'metadata.json');
-      
-      if (!metadataFile) {
-        throw new Error('Metadata file not found');
-      }
+      // Default appraisal type
+      let appraisalType = 'RegularArt'; 
 
-      // Fetch and parse metadata
-      const metadataResponse = await fetch(metadataFile.url);
-      const metadata = await metadataResponse.json();
-      
-      // Use appraisal type directly from metadata
-      const appraisalType = metadata.appraisal_type;
+      const gcsPath = values[0][6]; // Column G contains GCS path
+      if (gcsPath) {
+        try {
+          // Get customer_info.json from GCS
+          const files = await storageService.listFiles(gcsPath);
+          const customerInfoFile = files.find(f => f.name.endsWith('customer_info.json'));
+
+          if (customerInfoFile) {
+            // Fetch and parse customer info
+            const customerInfoResponse = await fetch(customerInfoFile.url);
+            const customerInfo = await customerInfoResponse.json();
+            
+            // Map appraisal type from customer info
+            if (customerInfo.appraisal_type) {
+              // Normalize appraisal type
+              const type = customerInfo.appraisal_type.toLowerCase();
+              switch (type) {
+                case 'regular':
+                  appraisalType = 'RegularArt';
+                  break;
+                case 'premium':
+                  appraisalType = 'PremiumArt';
+                  break;
+                case 'jewelry':
+                  appraisalType = 'Jewelry';
+                  break;
+                default:
+                  appraisalType = 'RegularArt';
+              }
+              console.log(`Mapped appraisal type from ${type} to ${appraisalType}`);
+            }
+          }
+        } catch (error) {
+          console.warn('Could not fetch customer_info.json, using default appraisal type:', error);
+        }
+      }
 
       // Extract customer info from original row
       const [date, , , customerEmail, customerName] = values[0];
@@ -124,7 +148,7 @@ class BulkController {
       // Add new row to Pending Appraisals sheet
       const newRow = [
         date,                    // Date (from original row)
-        appraisalType,          // Appraisal Type (directly from metadata)
+        appraisalType,          // Appraisal Type (from metadata or default)
         session_id,              // Identifier
         customerEmail,           // Customer Email (from original row)
         customerName,            // Customer Name (from original row)
