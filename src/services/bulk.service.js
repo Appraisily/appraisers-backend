@@ -9,10 +9,9 @@ class BulkService {
   async getBulkImages(id) {
     console.log(`[getBulkImages] Starting request for appraisal ID: ${id}`);
 
-    // Get bulk identifier from column B
     const values = await sheetsService.getValues( 
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!B${id}`
+      `${config.GOOGLE_SHEET_NAME}!B${id}:G${id}`
     );
 
     if (!values?.[0]?.[0]) {
@@ -20,10 +19,19 @@ class BulkService {
     }
 
     const bulkIdentifier = values[0][0];
-    const { count } = extractBulkInfo(bulkIdentifier);
-    console.log(`[getBulkImages] Processing bulk appraisal with ${count} items`);
+    const wordpressUrl = values[0][5];
+    const postId = new URL(wordpressUrl).searchParams.get('post');
 
-    return { count };
+    if (!postId) {
+      throw new Error('Invalid WordPress URL');
+    }
+
+    // List files from GCS bucket
+    const bucketPath = `${config.GCS_BUCKET_NAME}/bulk/${postId}`;
+    const files = await storageService.listFiles(bucketPath);
+
+    console.log(`[getBulkImages] Found ${files.length} files for post ${postId}`);
+    return files;
   }
 
   async createNewAppraisalRow(originalRow, session_id, appraisalType, combinedDescription, images) {

@@ -52,12 +52,27 @@ class StorageService {
         size: f.metadata.size
       })));
 
+      // Get metadata for each file
+      const filesWithMetadata = await Promise.all(
+        filteredFiles.map(async file => {
+          const [metadata] = await file.getMetadata();
+          // Handle missing or empty description
+          const description = metadata.metadata?.description;
+          const hasDescription = description && description.trim().length > 0;
+          return {
+            file,
+            metadata,
+            description: hasDescription ? description.trim() : null
+          };
+        })
+      );
+
       // Generate signed URLs for each file (valid for 1 hour)
       console.log('[StorageService] Generating signed URLs...');
       const signedUrls = await Promise.all(
-        filteredFiles
-          .map(async file => {
-            console.log(`[StorageService] Processing file: ${file.name}`);
+        filesWithMetadata
+          .map(async ({ file, metadata, description }) => {
+            console.log(`[StorageService] Processing file: ${file.name}, description: ${description}`);
             const [url] = await file.getSignedUrl({
               version: 'v4',
               action: 'read',
@@ -68,8 +83,9 @@ class StorageService {
             return {
               name: file.name.split('/').pop(),
               url,
-              contentType: file.metadata.contentType,
-              size: parseInt(file.metadata.size, 10)
+              contentType: metadata.contentType,
+              size: parseInt(metadata.size, 10),
+              description: description || null // Return null instead of empty string
             };
           })
       );

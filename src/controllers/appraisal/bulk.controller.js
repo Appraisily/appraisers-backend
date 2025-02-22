@@ -5,17 +5,18 @@ class BulkController {
     const { id } = req.params;
 
     try {
-      const files = await bulkService.getBulkImages(id);
+      const fileList = await bulkService.getBulkImages(id);
       
       res.json({
         success: true,
-        files
+        files: fileList
       });
     } catch (error) {
       console.error('[getBulkImages] Error:', error);
       res.status(error.message.includes('not found') ? 404 : 500).json({
         success: false,
-        message: error.message || 'Error retrieving bulk images'
+        message: error.message || 'Error retrieving bulk images',
+        error: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   }
