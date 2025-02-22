@@ -1,32 +1,29 @@
-const { sheetsService, storageService } = require('../services');
+const { sheetsService } = require('../services');
 const { config } = require('../config');
 const { v4: uuidv4 } = require('uuid');
 const fetch = require('node-fetch');
 const { extractImageMetadata } = require('../utils/imageUtils');
-const { getAppraisalType } = require('../utils/appraisalUtils');
+const { extractBulkInfo } = require('../utils/appraisalUtils');
 
 class BulkService {
   async getBulkImages(id) {
     console.log(`[getBulkImages] Starting request for appraisal ID: ${id}`);
 
-    // Get the GCS folder path from column G
-    const values = await sheetsService.getValues(
+    // Get bulk identifier from column B
+    const values = await sheetsService.getValues( 
       config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!G${id}`
+      `${config.GOOGLE_SHEET_NAME}!B${id}`
     );
 
     if (!values?.[0]?.[0]) {
-      throw new Error('GCS folder path not found for this appraisal');
+      throw new Error('Bulk identifier not found for this appraisal');
     }
 
-    const gcsPath = values[0][0];
-    console.log(`[getBulkImages] Found GCS path: ${gcsPath}`);
+    const bulkIdentifier = values[0][0];
+    const { count } = extractBulkInfo(bulkIdentifier);
+    console.log(`[getBulkImages] Processing bulk appraisal with ${count} items`);
 
-    // List files and generate signed URLs
-    const files = await storageService.listFiles(gcsPath);
-    console.log(`[getBulkImages] Found ${files.length} files in GCS`);
-
-    return files;
+    return { count };
   }
 
   async createNewAppraisalRow(originalRow, session_id, appraisalType, combinedDescription, images) {
@@ -96,10 +93,12 @@ class BulkService {
       throw new Error('Appraisal not found');
     }
 
+    const bulkIdentifier = values[0][1]; // Column B contains bulk identifier
+    const { type: appraisalType } = extractBulkInfo(bulkIdentifier);
+
     const session_id = `single_${uuidv4()}`;
     const descriptions = await extractImageMetadata(images);
     const combinedDescription = descriptions.join(' ');
-    const appraisalType = await getAppraisalType(values[0][6]); // Column G contains GCS path
 
     // Create and add new row
     const newRow = await this.createNewAppraisalRow(

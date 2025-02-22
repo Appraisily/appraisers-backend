@@ -1,6 +1,3 @@
-const { storageService } = require('../services');
-const fetch = require('node-fetch');
-
 /**
  * Maps customer info appraisal type to system type
  * @param {string} type Customer info appraisal type
@@ -17,62 +14,42 @@ function mapAppraisalType(type) {
 }
 
 /**
- * Gets customer info from GCS path
- * @param {string} gcsPath GCS path
- * @returns {Promise<Object>} Customer info object
+ * Extracts appraisal type from bulk identifier
+ * @param {string} bulkIdentifier Format: "Bulk_$APPRAISALTYPE_$NUMBEROFITEMS"
+ * @returns {string} Appraisal type
  */
-async function getCustomerInfo(gcsPath) {
-  const [bucketName, ...pathParts] = gcsPath.split('/');
-  const folderPath = pathParts.join('/');
-  
-  const customerInfoPath = `${bucketName}/${folderPath}/customer_info.json`;
-  console.log('Fetching customer info from:', customerInfoPath);
-  
-  const [customerInfoFiles] = await storageService.storage
-    .bucket(bucketName)
-    .getFiles({
-      prefix: `${folderPath}/customer_info.json`
-    });
-
-  if (!customerInfoFiles?.[0]) {
-    return null;
+function extractBulkInfo(bulkIdentifier) {
+  if (!bulkIdentifier?.startsWith('Bulk_')) {
+    return { type: 'RegularArt', count: 1 };
   }
 
-  const [signedUrl] = await customerInfoFiles[0].getSignedUrl({
-    version: 'v4',
-    action: 'read',
-    expires: Date.now() + 3600 * 1000 // 1 hour
-  });
-  
-  const response = await fetch(signedUrl);
-  return response.json();
+  const parts = bulkIdentifier.split('_');
+  if (parts.length !== 3) {
+    return { type: 'RegularArt', count: 1 };
+  }
+
+  return {
+    type: mapAppraisalType(parts[1]),
+    count: parseInt(parts[2], 10) || 1
+  };
 }
 
 /**
  * Gets appraisal type from GCS path
- * @param {string} gcsPath GCS path
+ * @param {string} bulkIdentifier Bulk identifier from column B
  * @returns {Promise<string>} Appraisal type
  */
-async function getAppraisalType(gcsPath) {
-  if (!gcsPath) {
+function getAppraisalType(bulkIdentifier) {
+  if (!bulkIdentifier) {
     return 'RegularArt';
   }
 
-  try {
-    const customerInfo = await getCustomerInfo(gcsPath);
-    if (!customerInfo?.appraisal_type) {
-      return 'RegularArt';
-    }
-
-    return mapAppraisalType(customerInfo.appraisal_type);
-  } catch (error) {
-    console.error('Error getting appraisal type:', error);
-    return 'RegularArt';
-  }
+  const { type } = extractBulkInfo(bulkIdentifier);
+  return type;
 }
 
 module.exports = {
   getAppraisalType,
   mapAppraisalType,
-  getCustomerInfo
+  extractBulkInfo
 };
