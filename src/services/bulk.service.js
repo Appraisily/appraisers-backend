@@ -1,4 +1,5 @@
 const { sheetsService } = require('../services');
+const { storageService } = require('../services');
 const { config } = require('../config');
 const { v4: uuidv4 } = require('uuid');
 const fetch = require('node-fetch');
@@ -20,18 +21,29 @@ class BulkService {
 
     const bulkIdentifier = values[0][0];
     const wordpressUrl = values[0][5];
+    
+    if (!wordpressUrl) {
+      throw new Error('WordPress URL not found for this appraisal');
+    }
+
+    try {
     const postId = new URL(wordpressUrl).searchParams.get('post');
 
     if (!postId) {
       throw new Error('Invalid WordPress URL');
     }
 
-    // List files from GCS bucket
-    const bucketPath = `${config.GCS_BUCKET_NAME}/bulk/${postId}`;
+    const bucketPath = `appraisily-bulk-requests-403609/bulk_${postId}`;
     const files = await storageService.listFiles(bucketPath);
 
     console.log(`[getBulkImages] Found ${files.length} files for post ${postId}`);
     return files;
+    } catch (error) {
+      if (error instanceof TypeError && error.code === 'ERR_INVALID_URL') {
+        throw new Error(`Invalid WordPress URL format: ${wordpressUrl}`);
+      }
+      throw error;
+    }
   }
 
   async createNewAppraisalRow(originalRow, session_id, appraisalType, combinedDescription, images) {
