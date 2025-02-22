@@ -22,6 +22,7 @@ class StorageService {
 
   async listFiles(bucketPath) {
     if (!this.isAvailable) {
+      console.log('[StorageService] Service not initialized, initializing...');
       await this.initialize();
     }
 
@@ -29,23 +30,29 @@ class StorageService {
       // Extract bucket name and folder path
       const [bucketName, ...folderParts] = bucketPath.split('/');
       const folderPath = folderParts.join('/');
+      console.log(`[StorageService] Listing files in bucket: ${bucketName}, path: ${folderPath}`);
 
       const [files] = await this.storage.bucket(bucketName).getFiles({
         prefix: folderPath,
         delimiter: '/'
       });
 
+      console.log(`[StorageService] Found ${files.length} files in bucket`);
+
       // Generate signed URLs for each file (valid for 1 hour)
+      console.log('[StorageService] Generating signed URLs...');
       const signedUrls = await Promise.all(
         files
           .filter(file => !file.name.endsWith('/')) // Exclude folders
           .map(async file => {
+            console.log(`[StorageService] Processing file: ${file.name}`);
             const [url] = await file.getSignedUrl({
               version: 'v4',
               action: 'read',
               expires: Date.now() + 24 * 3600 * 1000 // 24 hours
             });
 
+            console.log(`[StorageService] Generated signed URL for: ${file.name}`);
             return {
               name: file.name.split('/').pop(),
               url,
@@ -55,9 +62,11 @@ class StorageService {
           })
       );
 
+      console.log(`[StorageService] Successfully generated ${signedUrls.length} signed URLs`);
       return signedUrls;
     } catch (error) {
-      console.error('Error listing files:', error);
+      console.error('[StorageService] Error listing files:', error);
+      console.error('[StorageService] Stack:', error.stack);
       throw error;
     }
   }
