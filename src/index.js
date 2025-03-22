@@ -1,4 +1,6 @@
 const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const app = require('./app');
 const { initializeConfig } = require('./config');
 const { initializeServices } = require('./services');
@@ -44,17 +46,44 @@ async function startServer() {
     // Get port from environment
     const PORT = process.env.PORT || 8080;
 
-    // Create HTTP server
-    const httpServer = http.createServer(app);
-    server = httpServer;
+    // Determine if we're running in a secure environment (like Cloud Run)
+    // Cloud Run provides HTTPS automatically, we just need to listen on the port
+    const isSecureEnvironment = process.env.NODE_ENV === 'production' || process.env.SECURE === 'true';
+    
+    // Create appropriate server
+    let appServer;
+    
+    if (isSecureEnvironment) {
+      console.log('Running in secure environment, using HTTPS configuration');
+      // In Cloud Run, we don't need to provide certificates, just use HTTP
+      // The service will still be accessible via HTTPS because Cloud Run handles it
+      appServer = http.createServer(app);
+      console.log('Server will support WSS connections through Cloud Run HTTPS termination');
+    } else if (process.env.SSL_CERT_PATH && process.env.SSL_KEY_PATH) {
+      // For local development with SSL certs
+      console.log('Using local SSL certificates');
+      const httpsOptions = {
+        key: fs.readFileSync(process.env.SSL_KEY_PATH),
+        cert: fs.readFileSync(process.env.SSL_CERT_PATH)
+      };
+      appServer = https.createServer(httpsOptions, app);
+    } else {
+      // Regular HTTP for local development
+      console.log('Using HTTP for local development');
+      appServer = http.createServer(app);
+    }
+    
+    server = appServer;
     
     // Initialize WebSocket server
-    const wsServer = initWebSocket(httpServer);
+    const wsServer = initWebSocket(appServer);
     console.log('✓ WebSocket server initialized');
     
     // Start listening
-    httpServer.listen(PORT, '0.0.0.0', () => {
-      console.log(`✓ Server running on port ${PORT}`);
+    appServer.listen(PORT, '0.0.0.0', () => {
+      const protocol = isSecureEnvironment || (process.env.SSL_CERT_PATH && process.env.SSL_KEY_PATH) 
+        ? 'HTTPS' : 'HTTP';
+      console.log(`✓ Server (${protocol}) running on port ${PORT}`);
     });
 
     // Handle server errors

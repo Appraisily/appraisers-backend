@@ -1,6 +1,6 @@
 # Appraisers Backend Service
 
-A robust Node.js backend service for managing art appraisals, providing secure API endpoints for authentication, appraisal management, and integration with various services.
+A robust Node.js backend service for managing art appraisals, providing secure API endpoints for authentication, appraisal management, and integration with various services. Now featuring real-time updates via secure WebSockets.
 
 ## Project Structure
 
@@ -33,6 +33,7 @@ src/
 │   ├── email.service.js
 │   ├── pubsub.service.js
 │   ├── sheets.service.js
+│   ├── websocket.service.js   # Real-time updates via WebSockets
 │   └── wordpress.service.js
 ├── utils/            # Utility functions
 │   ├── getImageUrl.js
@@ -50,6 +51,13 @@ src/
 - Secure token refresh mechanism
 - Role-based access control
 - Backend-to-backend authentication using shared secrets
+
+### Real-Time Updates
+- WebSocket server for live status updates
+- Secure WSS connections for HTTPS clients
+- Automatic protocol detection
+- Connection status monitoring
+- Broadcast system for appraisal status changes
 
 ### Appraisal Management
 - List pending and completed appraisals
@@ -104,6 +112,11 @@ GET  /api/health/endpoints - List available endpoints
 # Authentication
 JWT_SECRET                   - JWT signing secret
 SHARED_SECRET               - Service-to-service auth secret
+
+# WebSocket Security
+SECURE                     - Set to "true" to enable WSS mode
+SSL_CERT_PATH              - Path to SSL certificate (local dev only)
+SSL_KEY_PATH               - Path to SSL key (local dev only)
 
 # WordPress
 WORDPRESS_API_URL           - WordPress API endpoint

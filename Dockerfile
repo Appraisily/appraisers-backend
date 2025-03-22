@@ -14,6 +14,7 @@ COPY . .
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=8080
+ENV SECURE=true
 
 # Expose port
 EXPOSE 8080

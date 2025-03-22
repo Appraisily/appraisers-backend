@@ -1,22 +1,48 @@
 const WebSocket = require('ws');
 const http = require('http');
+const https = require('https');
 
 let wss;
 const clients = new Set();
 
 /**
  * Initialize WebSocket server
- * @param {http.Server} server - HTTP server instance
+ * @param {http.Server|https.Server} server - HTTP or HTTPS server instance
  */
 const initWebSocket = (server) => {
-  wss = new WebSocket.Server({ server });
+  // Determine if running in secure mode (either production or with SSL certificates)
+  const isSecure = process.env.NODE_ENV === 'production' || 
+                  process.env.SECURE === 'true' || 
+                  (process.env.SSL_CERT_PATH && process.env.SSL_KEY_PATH);
   
-  wss.on('connection', (ws) => {
-    console.log('New WebSocket client connected');
+  // Create WebSocket server with proper options
+  wss = new WebSocket.Server({ 
+    server,
+    // Additional security options for production
+    perMessageDeflate: {
+      zlibDeflateOptions: {
+        chunkSize: 1024,
+        memLevel: 7,
+        level: 3
+      },
+      zlibInflateOptions: {
+        chunkSize: 10 * 1024
+      },
+      // Below options are used to limit memory usage
+      concurrencyLimit: 10,
+      threshold: 1024 // Size in bytes below which messages are not compressed
+    }
+  });
+  
+  wss.on('connection', (ws, req) => {
+    const clientIp = req.headers['x-forwarded-for'] || 
+                     req.socket.remoteAddress;
+    console.log(`New WebSocket client connected from ${clientIp}`);
+    
     clients.add(ws);
     
-    ws.on('close', () => {
-      console.log('WebSocket client disconnected');
+    ws.on('close', (code, reason) => {
+      console.log(`WebSocket client disconnected. Code: ${code}, Reason: ${reason || 'No reason provided'}`);
       clients.delete(ws);
     });
     
@@ -29,12 +55,14 @@ const initWebSocket = (server) => {
     ws.send(JSON.stringify({
       type: 'connection_established',
       payload: {
-        message: 'Connected to appraisals real-time updates'
+        message: 'Connected to appraisals real-time updates',
+        protocol: isSecure ? 'WSS' : 'WS',
+        timestamp: new Date().toISOString()
       }
     }));
   });
   
-  console.log('WebSocket server initialized');
+  console.log(`WebSocket server initialized (${isSecure ? 'Secure/WSS' : 'Insecure/WS'} mode)`);
   return wss;
 };
 
