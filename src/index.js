@@ -1,6 +1,8 @@
+const http = require('http');
 const app = require('./app');
 const { initializeConfig } = require('./config');
 const { initializeServices } = require('./services');
+const { initWebSocket } = require('./services/websocket.service');
 
 // Graceful shutdown handler
 let server;
@@ -43,7 +45,15 @@ async function startServer() {
     const PORT = process.env.PORT || 8080;
 
     // Create HTTP server
-    server = app.listen(PORT, '0.0.0.0', () => {
+    const httpServer = http.createServer(app);
+    server = httpServer;
+    
+    // Initialize WebSocket server
+    const wsServer = initWebSocket(httpServer);
+    console.log('✓ WebSocket server initialized');
+    
+    // Start listening
+    httpServer.listen(PORT, '0.0.0.0', () => {
       console.log(`✓ Server running on port ${PORT}`);
     });
 

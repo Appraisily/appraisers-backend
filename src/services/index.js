@@ -4,6 +4,7 @@ const pubsubService = require('./pubsub.service');
 const aiService = require('./ai.service');
 const wordpressService = require('./wordpress.service');
 const storageService = require('./storage.service');
+const websocketService = require('./websocket.service');
 const ServiceValidator = require('../middleware/validateService');
 
 async function initializeServices() {
@@ -97,5 +98,6 @@ module.exports = {
   pubsubService,
   aiService,
   wordpressService,
-  storageService
+  storageService,
+  websocketService
 };

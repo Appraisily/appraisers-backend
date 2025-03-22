@@ -2,7 +2,8 @@ const {
   sheetsService, 
   wordpressService,
   pubsubService,
-  emailService 
+  emailService,
+  websocketService
 } = require('../services');
 const { config } = require('../config');
 const { getImageUrl } = require('../utils/getImageUrl');
@@ -249,6 +250,28 @@ class AppraisalController {
       await wordpressService.updatePost(postId, {
         acf: { value: appraisalValue }
       });
+      
+      // Get the full appraisal data to broadcast via WebSocket
+      const appraisalData = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${sheetName}!A${id}:G${id}`
+      );
+      
+      if (appraisalData && appraisalData[0]) {
+        const row = appraisalData[0];
+        // Broadcast status update via WebSocket
+        websocketService.broadcastStatusUpdate({
+          id,
+          date: row[0] || '',
+          appraisalType: row[1] || '',
+          identifier: row[2] || '',
+          customerEmail: row[3] || '',
+          customerName: row[4] || '',
+          status: row[5] || '',
+          wordpressUrl: row[6] || '',
+          value: appraisalValue
+        });
+      }
 
       res.json({ success: true, message: 'Appraisal value set successfully.' });
     } catch (error) {
@@ -382,6 +405,28 @@ class AppraisalController {
         `${config.GOOGLE_SHEET_NAME}!J${id}:K${id}`,
         [[appraisalValue, description]]
       );
+      
+      // Get the updated appraisal data to broadcast via WebSocket
+      const appraisalData = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${config.GOOGLE_SHEET_NAME}!A${id}:G${id}`
+      );
+      
+      if (appraisalData && appraisalData[0]) {
+        const row = appraisalData[0];
+        // Broadcast status update via WebSocket
+        websocketService.broadcastStatusUpdate({
+          id,
+          date: row[0] || '',
+          appraisalType: row[1] || '',
+          identifier: row[2] || '',
+          customerEmail: row[3] || '',
+          customerName: row[4] || '',
+          status: 'Completed', // We know it's completed
+          wordpressUrl: row[6] || '',
+          value: appraisalValue
+        });
+      }
 
       res.json({ success: true, message: 'Appraisal completed successfully.' });
     } catch (error) {
