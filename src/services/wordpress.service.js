@@ -80,9 +80,43 @@ class WordPressService {
         throw new Error(`WordPress API error (${response.status}): ${errorText}`);
       }
 
-      const data = await response.json();
-      console.log('✅ Successfully fetched WordPress post');
-      return data;
+      // Get the response text first to check for HTML debug content
+      const responseText = await response.text();
+      
+      // Check if the response contains HTML debug information (starts with a div)
+      if (responseText.trim().startsWith('<div')) {
+        console.warn('⚠️ WordPress response contains HTML debug content');
+        
+        try {
+          // Extract the JSON part from the response - look for the first valid JSON object
+          // This regex looks for content after the closing </div> tag
+          const jsonMatch = responseText.match(/<\/div>(.+)/s);
+          
+          if (jsonMatch && jsonMatch[1]) {
+            const jsonPart = jsonMatch[1].trim();
+            const data = JSON.parse(jsonPart);
+            console.log('✅ Successfully extracted JSON from mixed HTML/JSON response');
+            return data;
+          } else {
+            console.error('❌ Could not extract JSON data from HTML/JSON response');
+            throw new Error('WordPress API returned invalid response format with HTML content');
+          }
+        } catch (jsonError) {
+          console.error('❌ Error parsing JSON from WordPress response:', jsonError);
+          throw new Error(`WordPress API returned malformed response: ${jsonError.message}`);
+        }
+      } else {
+        // Regular JSON response
+        try {
+          const data = JSON.parse(responseText);
+          console.log('✅ Successfully fetched WordPress post');
+          return data;
+        } catch (jsonError) {
+          console.error('❌ Error parsing JSON from WordPress response:', jsonError);
+          console.error('Response content sample:', responseText.substring(0, 200));
+          throw new Error(`WordPress API returned invalid JSON: ${jsonError.message}`);
+        }
+      }
     } catch (error) {
       console.error(`❌ Error fetching WordPress post ${postId}:`, error);
       throw error;
