@@ -24,6 +24,54 @@ app.use(cookieParser());
 app.get('/_ah/health', (req, res) => res.status(200).send('OK'));
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
+// Direct auth route for emergency access
+app.post('/api/auth/direct-login', (req, res) => {
+  const { email, password } = req.body;
+  
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email and password are required.'
+    });
+  }
+  
+  if (email !== 'info@appraisily.com') {
+    return res.status(403).json({
+      success: false,
+      message: 'User not authorized.'
+    });
+  }
+  
+  if (password !== 'appraisily2024') {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid credentials'
+    });
+  }
+  
+  // Generate a simpler token for emergency access
+  const token = Buffer.from(`${email}:${Date.now()}`).toString('base64');
+  
+  // Set cookie with appropriate options
+  const cookieOptions = {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  };
+  
+  res.cookie('emergency_token', token, cookieOptions);
+  
+  // Return response in required format
+  res.json({
+    success: true,
+    name: 'Appraisily Admin',
+    message: 'Login successful (emergency access)',
+    token // Include token for serverless clients
+  });
+});
+
 // Request logging
 app.use((req, res, next) => {
   const start = Date.now();
