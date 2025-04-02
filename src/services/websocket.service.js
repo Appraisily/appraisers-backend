@@ -4,6 +4,7 @@ const https = require('https');
 
 let wss;
 const clients = new Set();
+let pingInterval;
 
 /**
  * Initialize WebSocket server
@@ -39,6 +40,26 @@ const initWebSocket = (server) => {
                      req.socket.remoteAddress;
     console.log(`New WebSocket client connected from ${clientIp}`);
     
+    // Add isAlive property for ping-pong mechanism
+    ws.isAlive = true;
+    
+    // Handle pong responses
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
+    
+    // Handle client messages (can be used for ping)
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message);
+        if (data.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+        }
+      } catch (e) {
+        // Ignore parsing errors, might be a binary message
+      }
+    });
+    
     clients.add(ws);
     
     ws.on('close', (code, reason) => {
@@ -60,6 +81,27 @@ const initWebSocket = (server) => {
         timestamp: new Date().toISOString()
       }
     }));
+  });
+  
+  // Set up a ping-pong interval to keep connections alive
+  if (pingInterval) {
+    clearInterval(pingInterval);
+  }
+  
+  pingInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.isAlive === false) {
+        return ws.terminate();
+      }
+      
+      ws.isAlive = false;
+      ws.ping(() => {});
+    });
+  }, 30000); // Send ping every 30 seconds
+  
+  // Handle server shutdown
+  wss.on('close', () => {
+    clearInterval(pingInterval);
   });
   
   console.log(`WebSocket server initialized (${isSecure ? 'Secure/WSS' : 'Insecure/WS'} mode)`);
