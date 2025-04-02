@@ -6,7 +6,7 @@ class AppraisalListController {
     try {
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!A2:G`
+        `${config.GOOGLE_SHEET_NAME}!A2:K`
       );
 
       const appraisals = (values || []).map((row, index) => ({
@@ -17,7 +17,11 @@ class AppraisalListController {
         customerEmail: row[3] || '',
         customerName: row[4] || '',
         status: row[5] || '',
-        wordpressUrl: row[6] || ''
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || '',
+        customerDescription: row[8] || '',
+        value: row[9] || '',
+        appraisersDescription: row[10] || ''
       }));
 
       res.json(appraisals);
@@ -31,7 +35,7 @@ class AppraisalListController {
     try {
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        'Completed Appraisals!A2:G'
+        'Completed Appraisals!A2:K'
       );
 
       const completedAppraisals = (values || []).map((row, index) => ({
@@ -42,7 +46,11 @@ class AppraisalListController {
         customerEmail: row[3] || '',
         customerName: row[4] || '',
         status: row[5] || '',
-        wordpressUrl: row[6] || ''
+        wordpressUrl: row[6] || '',
+        iaDescription: row[7] || '',
+        customerDescription: row[8] || '',
+        value: row[9] || '',
+        appraisersDescription: row[10] || ''
       }));
 
       res.json(completedAppraisals);
