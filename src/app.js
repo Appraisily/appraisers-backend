@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const { corsOptions } = require('./config/corsConfig');
 const routes = require('./routes');
 const { errorHandler } = require('./middleware/errorHandler');
+const notFoundHandler = require('./middleware/notFoundHandler');
 
 const app = express();
 
@@ -88,12 +89,7 @@ app.use('/api', routes);
 // Error handling
 app.use(errorHandler);
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Not Found'
-  });
-});
+// 404 handler with documentation
+app.use(notFoundHandler);
 
 module.exports = app;
