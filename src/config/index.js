@@ -32,6 +32,9 @@ async function initializeConfig() {
     config.LOG_SPREADSHEET_ID = (await getSecret('LOG_SPREADSHEET_ID')).trim();
     config.EDIT_SHEET_NAME = (await getSecret('EDIT_SHEET_NAME')).trim();
     config.GOOGLE_DOCS_CREDENTIALS = await getSecret('GOOGLE_DOCS_CREDENTIALS');
+    
+    // Set the exact sheet name for completed appraisals - must match exactly what's in the spreadsheet
+    config.COMPLETED_SHEET_NAME = 'Completed Appraisals';
 
     console.log('Configuration initialized successfully');
     return config;
