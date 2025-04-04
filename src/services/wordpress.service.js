@@ -30,14 +30,44 @@ class WordPressService {
       this.auth = Buffer.from(credentialsString).toString('base64');
 
       console.log('🔄 Testing WordPress connection...');
+      console.log('📌 DEBUG - WordPress API URL from config:', config.WORDPRESS_API_URL);
+      console.log('📌 DEBUG - WordPress API baseUrl after processing:', this.baseUrl);
       
-      const testResponse = await fetch(`${this.baseUrl}/posts?per_page=1`, {
+      // First test with regular posts endpoint
+      const testUrl = `${this.baseUrl}/posts?per_page=1`;
+      console.log('📌 DEBUG - Test connection URL (regular posts):', testUrl);
+      
+      const testResponse = await fetch(testUrl, {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
           'Authorization': `Basic ${this.auth}`
         }
       });
+      
+      // If that works, also test the custom post type endpoint to ensure it exists
+      if (testResponse.ok) {
+        try {
+          const cptTestUrl = `${this.baseUrl}/appraisals?per_page=1`;
+          console.log('📌 DEBUG - Testing custom post type endpoint:', cptTestUrl);
+          
+          const cptResponse = await fetch(cptTestUrl, {
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': `Basic ${this.auth}`
+            }
+          });
+          
+          if (cptResponse.ok) {
+            console.log('✅ Custom post type endpoint is accessible');
+          } else {
+            console.warn(`⚠️ Custom post type endpoint returned ${cptResponse.status}. Appraisals might not be properly registered as a custom post type.`);
+          }
+        } catch (cptError) {
+          console.warn('⚠️ Error testing custom post type endpoint:', cptError.message);
+        }
+      }
 
       if (!testResponse.ok) {
         const errorText = await testResponse.text();
@@ -65,7 +95,14 @@ class WordPressService {
       }
 
       const endpoint = `${this.baseUrl}/appraisals/${postId}`;
-      console.log('Making request to:', endpoint);
+      console.log('📌 DEBUG - Making request to:', endpoint);
+      console.log('📌 DEBUG - WordPress configuration:',
+        { 
+          baseUrl: this.baseUrl,
+          username: config.WORDPRESS_USERNAME ? '***' : 'Not set',
+          appPasswordLength: config.WORDPRESS_APP_PASSWORD ? config.WORDPRESS_APP_PASSWORD.length : 0
+        }
+      );
 
       const response = await fetch(endpoint, {
         headers: {
@@ -226,8 +263,11 @@ class WordPressService {
       }
 
       // Fetch the post with embedded ACF fields - using appraisals custom post type endpoint
+      const fullUrl = `${this.baseUrl}/appraisals/${postId}?_embed=true&acf_format=standard`;
+      console.log('📌 DEBUG - Full WordPress API URL:', fullUrl);
+      
       const response = await fetch(
-        `${this.baseUrl}/appraisals/${postId}?_embed=true&acf_format=standard`,
+        fullUrl,
         {
           headers: {
             'Accept': 'application/json',

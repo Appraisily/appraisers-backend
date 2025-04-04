@@ -125,8 +125,23 @@ class AppraisalDetailsController {
         });
       }
       
-      // Get all WordPress post metadata
-      const postDetails = await wordpressService.getPostWithMetadata(postId);
+      let postDetails;
+      try {
+        // Get all WordPress post metadata
+        postDetails = await wordpressService.getPostWithMetadata(postId);
+      } catch (metadataError) {
+        console.warn(`[getCompletedAppraisalDetails] Error fetching post with metadata, falling back to basic post details:`, metadataError);
+        
+        // Fall back to basic post details without metadata
+        try {
+          postDetails = await wordpressService.getPost(postId);
+          // Add empty meta to prevent errors
+          postDetails.meta = {};
+        } catch (postError) {
+          console.error(`[getCompletedAppraisalDetails] Failed to get basic post details:`, postError);
+          throw new Error(`Failed to fetch WordPress post: ${postError.message}`);
+        }
+      }
       
       // Transform WordPress data into a structured format
       const appraisalDetails = {
