@@ -225,9 +225,9 @@ class WordPressService {
         await this.initialize();
       }
 
-      // Fetch the post with embedded ACF fields
+      // Fetch the post with embedded ACF fields - using appraisals custom post type endpoint
       const response = await fetch(
-        `${this.baseUrl}/posts/${postId}?_embed=true&acf_format=standard`,
+        `${this.baseUrl}/appraisals/${postId}?_embed=true&acf_format=standard`,
         {
           headers: {
             'Accept': 'application/json',
@@ -260,9 +260,9 @@ class WordPressService {
         postData = JSON.parse(responseText);
       }
 
-      // Fetch the post meta separately
+      // Fetch the post meta separately - using appraisals custom post type endpoint
       const metaResponse = await fetch(
-        `${this.baseUrl}/posts/${postId}/meta`,
+        `${this.baseUrl}/appraisals/${postId}/meta`,
         {
           headers: {
             'Accept': 'application/json',
@@ -346,9 +346,9 @@ class WordPressService {
       
       processingHistory[stepName].push(historyEntry);
       
-      // Update the WordPress post meta
+      // Update the WordPress post meta - using appraisals custom post type endpoint
       const metaResponse = await fetch(
-        `${this.baseUrl}/posts/${postId}/meta`,
+        `${this.baseUrl}/appraisals/${postId}/meta`,
         {
           method: 'POST',
           headers: {
@@ -378,7 +378,7 @@ class WordPressService {
       };
       
       const stepsResponse = await fetch(
-        `${this.baseUrl}/posts/${postId}/meta`,
+        `${this.baseUrl}/appraisals/${postId}/meta`,
         {
           method: 'POST',
           headers: {
@@ -399,7 +399,7 @@ class WordPressService {
       
       // Update the last_processed field
       const lastProcessedResponse = await fetch(
-        `${this.baseUrl}/posts/${postId}/meta`,
+        `${this.baseUrl}/appraisals/${postId}/meta`,
         {
           method: 'POST',
           headers: {
@@ -440,7 +440,7 @@ class WordPressService {
         await this.initialize();
       }
 
-      const endpoint = `${this.baseUrl}/posts/${postId}`;
+      const endpoint = `${this.baseUrl}/appraisals/${postId}`;
       
       const response = await fetch(endpoint, {
         method: 'POST',
