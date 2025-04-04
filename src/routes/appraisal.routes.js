@@ -4,6 +4,7 @@ const authenticate = require('../middleware/authenticate');
 const { validateSetValue } = require('../middleware/validateSetValue');
 const AppraisalController = require('../controllers/appraisal');
 const BulkController = require('../controllers/appraisal/bulk.controller');
+const DetailsController = require('../controllers/appraisal/details.controller');
 const { registerRoute } = require('../utils/routeDecorator');
 
 // List and View routes
@@ -181,5 +182,53 @@ registerRoute(router, 'post', '/:id/complete-process', {
     message: 'Appraisal marked as complete'
   }
 }, authenticate, AppraisalController.completeProcess);
+
+// New routes for completed appraisal details and step reprocessing
+registerRoute(router, 'get', '/:id/details', {
+  description: 'Get detailed information about a completed appraisal',
+  parameters: {
+    id: {
+      description: 'Appraisal ID',
+      required: true
+    }
+  },
+  response: {
+    success: true,
+    appraisalDetails: {
+      id: 'appraisal123',
+      postId: '456',
+      title: 'Example Completed Appraisal',
+      steps: [
+        {
+          name: 'enhance_description',
+          status: 'completed',
+          timestamp: '2023-01-02T00:00:00Z'
+        }
+      ]
+    }
+  }
+}, authenticate, DetailsController.getCompletedAppraisalDetails);
+
+registerRoute(router, 'post', '/:id/reprocess-step', {
+  description: 'Reprocess a specific step of an appraisal',
+  parameters: {
+    id: {
+      description: 'Appraisal ID',
+      required: true
+    }
+  },
+  requestBody: {
+    stepName: 'enhance_description'
+  },
+  response: {
+    success: true,
+    message: 'Step reprocessed successfully',
+    result: {
+      stepName: 'enhance_description',
+      status: 'completed',
+      timestamp: '2023-01-02T00:00:00Z'
+    }
+  }
+}, authenticate, DetailsController.reprocessAppraisalStep);
 
 module.exports = router;

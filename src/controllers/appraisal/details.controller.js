@@ -1,4 +1,4 @@
-const { sheetsService, wordpressService } = require('../../services');
+const { sheetsService, wordpressService, appraisalService } = require('../../services');
 const { config } = require('../../config');
 const { getImageUrl } = require('../../utils/getImageUrl');
 
@@ -101,6 +101,144 @@ class AppraisalDetailsController {
     } catch (error) {
       console.error('Error getting appraisal details for edit:', error);
       res.status(500).json({ success: false, message: 'Error getting appraisal details.' });
+    }
+  }
+
+  /**
+   * Get detailed information about a completed appraisal, including all WordPress metadata
+   * @param {object} req - Express request object
+   * @param {object} res - Express response object
+   */
+  static async getCompletedAppraisalDetails(req, res) {
+    const { id } = req.params;
+    
+    try {
+      console.log(`[getCompletedAppraisalDetails] Fetching details for appraisal ID: ${id}`);
+      
+      // Get WordPress post ID from the appraisal ID
+      const postId = await sheetsService.getWordPressPostIdFromAppraisalId(id);
+      
+      if (!postId) {
+        return res.status(404).json({
+          success: false,
+          message: 'Appraisal not found.'
+        });
+      }
+      
+      // Get all WordPress post metadata
+      const postDetails = await wordpressService.getPostWithMetadata(postId);
+      
+      // Transform WordPress data into a structured format
+      const appraisalDetails = {
+        id,
+        postId,
+        title: postDetails.title?.rendered || '',
+        content: postDetails.content?.rendered || '',
+        appraisalValue: postDetails.acf?.appraisal_value || '',
+        date: postDetails.date || '',
+        metadata: {
+          // Extract all ACF fields
+          ...postDetails.acf,
+          // Extract processing metadata
+          lastProcessed: postDetails.meta?.last_processed || '',
+          processingSteps: postDetails.meta?.processing_steps || {},
+          processingHistory: postDetails.meta?.processing_history || []
+        },
+        // Links to the WordPress admin, public post, etc.
+        links: {
+          admin: `${config.WORDPRESS_ADMIN_URL || 'https://resources.appraisily.com/wp-admin'}/post.php?post=${postId}&action=edit`,
+          public: postDetails.link || '',
+          pdf: postDetails.acf?.pdf_url || ''
+        }
+      };
+      
+      return res.json({
+        success: true,
+        appraisalDetails
+      });
+    } catch (error) {
+      console.error('[getCompletedAppraisalDetails] Error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error retrieving appraisal details',
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Reprocess a specific step of an appraisal
+   * @param {object} req - Express request object
+   * @param {object} res - Express response object
+   */
+  static async reprocessAppraisalStep(req, res) {
+    const { id } = req.params;
+    const { stepName } = req.body;
+    
+    if (!stepName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Step name is required'
+      });
+    }
+    
+    try {
+      // Get WordPress post ID from the appraisal ID
+      const postId = await sheetsService.getWordPressPostIdFromAppraisalId(id);
+      
+      if (!postId) {
+        return res.status(404).json({
+          success: false,
+          message: 'Appraisal not found.'
+        });
+      }
+      
+      // Process the specific step based on stepName
+      let result;
+      
+      switch (stepName) {
+        case 'enhance_description':
+          result = await appraisalService.enhanceDescription(id, postId);
+          break;
+        case 'update_wordpress':
+          result = await appraisalService.updateWordPress(id, postId);
+          break;
+        case 'generate_html':
+          result = await appraisalService.generateHtmlContent(id, postId);
+          break;
+        case 'generate_pdf':
+          result = await appraisalService.generatePDF(id, postId);
+          break;
+        case 'regenerate_statistics':
+          result = await appraisalService.regenerateStatistics(id, postId);
+          break;
+        default:
+          return res.status(400).json({
+            success: false,
+            message: `Unknown step: ${stepName}`
+          });
+      }
+      
+      // Log the reprocessing action in WordPress metadata
+      const timestamp = new Date().toISOString();
+      await wordpressService.updateStepProcessingHistory(postId, stepName, {
+        timestamp,
+        user: req.user?.name || 'Unknown User',
+        status: 'completed'
+      });
+      
+      return res.json({
+        success: true,
+        message: `Successfully reprocessed step: ${stepName}`,
+        result
+      });
+    } catch (error) {
+      console.error(`Error reprocessing step ${stepName}:`, error);
+      return res.status(500).json({
+        success: false,
+        message: `Error reprocessing step: ${stepName}`,
+        error: error.message
+      });
     }
   }
 }

@@ -4,9 +4,11 @@ const {
   pubsubService,
   emailService,
   openaiService 
-} = require('../../services');
-const { config } = require('../../config');
-const { getImageUrl } = require('../../utils/getImageUrl');
+} = require('../services');
+const { config } = require('../config');
+const { getImageUrl } = require('../utils/getImageUrl');
+const { v4: uuidv4 } = require('uuid');
+const axios = require('axios');
 
 class AppraisalService {
   async processAppraisal(id, appraisalValue, description) {
@@ -219,6 +221,275 @@ class AppraisalService {
       `${config.GOOGLE_SHEET_NAME}!J${id}:K${id}`,
       [[appraisalValue, description]]
     );
+  }
+
+  /**
+   * Enhance description by merging AI and appraiser descriptions
+   * @param {string} appraisalId - Appraisal ID
+   * @param {string} postId - WordPress post ID
+   * @returns {Promise<object>} Result of the enhancement operation
+   */
+  async enhanceDescription(appraisalId, postId) {
+    try {
+      console.log(`🔄 Enhancing description for appraisal ${appraisalId} (WordPress post ${postId})...`);
+      
+      // Get appraisal data from Google Sheets
+      const appraisal = await sheetsService.getPendingAppraisalById(appraisalId) || 
+                        await sheetsService.getCompletedAppraisalById(appraisalId);
+      
+      if (!appraisal) {
+        throw new Error(`Appraisal with ID ${appraisalId} not found`);
+      }
+      
+      // Get AI description and appraiser description
+      const aiDescription = appraisal.iaDescription || '';
+      const appraiserDescription = appraisal.appraisersDescription || '';
+      
+      if (!aiDescription) {
+        throw new Error('AI description not found');
+      }
+      
+      if (!appraiserDescription) {
+        throw new Error('Appraiser description not found');
+      }
+      
+      // Use OpenAI to merge descriptions
+      const mergedDescription = await openaiService.mergeDescriptions(
+        appraiserDescription,
+        aiDescription
+      );
+      
+      // Update the WordPress post with the merged description
+      await wordpressService.updatePostField(postId, 'content', mergedDescription);
+      
+      // Update Google Sheets with the merged description
+      await sheetsService.updateMergedDescription(appraisalId, mergedDescription);
+      
+      console.log('✅ Successfully enhanced description');
+      return {
+        success: true,
+        mergedDescription
+      };
+    } catch (error) {
+      console.error('❌ Error enhancing description:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update WordPress post with additional metadata
+   * @param {string} appraisalId - Appraisal ID
+   * @param {string} postId - WordPress post ID
+   * @returns {Promise<object>} Result of the update operation
+   */
+  async updateWordPress(appraisalId, postId) {
+    try {
+      console.log(`🔄 Updating WordPress post ${postId} for appraisal ${appraisalId}...`);
+      
+      // Get appraisal data from Google Sheets
+      const appraisal = await sheetsService.getPendingAppraisalById(appraisalId) || 
+                        await sheetsService.getCompletedAppraisalById(appraisalId);
+      
+      if (!appraisal) {
+        throw new Error(`Appraisal with ID ${appraisalId} not found`);
+      }
+      
+      // Get WordPress post details
+      const postDetails = await wordpressService.getPostWithMetadata(postId);
+      
+      // Update ACF fields
+      const acfData = {
+        appraisal_value: appraisal.value,
+        appraisal_type: appraisal.appraisalType || 'Regular',
+        appraisal_id: appraisalId,
+        // Add other fields as needed
+      };
+      
+      // Update the WordPress post ACF fields
+      await wordpressService.updatePost(postId, {
+        acf: acfData
+      });
+      
+      // Insert template shortcodes if they don't exist
+      const content = postDetails.content?.rendered || '';
+      let updatedContent = content;
+      const appraisalType = appraisal.appraisalType || 'RegularArt';
+      
+      if (!updatedContent.includes('[pdf_download]')) {
+        updatedContent += '\n[pdf_download]';
+      }
+      
+      if (!updatedContent.includes(`[AppraisalTemplates type="${appraisalType}"]`)) {
+        updatedContent += `\n[AppraisalTemplates type="${appraisalType}"]`;
+      }
+      
+      if (updatedContent !== content) {
+        await wordpressService.updatePostField(postId, 'content', updatedContent);
+      }
+      
+      console.log('✅ Successfully updated WordPress post');
+      return {
+        success: true,
+        message: 'WordPress post updated successfully'
+      };
+    } catch (error) {
+      console.error('❌ Error updating WordPress:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate HTML content for the appraisal report
+   * @param {string} appraisalId - Appraisal ID
+   * @param {string} postId - WordPress post ID
+   * @returns {Promise<object>} Result of the HTML generation operation
+   */
+  async generateHtmlContent(appraisalId, postId) {
+    try {
+      console.log(`🔄 Generating HTML content for appraisal ${appraisalId} (WordPress post ${postId})...`);
+      
+      // Call the appraisals-backend service to generate HTML content
+      const response = await axios.post(
+        `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/html-content`,
+        {
+          postId,
+          contentType: 'enhanced-analytics'
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.SHARED_SECRET || process.env.SHARED_SECRET}`
+          }
+        }
+      );
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to generate HTML content');
+      }
+      
+      console.log('✅ Successfully generated HTML content');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error generating HTML content:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate PDF for the appraisal
+   * @param {string} appraisalId - Appraisal ID
+   * @param {string} postId - WordPress post ID
+   * @returns {Promise<object>} Result of the PDF generation operation
+   */
+  async generatePDF(appraisalId, postId) {
+    try {
+      console.log(`🔄 Generating PDF for appraisal ${appraisalId} (WordPress post ${postId})...`);
+      
+      // Call the appraisals-backend service to generate the PDF
+      const session_ID = uuidv4(); // Generate a new session ID
+      
+      const response = await axios.post(
+        `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/generate-pdf`,
+        {
+          postId,
+          session_ID
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.SHARED_SECRET || process.env.SHARED_SECRET}`
+          }
+        }
+      );
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to generate PDF');
+      }
+      
+      // Update the Google Sheets with the PDF URL if we have a valid appraisal ID
+      // that can be parsed as an integer (not a WordPress post ID)
+      if (appraisalId && !isNaN(parseInt(appraisalId))) {
+        await sheetsService.updatePdfUrl(appraisalId, response.data.pdfUrl);
+      }
+      
+      console.log('✅ Successfully generated PDF');
+      return {
+        success: true,
+        pdfUrl: response.data.pdfUrl,
+        docUrl: response.data.docUrl
+      };
+    } catch (error) {
+      console.error('❌ Error generating PDF:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Regenerate statistics for the appraisal
+   * @param {string} appraisalId - Appraisal ID
+   * @param {string} postId - WordPress post ID
+   * @returns {Promise<object>} Result of the statistics regeneration operation
+   */
+  async regenerateStatistics(appraisalId, postId) {
+    try {
+      console.log(`🔄 Regenerating statistics for appraisal ${appraisalId} (WordPress post ${postId})...`);
+      
+      // Get WordPress post details to extract the item description and value
+      const postDetails = await wordpressService.getPostWithMetadata(postId);
+      
+      if (!postDetails) {
+        throw new Error(`WordPress post with ID ${postId} not found`);
+      }
+      
+      const itemDescription = postDetails.title?.rendered || '';
+      const itemValue = postDetails.acf?.appraisal_value || 0;
+      
+      // Call the valuer-agent service to regenerate statistics
+      const response = await axios.post(
+        `${config.VALUER_AGENT_URL || 'https://valuer-agent-856401495068.us-central1.run.app'}/enhanced-statistics`,
+        {
+          text: itemDescription,
+          value: itemValue,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.SHARED_SECRET || process.env.SHARED_SECRET}`
+          }
+        }
+      );
+      
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to regenerate statistics');
+      }
+      
+      // Update the WordPress post metadata with the new statistics
+      if (response.data.statistics) {
+        await axios.post(
+          `${config.WORDPRESS_API_URL}/posts/${postId}/meta`,
+          {
+            key: 'statistics_data',
+            value: JSON.stringify(response.data.statistics)
+          },
+          {
+            auth: {
+              username: config.WORDPRESS_USERNAME,
+              password: config.WORDPRESS_APP_PASSWORD
+            }
+          }
+        );
+      }
+      
+      console.log('✅ Successfully regenerated statistics');
+      return {
+        success: true,
+        message: 'Statistics regenerated successfully',
+        statistics: response.data.statistics
+      };
+    } catch (error) {
+      console.error('❌ Error regenerating statistics:', error);
+      throw error;
+    }
   }
 }
 

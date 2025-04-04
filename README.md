@@ -1,6 +1,6 @@
 # Appraisers Backend Service
 
-A robust Node.js backend service for managing art appraisals, providing secure API endpoints for authentication, appraisal management, and integration with various services. Now featuring real-time updates via secure WebSockets.
+A robust Node.js backend service for managing art appraisals, providing secure API endpoints for authentication, appraisal management, and integration with various services.
 
 ## 🚀 Quick Start
 
@@ -58,7 +58,6 @@ src/
 │   ├── email.service.js
 │   ├── pubsub.service.js
 │   ├── sheets.service.js
-│   ├── websocket.service.js  # Real-time updates via WebSockets
 │   └── wordpress.service.js
 ├── tests/                # Test files
 │   └── routes.test.js
@@ -78,13 +77,7 @@ src/
 - Secure token refresh mechanism
 - Role-based access control
 - Backend-to-backend authentication using shared secrets
-
-### Real-Time Updates
-- WebSocket server for live status updates
-- Secure WSS connections for HTTPS clients
-- Automatic protocol detection
-- Connection status monitoring
-- Broadcast system for appraisal status changes
+- Google OAuth integration for user authentication
 
 ### Appraisal Management
 - List pending and completed appraisals
@@ -137,15 +130,6 @@ GET  /api/health/status    - Service health status
 GET  /api/health/endpoints - List available endpoints
 ```
 
-## 🔐 WebSocket Security
-
-The project implements secure WebSocket connections:
-
-- Automatic protocol detection (WSS for HTTPS, WS for HTTP)
-- Secure connection handling in production environments
-- Connection status monitoring and error handling
-- See [WEBSOCKET_SECURITY.md](./WEBSOCKET_SECURITY.md) for details
-
 ## 🔧 Required Environment Variables
 
 ```bash
@@ -153,10 +137,9 @@ The project implements secure WebSocket connections:
 JWT_SECRET                   - JWT signing secret
 SHARED_SECRET                - Service-to-service auth secret
 
-# WebSocket Security
-SECURE                      - Set to "true" to enable WSS mode
-SSL_CERT_PATH               - Path to SSL certificate (local dev only)
-SSL_KEY_PATH                - Path to SSL key (local dev only)
+# Google Auth
+GOOGLE_CLIENT_ID             - Google OAuth client ID
+GOOGLE_CLIENT_SECRET         - Google OAuth client secret
 
 # WordPress
 WORDPRESS_API_URL           - WordPress API endpoint
@@ -200,7 +183,7 @@ The project follows specific code style guidelines:
 - JSDoc comments for public APIs and complex functions
 - Standardized API response format
 
-See [CLAUDE.md](./CLAUDE.md) for detailed coding guidelines.
+See [CLAUDE.md](../CLAUDE.md) for detailed coding guidelines.
 
 ## 📋 Dependencies
 
@@ -210,10 +193,34 @@ The service relies on the following key dependencies:
 - **JWT**: Authentication and authorization
 - **Google Cloud**: PubSub, Storage, Secret Manager
 - **SendGrid**: Email service
-- **WS**: WebSocket implementation
 - **Axios**: HTTP client
 - **Winston**: Logging
 - **Jest**: Testing framework
+
+## ⚠️ Troubleshooting
+
+### Common Issues
+
+1. **Authentication Failures**
+   - Check JWT_SECRET environment variable
+   - Verify cookie settings match security requirements
+   - Confirm Google OAuth configuration
+
+2. **WordPress Integration Issues**
+   - Verify WordPress credentials are valid
+   - Check network connectivity to WordPress instance
+   - Ensure proper error handling in WordPress service
+
+3. **Google Sheets Access Problems**
+   - Confirm service account has appropriate permissions
+   - Verify spreadsheet ID is correct
+   - Check sheet names match configuration
+
+### Debugging Tips
+
+- Enable DEBUG environment variable for detailed logs
+- Use Jest's `--verbose` flag for detailed test output
+- Check Cloud Run logs for production issues
 
 ## ⚖️ License
 
