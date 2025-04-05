@@ -386,9 +386,18 @@ class WordPressService {
       
       processingHistory[stepName].push(historyEntry);
       
+      // Add detailed debugging for WordPress API URL
+      const fullMetaUrl = `${this.baseUrl}/appraisals/${postId}/meta`;
+      console.log(`🔍 DEBUG - Full WordPress API URL for meta update: ${fullMetaUrl}`);
+      console.log(`🔍 DEBUG - Authorization header: Basic ${this.auth.substring(0, 5)}...`);
+      console.log(`🔍 DEBUG - Request body: ${JSON.stringify({
+        key: 'processing_history',
+        value: JSON.stringify(processingHistory).substring(0, 100) + '...'
+      })}`);
+      
       // Update the WordPress post meta - using appraisals custom post type endpoint
       const metaResponse = await fetch(
-        `${this.baseUrl}/appraisals/${postId}/meta`,
+        fullMetaUrl,
         {
           method: 'POST',
           headers: {
