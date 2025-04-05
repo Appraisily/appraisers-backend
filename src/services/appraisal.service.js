@@ -590,12 +590,12 @@ class AppraisalService {
       );
       
       if (!response.data.success) {
-        // Track the failure in Google Sheets
-        try {
-          await sheetsService.updateProcessingStatus(appraisalId, `Statistics regeneration failed: ${response.data.message || 'Unknown error'}`);
-        } catch (sheetsError) {
-          console.warn(`⚠️ Warning: Could not update failure status in Google Sheets: ${sheetsError.message}`);
-        }
+        // Track the failure in Google Sheets - use safe call
+        await safeServiceCall(
+          sheetsService,
+          'updateProcessingStatus', 
+          [appraisalId, `Statistics regeneration failed: ${response.data.message || 'Unknown error'}`]
+        );
         
         throw new Error(response.data.message || 'Failed to regenerate statistics and visualizations');
       }
