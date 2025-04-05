@@ -5,6 +5,7 @@ const aiService = require('./ai.service');
 const wordpressService = require('./wordpress.service');
 const storageService = require('./storage.service');
 const websocketService = require('./websocket.service');
+const appraisalService = require('./appraisal.service');
 const ServiceValidator = require('../middleware/validateService');
 
 async function initializeServices() {
@@ -56,6 +57,12 @@ async function initializeServices() {
       instance: storageService,
       required: true,
       validate: () => true
+    },
+    {
+      name: 'appraisal',
+      instance: appraisalService,
+      required: true,
+      validate: () => true
     }
   ];
 
@@ -99,5 +106,6 @@ module.exports = {
   aiService,
   wordpressService,
   storageService,
-  websocketService
+  websocketService,
+  appraisalService
 };
