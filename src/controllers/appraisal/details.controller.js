@@ -1,4 +1,4 @@
-const { sheetsService, wordpressService, appraisalService } = require('../../services');
+const { sheetsService, wordpressService, appraisalService, isServiceAvailable, safeServiceCall } = require('../../services');
 const { config } = require('../../config');
 const { getImageUrl } = require('../../utils/getImageUrl');
 
@@ -127,6 +127,12 @@ class AppraisalDetailsController {
       
       let postDetails;
       try {
+        // Ensure wordpressService is properly initialized
+        if (!wordpressService || !wordpressService.getPostWithMetadata) {
+          console.error('[getCompletedAppraisalDetails] WordPress service is not properly initialized or missing getPostWithMetadata method');
+          throw new Error('WordPress service is not properly initialized');
+        }
+        
         // Get all WordPress post metadata
         postDetails = await wordpressService.getPostWithMetadata(postId);
       } catch (metadataError) {
@@ -134,6 +140,10 @@ class AppraisalDetailsController {
         
         // Fall back to basic post details without metadata
         try {
+          if (!wordpressService || !wordpressService.getPost) {
+            throw new Error('WordPress service is not properly initialized');
+          }
+          
           postDetails = await wordpressService.getPost(postId);
           // Add empty meta to prevent errors
           postDetails.meta = {};
@@ -190,7 +200,10 @@ class AppraisalDetailsController {
     const { id } = req.params;
     const { stepName } = req.body;
     
+    console.log(`🔄 [reprocessAppraisalStep] Reprocessing step "${stepName}" for appraisal ID: ${id}`);
+    
     if (!stepName) {
+      console.warn('❌ [reprocessAppraisalStep] Missing step name in request');
       return res.status(400).json({
         success: false,
         message: 'Step name is required'
@@ -198,49 +211,126 @@ class AppraisalDetailsController {
     }
     
     try {
-      // Get WordPress post ID from the appraisal ID
+      // Track the processing in Google Sheets - use safe call to avoid errors
+      await safeServiceCall(
+        sheetsService, 
+        'updateProcessingStatus', 
+        [id, `Reprocessing ${stepName} - Started`]
+      );
+      
+      // Get WordPress post ID from the appraisal ID - use safe call but we need the result
+      console.log(`🔍 [reprocessAppraisalStep] Getting WordPress post ID for appraisal ID: ${id}`);
       const postId = await sheetsService.getWordPressPostIdFromAppraisalId(id);
       
       if (!postId) {
+        console.error(`❌ [reprocessAppraisalStep] Appraisal ${id} not found or has no WordPress post ID`);
+        
+        // Try to update the failure in sheets - use safe call
+        await safeServiceCall(
+          sheetsService, 
+          'updateProcessingStatus', 
+          [id, `Reprocessing failed: No WordPress post ID found`]
+        );
+        
         return res.status(404).json({
           success: false,
-          message: 'Appraisal not found.'
+          message: 'Appraisal not found or has no WordPress post ID.'
         });
       }
+      
+      console.log(`🔄 [reprocessAppraisalStep] Processing step "${stepName}" for appraisal ID: ${id}, WordPress post ID: ${postId}`);
       
       // Process the specific step based on stepName
       let result;
       
-      switch (stepName) {
-        case 'enhance_description':
-          result = await appraisalService.enhanceDescription(id, postId);
-          break;
-        case 'update_wordpress':
-          result = await appraisalService.updateWordPress(id, postId);
-          break;
-        case 'generate_html':
-          result = await appraisalService.generateHtmlContent(id, postId);
-          break;
-        case 'generate_pdf':
-          result = await appraisalService.generatePDF(id, postId);
-          break;
-        case 'regenerate_statistics':
-          result = await appraisalService.regenerateStatistics(id, postId);
-          break;
-        default:
-          return res.status(400).json({
-            success: false,
-            message: `Unknown step: ${stepName}`
-          });
+      try {
+        // Check if appraisalService is available
+        if (!isServiceAvailable(appraisalService, stepName)) {
+          throw new Error(`Appraisal service missing method for step: ${stepName}`);
+        }
+        
+        switch (stepName) {
+          case 'enhance_description':
+            console.log(`🔄 [reprocessAppraisalStep] Enhancing description for appraisal ID: ${id}`);
+            result = await appraisalService.enhanceDescription(id, postId);
+            break;
+          case 'update_wordpress':
+            console.log(`🔄 [reprocessAppraisalStep] Updating WordPress for appraisal ID: ${id}`);
+            result = await appraisalService.updateWordPress(id, postId);
+            break;
+          case 'generate_html':
+            console.log(`🔄 [reprocessAppraisalStep] Generating HTML content for appraisal ID: ${id}`);
+            result = await appraisalService.generateHtmlContent(id, postId);
+            break;
+          case 'generate_pdf':
+            console.log(`🔄 [reprocessAppraisalStep] Generating PDF for appraisal ID: ${id}`);
+            result = await appraisalService.generatePDF(id, postId);
+            break;
+          case 'regenerate_statistics':
+            console.log(`🔄 [reprocessAppraisalStep] Regenerating statistics for appraisal ID: ${id}`);
+            result = await appraisalService.regenerateStatistics(id, postId);
+            break;
+          default:
+            console.warn(`❌ [reprocessAppraisalStep] Unknown step: ${stepName}`);
+            
+            // Update sheets with the error - use safe call
+            await safeServiceCall(
+              sheetsService, 
+              'updateProcessingStatus', 
+              [id, `Reprocessing failed: Unknown step "${stepName}"`]
+            );
+            
+            return res.status(400).json({
+              success: false,
+              message: `Unknown step: ${stepName}`
+            });
+        }
+      } catch (stepError) {
+        console.error(`❌ [reprocessAppraisalStep] Error processing step "${stepName}":`, stepError);
+        
+        // Log the error in WordPress metadata - use safe call
+        const timestamp = new Date().toISOString();
+        await safeServiceCall(
+          wordpressService, 
+          'updateStepProcessingHistory', 
+          [postId, stepName, {
+            timestamp,
+            user: req.user?.name || 'Unknown User',
+            status: 'failed',
+            error: stepError.message
+          }]
+        );
+        
+        // Update sheets with the error - use safe call
+        await safeServiceCall(
+          sheetsService, 
+          'updateProcessingStatus', 
+          [id, `${stepName} failed: ${stepError.message.substring(0, 100)}`]
+        );
+        
+        throw stepError; // Re-throw to be caught by the outer try/catch
       }
       
-      // Log the reprocessing action in WordPress metadata
+      // Log the successful reprocessing action in WordPress metadata - use safe call
       const timestamp = new Date().toISOString();
-      await wordpressService.updateStepProcessingHistory(postId, stepName, {
-        timestamp,
-        user: req.user?.name || 'Unknown User',
-        status: 'completed'
-      });
+      await safeServiceCall(
+        wordpressService, 
+        'updateStepProcessingHistory', 
+        [postId, stepName, {
+          timestamp,
+          user: req.user?.name || 'Unknown User',
+          status: 'completed'
+        }]
+      );
+      
+      // Update final success status in sheets - use safe call
+      await safeServiceCall(
+        sheetsService, 
+        'updateProcessingStatus', 
+        [id, `${stepName} completed successfully`]
+      );
+      
+      console.log(`✅ [reprocessAppraisalStep] Successfully reprocessed step "${stepName}" for appraisal ID: ${id}`);
       
       return res.json({
         success: true,
@@ -248,11 +338,13 @@ class AppraisalDetailsController {
         result
       });
     } catch (error) {
-      console.error(`Error reprocessing step ${stepName}:`, error);
+      console.error(`❌ [reprocessAppraisalStep] Error reprocessing step "${stepName}" for appraisal ID: ${id}:`, error);
+      
       return res.status(500).json({
         success: false,
         message: `Error reprocessing step: ${stepName}`,
-        error: error.message
+        error: error.message,
+        details: error.details || {}
       });
     }
   }

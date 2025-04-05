@@ -1,14 +1,54 @@
-const { 
-  sheetsService, 
-  wordpressService,
-  pubsubService,
-  emailService,
-  openaiService 
-} = require('../services');
+// Import services directly to avoid circular dependency issues
+const sheetsService = require('./sheets.service');
+const wordpressService = require('./wordpress.service');
+const pubsubService = require('./pubsub.service');
+const emailService = require('./email.service'); 
+const openaiService = require('./openai.service');
 const { config } = require('../config');
 const { getImageUrl } = require('../utils/getImageUrl');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
+
+// Define helper functions locally to avoid circular dependencies
+/**
+ * Helper function to check if a service is available and working
+ * @param {Object} service - The service to check
+ * @param {string} methodName - The method to check for
+ * @returns {boolean} - Whether the service is available
+ */
+function isServiceAvailable(service, methodName) {
+  if (!service) {
+    return false;
+  }
+  
+  if (methodName && typeof service[methodName] !== 'function') {
+    return false;
+  }
+  
+  return true;
+}
+
+/**
+ * Helper function to safely call a service method if available
+ * @param {Object} service - The service to use
+ * @param {string} methodName - The method to call
+ * @param {Array} args - Arguments to pass to the method
+ * @param {*} fallbackValue - Value to return if service is unavailable
+ * @returns {Promise<*>} - Result of the method call or fallback value
+ */
+async function safeServiceCall(service, methodName, args = [], fallbackValue = null) {
+  if (!isServiceAvailable(service, methodName)) {
+    console.warn(`Service or method ${methodName} is not available, using fallback value`);
+    return fallbackValue;
+  }
+  
+  try {
+    return await service[methodName](...args);
+  } catch (error) {
+    console.error(`Error calling service method ${methodName}:`, error);
+    return fallbackValue;
+  }
+}
 
 class AppraisalService {
   async processAppraisal(id, appraisalValue, description) {
@@ -466,18 +506,77 @@ class AppraisalService {
     try {
       console.log(`🔄 Regenerating statistics for appraisal ${appraisalId} (WordPress post ${postId})...`);
       
-      // Get WordPress post details to validate it exists
-      const postDetails = await wordpressService.getPostWithMetadata(postId);
+      // Update Google Sheets to indicate we're starting the process - use safe call
+      await safeServiceCall(
+        sheetsService, 
+        'updateProcessingStatus',
+        [appraisalId, 'Regenerating statistics - Started']
+      );
       
-      if (!postDetails) {
-        throw new Error(`WordPress post with ID ${postId} not found`);
+      // Validate that postId exists
+      if (!postId) {
+        throw new Error('WordPress Post ID is required');
+      }
+      
+      // Try to validate the post exists using WordPress service, but don't block on failure
+      try {
+        // Check if the WordPress Service is properly initialized
+        if (!wordpressService) {
+          console.warn('⚠️ Warning: WordPress service appears to be undefined');
+          console.log('🔧 Attempting to re-import WordPress service directly...');
+          // Try to re-import the service directly
+          const wpService = require('./wordpress.service');
+          // If it was imported successfully, replace the reference
+          if (wpService) {
+            console.log('✅ Successfully re-imported WordPress service');
+            // We can't modify the global variable, but we can use the local reference
+            // for verification purposes
+            
+            // Check if the reimported service has the required methods
+            if (!wpService.getPost) {
+              console.warn('⚠️ Re-imported WordPress service is missing getPost method');
+            } else {
+              try {
+                const basicPostCheck = await wpService.getPost(postId);
+                if (basicPostCheck) {
+                  console.log(`✅ Verified WordPress post ${postId} exists using re-imported service`);
+                }
+              } catch (getPostError) {
+                console.warn(`⚠️ Could not verify post with re-imported service: ${getPostError.message}`);
+              }
+            }
+          } else {
+            throw new Error('Failed to re-import WordPress service');
+          }
+        } else {
+          // Check if the service has the required methods
+          if (!wordpressService.getPost) {
+            console.warn('⚠️ WordPress service is missing getPost method');
+          } else {
+            // Try to get WordPress post details to validate it exists
+            // First check if the post exists without fetching all metadata
+            const basicPostCheck = await wordpressService.getPost(postId);
+            
+            if (!basicPostCheck) {
+              throw new Error(`WordPress post with ID ${postId} not found`);
+            }
+            
+            console.log(`✅ Verified WordPress post ${postId} exists`);
+          }
+        }
+      } catch (wpError) {
+        console.warn(`⚠️ Warning: Could not verify WordPress post: ${wpError.message}`);
+        // Continue even if we can't verify the post exists - the appraisals-backend will handle this
       }
       
       // Call the appraisals-backend service to regenerate statistics and HTML visualizations
       console.log(`🔄 Calling appraisals-backend to regenerate statistics and HTML visualizations for post ${postId}`);
       
+      // Ensure we have the API URL
+      const apiUrl = config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app';
+      
       const response = await axios.post(
-        `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/regenerate-statistics-and-visualizations`,
+        `${apiUrl}/regenerate-statistics-and-visualizations`,
         {
           postId
         },
@@ -491,8 +590,26 @@ class AppraisalService {
       );
       
       if (!response.data.success) {
+        // Track the failure in Google Sheets
+        try {
+          await sheetsService.updateProcessingStatus(appraisalId, `Statistics regeneration failed: ${response.data.message || 'Unknown error'}`);
+        } catch (sheetsError) {
+          console.warn(`⚠️ Warning: Could not update failure status in Google Sheets: ${sheetsError.message}`);
+        }
+        
         throw new Error(response.data.message || 'Failed to regenerate statistics and visualizations');
       }
+      
+      // Update Google Sheets with successful regeneration status - use safe call
+      const statsDetails = response.data.details?.statistics ? 
+        `Statistics regenerated: ${response.data.details.statistics.count || 0} results, confidence: ${response.data.details.statistics.confidence_level || 'N/A'}` :
+        'Statistics regenerated successfully';
+        
+      await safeServiceCall(
+        sheetsService, 
+        'updateProcessingStatus', 
+        [appraisalId, statsDetails]
+      );
       
       console.log('✅ Successfully regenerated statistics and HTML visualizations');
       return {
@@ -508,6 +625,15 @@ class AppraisalService {
       const errorDetails = error.response?.data?.error || '';
       
       console.error(`❌ Error details: ${errorMessage} ${errorDetails}`);
+      
+      // Record the error in Google Sheets if we have an appraisal ID - use safe call
+      if (appraisalId) {
+        await safeServiceCall(
+          sheetsService,
+          'updateProcessingStatus',
+          [appraisalId, `Error regenerating statistics: ${errorMessage.substring(0, 100)}`]
+        );
+      }
       
       throw new Error(`Failed to regenerate statistics: ${errorMessage}`);
     }

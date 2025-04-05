@@ -400,6 +400,72 @@ class SheetsService {
       throw error;
     }
   }
+
+  /**
+   * Update the processing status of an appraisal in Google Sheets
+   * @param {string} id - The appraisal ID
+   * @param {string} status - The processing status message
+   * @param {string} [sheetName] - Optional sheet name (defaults to completed sheet if appraisal is completed, otherwise pending sheet)
+   * @returns {Promise<boolean>} - Success status
+   */
+  async updateProcessingStatus(id, status) {
+    try {
+      console.log(`🔄 Updating processing status for appraisal ID ${id}: "${status}"`);
+      
+      // First determine if this is a pending or completed appraisal to use the right sheet
+      let isCompleted = false;
+      let sheetName = config.GOOGLE_SHEET_NAME; // Default to pending sheet
+      
+      try {
+        // Check status in pending sheet first
+        const statusRange = `F${id}`;
+        const formattedStatusRange = this.formatRange(config.GOOGLE_SHEET_NAME, statusRange);
+        
+        const statusValues = await this.getValues(
+          config.PENDING_APPRAISALS_SPREADSHEET_ID,
+          formattedStatusRange
+        );
+        
+        // If we get a value and it's "Completed", use the completed sheet
+        if (statusValues && statusValues.length > 0 && statusValues[0][0] === "Completed") {
+          isCompleted = true;
+          sheetName = config.COMPLETED_SHEET_NAME;
+          console.log(`🔍 Appraisal ${id} is marked as completed, using sheet "${sheetName}"`);
+        } else {
+          console.log(`🔍 Appraisal ${id} is not completed, using pending sheet "${sheetName}"`);
+        }
+      } catch (checkError) {
+        // If we can't determine status, default to pending sheet
+        console.warn(`⚠️ Could not determine completion status for appraisal ${id}: ${checkError.message}`);
+        console.log(`🔍 Defaulting to pending sheet "${sheetName}"`);
+      }
+      
+      // Add timestamp to the status
+      const timestamp = new Date().toISOString();
+      const statusWithTimestamp = `${status} (${timestamp})`;
+      
+      // Status will be stored in column O (15th column)
+      const cellRange = `O${id}`;
+      const formattedRange = this.formatRange(sheetName, cellRange);
+      
+      console.log(`📝 Writing status to ${formattedRange}: "${statusWithTimestamp}"`);
+      
+      await this.updateValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        formattedRange,
+        [[statusWithTimestamp]]
+      );
+      
+      console.log(`✅ Successfully updated processing status for appraisal ID ${id}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error updating processing status for appraisal ID ${id}:`, error);
+      
+      // Don't rethrow the error to avoid breaking the main process flow
+      // Return false to indicate failure instead
+      return false;
+    }
+  }
 }
 
 module.exports = new SheetsService();
