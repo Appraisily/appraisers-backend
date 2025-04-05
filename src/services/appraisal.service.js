@@ -434,61 +434,50 @@ class AppraisalService {
     try {
       console.log(`🔄 Regenerating statistics for appraisal ${appraisalId} (WordPress post ${postId})...`);
       
-      // Get WordPress post details to extract the item description and value
+      // Get WordPress post details to validate it exists
       const postDetails = await wordpressService.getPostWithMetadata(postId);
       
       if (!postDetails) {
         throw new Error(`WordPress post with ID ${postId} not found`);
       }
       
-      const itemDescription = postDetails.title?.rendered || '';
-      const itemValue = postDetails.acf?.appraisal_value || 0;
+      // Call the appraisals-backend service to regenerate statistics and HTML visualizations
+      console.log(`🔄 Calling appraisals-backend to regenerate statistics and HTML visualizations for post ${postId}`);
       
-      // Call the valuer-agent service to regenerate statistics
       const response = await axios.post(
-        `${config.VALUER_AGENT_URL || 'https://valuer-agent-856401495068.us-central1.run.app'}/enhanced-statistics`,
+        `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/regenerate-statistics-and-visualizations`,
         {
-          text: itemDescription,
-          value: itemValue,
+          postId
         },
         {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${config.SHARED_SECRET || process.env.SHARED_SECRET}`
-          }
+          },
+          timeout: 300000 // 5 minute timeout for this operation
         }
       );
       
       if (!response.data.success) {
-        throw new Error(response.data.message || 'Failed to regenerate statistics');
+        throw new Error(response.data.message || 'Failed to regenerate statistics and visualizations');
       }
       
-      // Update the WordPress post metadata with the new statistics
-      if (response.data.statistics) {
-        await axios.post(
-          `${config.WORDPRESS_API_URL}/posts/${postId}/meta`,
-          {
-            key: 'statistics_data',
-            value: JSON.stringify(response.data.statistics)
-          },
-          {
-            auth: {
-              username: config.WORDPRESS_USERNAME,
-              password: config.WORDPRESS_APP_PASSWORD
-            }
-          }
-        );
-      }
-      
-      console.log('✅ Successfully regenerated statistics');
+      console.log('✅ Successfully regenerated statistics and HTML visualizations');
       return {
         success: true,
-        message: 'Statistics regenerated successfully',
-        statistics: response.data.statistics
+        message: 'Statistics and HTML visualizations regenerated successfully',
+        details: response.data.details || {}
       };
     } catch (error) {
       console.error('❌ Error regenerating statistics:', error);
-      throw error;
+      
+      // Provide more details about the error
+      const errorMessage = error.response?.data?.message || error.message;
+      const errorDetails = error.response?.data?.error || '';
+      
+      console.error(`❌ Error details: ${errorMessage} ${errorDetails}`);
+      
+      throw new Error(`Failed to regenerate statistics: ${errorMessage}`);
     }
   }
 }
