@@ -386,39 +386,18 @@ class WordPressService {
       
       processingHistory[stepName].push(historyEntry);
       
-      // Add detailed debugging for WordPress API URL
-      const fullMetaUrl = `${this.baseUrl}/appraisals/${postId}/meta`;
-      console.log(`🔍 DEBUG - Full WordPress API URL for meta update: ${fullMetaUrl}`);
-      console.log(`🔍 DEBUG - Authorization header: Basic ${this.auth.substring(0, 5)}...`);
-      console.log(`🔍 DEBUG - Request body: ${JSON.stringify({
-        key: 'processing_history',
-        value: JSON.stringify(processingHistory).substring(0, 100) + '...'
-      })}`);
+      // Debug the metadata we're trying to update
+      console.log(`🔍 DEBUG - Processing history data to update for step '${stepName}'`);
+      console.log('🔍 DEBUG - History entry sample:', JSON.stringify(historyEntry).substring(0, 100));
       
-      // Update the WordPress post meta - using appraisals custom post type endpoint
-      const metaResponse = await fetch(
-        fullMetaUrl,
-        {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${this.auth}`
-          },
-          body: JSON.stringify({
-            key: 'processing_history',
-            value: JSON.stringify(processingHistory)
-          })
-        }
-      );
-
-      if (!metaResponse.ok) {
-        const errorText = await metaResponse.text();
-        console.error('WordPress API error updating processing history:', errorText);
-        throw new Error(`WordPress API error (${metaResponse.status}): ${errorText}`);
-      }
+      // Instead of using the custom /meta endpoint which seems to be failing,
+      // use the standard ACF fields update approach via the main post endpoint
+      console.log('🔍 DEBUG - Attempting to update using ACF fields approach instead of meta endpoint');
       
-      // Also update the processing_steps metadata
+      const endpoint = `${this.baseUrl}/appraisals/${postId}`;
+      console.log(`🔍 DEBUG - Using main post endpoint: ${endpoint}`);
+      
+      // Prepare ACF data with all three fields we need to update
       const processingSteps = post.meta?.processing_steps || {};
       processingSteps[stepName] = {
         lastProcessed: historyEntry.timestamp,
@@ -426,46 +405,37 @@ class WordPressService {
         user: historyEntry.user
       };
       
-      const stepsResponse = await fetch(
-        `${this.baseUrl}/appraisals/${postId}/meta`,
-        {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${this.auth}`
-          },
-          body: JSON.stringify({
-            key: 'processing_steps',
-            value: JSON.stringify(processingSteps)
-          })
+      const acfData = {
+        acf: {
+          processing_history: JSON.stringify(processingHistory),
+          processing_steps: JSON.stringify(processingSteps),
+          last_processed: historyEntry.timestamp
         }
-      );
-
-      if (!stepsResponse.ok) {
-        console.warn(`⚠️ Failed to update processing steps: ${stepsResponse.status}`);
+      };
+      
+      console.log('🔍 DEBUG - Using ACF update with payload:', JSON.stringify(acfData).substring(0, 200) + '...');
+      
+      // Make a single request to update all fields at once
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${this.auth}`
+        },
+        body: JSON.stringify(acfData)
+      });
+      
+      // Check response
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('WordPress API error updating processing history:', errorText);
+        throw new Error(`WordPress API error (${response.status}): ${errorText}`);
       }
       
-      // Update the last_processed field
-      const lastProcessedResponse = await fetch(
-        `${this.baseUrl}/appraisals/${postId}/meta`,
-        {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${this.auth}`
-          },
-          body: JSON.stringify({
-            key: 'last_processed',
-            value: historyEntry.timestamp
-          })
-        }
-      );
-
-      if (!lastProcessedResponse.ok) {
-        console.warn(`⚠️ Failed to update last_processed: ${lastProcessedResponse.status}`);
-      }
+      // Log successful response
+      const responseData = await response.json();
+      console.log(`✅ Successfully updated post with ACF fields, response ID: ${responseData.id || 'unknown'}`);
       
       console.log('✅ Successfully updated processing history');
       return true;

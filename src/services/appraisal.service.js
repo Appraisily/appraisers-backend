@@ -1,407 +1,287 @@
-// Import services directly to avoid circular dependency issues
-const sheetsService = require('./sheets.service');
-const wordpressService = require('./wordpress.service');
-const pubsubService = require('./pubsub.service');
-const emailService = require('./email.service'); 
-const openaiService = require('./openai.service');
-const { config } = require('../config');
-const { getImageUrl } = require('../utils/getImageUrl');
-const { v4: uuidv4 } = require('uuid');
+const path = require('path');
+const fs = require('fs');
 const axios = require('axios');
+const { v4: uuidv4 } = require('uuid');
 
-// Define helper functions locally to avoid circular dependencies
-/**
- * Helper function to check if a service is available and working
- * @param {Object} service - The service to check
- * @param {string} methodName - The method to check for
- * @returns {boolean} - Whether the service is available
- */
-function isServiceAvailable(service, methodName) {
-  if (!service) {
-    return false;
-  }
-  
-  if (methodName && typeof service[methodName] !== 'function') {
-    return false;
-  }
-  
-  return true;
-}
+const config = require('../config');
+const { isServiceAvailable, safeServiceCall } = require('./index');
+const { cleanDataForWordPress } = require('../utils/appraisalUtils');
 
-/**
- * Helper function to safely call a service method if available
- * @param {Object} service - The service to use
- * @param {string} methodName - The method to call
- * @param {Array} args - Arguments to pass to the method
- * @param {*} fallbackValue - Value to return if service is unavailable
- * @returns {Promise<*>} - Result of the method call or fallback value
- */
-async function safeServiceCall(service, methodName, args = [], fallbackValue = null) {
-  if (!isServiceAvailable(service, methodName)) {
-    console.warn(`Service or method ${methodName} is not available, using fallback value`);
-    return fallbackValue;
-  }
-  
-  try {
-    return await service[methodName](...args);
-  } catch (error) {
-    console.error(`Error calling service method ${methodName}:`, error);
-    return fallbackValue;
-  }
-}
+// Service dependencies
+let wordpressService, sheetsService, openaiService, pdfService, storageService;
 
 class AppraisalService {
-  async processAppraisal(id, appraisalValue, description) {
+  constructor(services) {
+    console.log('🔄 Initializing Appraisal Service');
+    ({
+      wordpressService, 
+      sheetsService, 
+      openaiService, 
+      pdfService,
+      storageService
+    } = services);
+  }
+  
+  /**
+   * Generate a new appraisal
+   * @param {Object} appraisalData - Appraisal data
+   * @returns {Promise<Object>} Generated appraisal ID
+   */
+  async createAppraisal(appraisalData) {
     try {
-      // Step 1: Set Value
-      await this.setValue(id, appraisalValue, description);
-      console.log('✓ Value set successfully');
-
-      // Step 2: Merge Descriptions
-      const mergedDescription = await this.mergeDescriptions(id, description);
-      console.log('✓ Descriptions merged successfully');
-
-      // Step 3: Update Title
-      const postId = await this.updateTitle(id, mergedDescription);
-      console.log('✓ Title updated successfully');
-
-      // Step 4: Insert Template
-      await this.insertTemplate(id);
-      console.log('✓ Template inserted successfully');
-
-      // Step 5: Build PDF
-      await this.buildPdf(id);
-      console.log('✓ PDF built successfully');
-
-      // Step 6: Send Email
-      await this.sendEmail(id);
-      console.log('✓ Email sent successfully');
-
-      // Step 7: Mark as Complete
-      await this.complete(id, appraisalValue, description);
-      console.log('✓ Appraisal marked as complete');
-
+      console.log('🔄 Creating new appraisal:', JSON.stringify(appraisalData).substring(0, 100) + '...');
+      
+      // Validate required fields
+      if (!appraisalData.customerEmail) {
+        throw new Error('Customer email is required');
+      }
+      
+      if (!appraisalData.iaDescription && !appraisalData.customerDescription) {
+        throw new Error('At least one description (AI or customer) is required');
+      }
+      
+      // Generate a new session ID
+      const sessionId = uuidv4();
+      console.log(`🔄 Generated session ID: ${sessionId}`);
+      
+      // Add the appraisal to the Google Sheets
+      const appraisalId = await sheetsService.addAppraisal({
+        ...appraisalData,
+        sessionId,
+        status: 'Pending',
+        dateCreated: new Date().toISOString()
+      });
+      
+      console.log(`✅ Appraisal created with ID: ${appraisalId} and session ID: ${sessionId}`);
+      return {
+        appraisalId,
+        sessionId
+      };
     } catch (error) {
-      console.error('Error processing appraisal:', error);
+      console.error('❌ Error creating appraisal:', error);
       throw error;
     }
-  }
-
-  async setValue(id, appraisalValue, description, isEdit = false) {
-    const sheetName = isEdit ? config.EDIT_SHEET_NAME : config.GOOGLE_SHEET_NAME;
-
-    await sheetsService.updateValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${sheetName}!J${id}:K${id}`,
-      [[appraisalValue, description]]
-    );
-
-    const values = await sheetsService.getValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${sheetName}!G${id}`
-    );
-
-    const wordpressUrl = values[0][0];
-    const postId = new URL(wordpressUrl).searchParams.get('post');
-
-    await wordpressService.updatePost(postId, {
-      acf: { value: appraisalValue }
-    });
-  }
-
-  async mergeDescriptions(id, appraiserDescription) {
-    try {
-      // Get IA description from sheets
-      const values = await sheetsService.getValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!H${id}`
-      );
-
-      const iaDescription = values[0][0];
-      if (!iaDescription) {
-        throw new Error('IA description not found');
-      }
-
-      // Use our OpenAI service to merge descriptions
-      const mergedDescription = await openaiService.mergeDescriptions(
-        appraiserDescription,
-        iaDescription
-      );
-
-      // Save merged description to sheets
-      await sheetsService.updateValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME}!L${id}`,
-        [[mergedDescription]]
-      );
-
-      return mergedDescription;
-    } catch (error) {
-      console.error('Error merging descriptions:', error);
-      throw error;
-    }
-  }
-
-  async updateTitle(id, mergedDescription) {
-    const values = await sheetsService.getValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!G${id}`
-    );
-
-    const wordpressUrl = values[0][0];
-    const postId = new URL(wordpressUrl).searchParams.get('post');
-
-    await wordpressService.updatePost(postId, {
-      title: mergedDescription
-    });
-
-    return postId;
-  }
-
-  async insertTemplate(id) {
-    const values = await sheetsService.getValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!A${id}:G${id}`
-    );
-
-    const row = values[0];
-    const appraisalType = row[1] || 'RegularArt';
-    const wordpressUrl = row[6];
-    const postId = new URL(wordpressUrl).searchParams.get('post');
-
-    const wpData = await wordpressService.getPost(postId);
-    let content = wpData.content?.rendered || '';
-
-    if (!content.includes('[pdf_download]')) {
-      content += '\n[pdf_download]';
-    }
-
-    if (!content.includes(`[AppraisalTemplates type="${appraisalType}"]`)) {
-      content += `\n[AppraisalTemplates type="${appraisalType}"]`;
-    }
-
-    await wordpressService.updatePost(postId, {
-      content,
-      acf: {
-        shortcodes_inserted: true
-      }
-    });
-  }
-
-  async buildPdf(id) {
-    const values = await sheetsService.getValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!A${id}:G${id}`
-    );
-
-    const row = values[0];
-    const wordpressUrl = row[6];
-    const postId = new URL(wordpressUrl).searchParams.get('post');
-
-    const wpData = await wordpressService.getPost(postId);
-    const session_ID = wpData.acf?.session_id;
-
-    const response = await fetch(
-      'https://appraisals-backend-856401495068.us-central1.run.app/generate-pdf',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId, session_ID })
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error('Failed to generate PDF');
-    }
-
-    const data = await response.json();
-    await sheetsService.updateValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!M${id}:N${id}`,
-      [[data.pdfLink, data.docLink]]
-    );
-
-    return {
-      pdfLink: data.pdfLink,
-      docLink: data.docLink
-    };
-  }
-
-  async sendEmail(id) {
-    const values = await sheetsService.getValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!A${id}:N${id}`
-    );
-
-    const row = values[0];
-    const customerEmail = row[3];
-    const customerName = row[4];
-    const wordpressUrl = row[6];
-    const appraisalValue = row[9];
-    const description = row[10];
-    const pdfLink = row[12];
-
-    await emailService.sendAppraisalCompletedEmail(customerEmail, customerName, {
-      value: appraisalValue,
-      description: description,
-      pdfLink: pdfLink,
-      wordpressUrl: wordpressUrl
-    });
-  }
-
-  async complete(id, appraisalValue, description) {
-    await sheetsService.updateValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!F${id}`,
-      [['Completed']]
-    );
-
-    await sheetsService.updateValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
-      `${config.GOOGLE_SHEET_NAME}!J${id}:K${id}`,
-      [[appraisalValue, description]]
-    );
   }
 
   /**
-   * Enhance description by merging AI and appraiser descriptions
+   * Create a WordPress post for the appraisal
+   * @param {string} appraisalId - Appraisal ID
+   * @returns {Promise<Object>} WordPress post ID and URL
+   */
+  async createWordPressPost(appraisalId) {
+    try {
+      console.log(`🔄 Creating WordPress post for appraisal ${appraisalId}...`);
+      
+      // Get the appraisal details from the sheet
+      const appraisal = await sheetsService.getAppraisal(appraisalId);
+      if (!appraisal) {
+        throw new Error(`Appraisal ${appraisalId} not found`);
+      }
+      
+      console.log(`✅ Found appraisal: ${appraisal.id}`);
+      
+      // Choose the best description available
+      const description = appraisal.aiDescription || appraisal.customerDescription || 'No description available';
+      
+      // Clean up data for WordPress
+      const title = cleanDataForWordPress(description.substring(0, 100) + '...');
+      const content = cleanDataForWordPress(`<p>${description}</p>`);
+      
+      // Generate ACF fields
+      const acfFields = {
+        // Basic appraisal fields
+        appraisaltype: appraisal.type || 'Regular',
+        status: 'Pending',
+        session_id: appraisal.sessionId || uuidv4(),
+        
+        // Store original descriptions as ACF fields
+        customer_description: appraisal.customerDescription || '',
+        appraiser_description: appraisal.appraisersDescription || '',
+        iaDescription: appraisal.aiDescription || '',
+        
+        // Store customer info
+        customer_email: appraisal.customerEmail || '',
+        customer_name: appraisal.customerName || ''
+      };
+      
+      // Create the WordPress post
+      const postId = await wordpressService.createPost({
+        title,
+        content,
+        acfFields
+      });
+      
+      if (!postId) {
+        throw new Error('Failed to create WordPress post');
+      }
+      
+      // Update the appraisal in Google Sheets with the WordPress post ID
+      await sheetsService.updateWordPressPostId(appraisalId, postId);
+      
+      // Get the WordPress post URL
+      const postUrl = await wordpressService.getPostEditUrl(postId);
+      
+      console.log(`✅ WordPress post created for appraisal ${appraisalId} with post ID: ${postId}`);
+      return {
+        postId,
+        postUrl
+      };
+    } catch (error) {
+      console.error(`❌ Error creating WordPress post for appraisal ${appraisalId}:`, error);
+      
+      // Update status in sheets
+      await sheetsService.updateStatus(appraisalId, `Error creating WP post: ${error.message}`);
+      
+      throw error;
+    }
+  }
+  
+  /**
+   * Enhance the description using OpenAI
+   * @deprecated This method is deprecated. Description enhancement is now handled by the reprocessAppraisalStep controller which delegates to appraisals-backend.
    * @param {string} appraisalId - Appraisal ID
    * @param {string} postId - WordPress post ID
-   * @returns {Promise<object>} Result of the enhancement operation
+   * @returns {Promise<Object>} Enhanced description
    */
   async enhanceDescription(appraisalId, postId) {
+    console.log(`⚠️ [DEPRECATED] enhanceDescription method called for appraisal ${appraisalId}`);  
+    console.log(`⚠️ Description enhancement should be handled by the appraisals-backend service directly`);
     try {
       console.log(`🔄 Enhancing description for appraisal ${appraisalId} (WordPress post ${postId})...`);
       
-      // Get appraisal data from Google Sheets
-      const appraisal = await sheetsService.getPendingAppraisalById(appraisalId) || 
-                        await sheetsService.getCompletedAppraisalById(appraisalId);
-      
-      if (!appraisal) {
-        throw new Error(`Appraisal with ID ${appraisalId} not found`);
-      }
-      
-      // Call the appraisals-backend service to enhance description
-      console.log(`🔄 Calling appraisals-backend to enhance description for post ${postId}`);
-      
-      const response = await axios.post(
-        `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/enhance-description`,
-        {
-          postId,
-          updateContent: true
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.SHARED_SECRET || process.env.SHARED_SECRET}`
-          },
-          timeout: 180000 // 3 minute timeout
-        }
-      );
-      
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'Failed to enhance description');
-      }
-      
-      // Update Google Sheets with the enhanced description status
+      // Get the appraisal descriptions - first try Google Sheets
+      let appraisal;
       try {
-        await sheetsService.updateProcessingStatus(appraisalId, 'Description enhanced');
+        appraisal = await sheetsService.getAppraisal(appraisalId);
       } catch (sheetsError) {
-        console.warn('Warning: Could not update Google Sheets with enhanced description status:', sheetsError.message);
-        // Continue even if sheets update fails
+        console.warn('⚠️ Warning: Could not get appraisal from sheets:', sheetsError.message);
+        // If we can't get from sheets, continue and try WordPress
       }
       
-      console.log('✅ Successfully enhanced description');
+      // If we couldn't get from sheets or missing data, get from WordPress
+      if (!appraisal || !appraisal.customerDescription) {
+        try {
+          console.log('🔄 Fetching descriptions from WordPress...');
+          const post = await wordpressService.getPostWithMeta(postId);
+          
+          // Extract descriptions from ACF fields
+          appraisal = {
+            customerDescription: post.acf?.customer_description || '',
+            appraisersDescription: post.acf?.appraiser_description || '',
+            aiDescription: post.acf?.enhanced_description || post.acf?.ia_description || ''
+          };
+        } catch (wpError) {
+          console.error('❌ Error fetching from WordPress:', wpError);
+          throw new Error(`Could not get descriptions from either source: ${wpError.message}`);
+        }
+      }
+      
+      // Check if we have a description to enhance
+      const customerDescription = appraisal?.customerDescription || '';
+      const appraiserDescription = appraisal?.appraisersDescription || '';
+      
+      if (!customerDescription && !appraiserDescription) {
+        throw new Error('No description available to enhance');
+      }
+      
+      // Use the customer description as primary, fall back to appraiser description
+      const descriptionToEnhance = customerDescription || appraiserDescription;
+      console.log(`🔄 Enhancing description: ${descriptionToEnhance.substring(0, 100)}...`);
+      
+      // Call OpenAI to enhance the description
+      const enhancedDescription = await openaiService.enhanceDescription(descriptionToEnhance);
+      
+      if (!enhancedDescription) {
+        throw new Error('Failed to enhance description - empty response from AI service');
+      }
+      
+      console.log(`✅ Enhanced description generated: ${enhancedDescription.substring(0, 100)}...`);
+      
+      // Update the WordPress post with the enhanced description
+      await wordpressService.updateEnhancedDescription(postId, enhancedDescription);
+      
+      // Track in Google Sheets
+      await sheetsService.updateStatus(appraisalId, 'Enhanced description generated');
+      
       return {
         success: true,
-        message: 'Description enhanced successfully',
-        details: response.data.details || {}
+        enhancedDescription
       };
     } catch (error) {
       console.error('❌ Error enhancing description:', error);
+      
+      // Update status in sheets
+      if (appraisalId) {
+        await sheetsService.updateStatus(appraisalId, `Error enhancing description: ${error.message}`);
+      }
+      
       throw error;
     }
   }
-
+  
   /**
-   * Update WordPress post with additional metadata
+   * Update WordPress post with metadata
+   * @deprecated This method is deprecated. WordPress updates are now handled by the reprocessAppraisalStep controller which delegates to appraisals-backend.
    * @param {string} appraisalId - Appraisal ID
    * @param {string} postId - WordPress post ID
-   * @returns {Promise<object>} Result of the update operation
+   * @returns {Promise<Object>} Update result
    */
   async updateWordPress(appraisalId, postId) {
+    console.log(`⚠️ [DEPRECATED] updateWordPress method called for appraisal ${appraisalId}`);  
+    console.log(`⚠️ WordPress updates should be handled by the appraisals-backend service directly`);
     try {
-      console.log(`🔄 Updating WordPress post ${postId} for appraisal ${appraisalId}...`);
+      console.log(`🔄 Updating WordPress post for appraisal ${appraisalId} (post ID: ${postId})...`);
       
-      // Get appraisal data from Google Sheets
-      const appraisal = await sheetsService.getPendingAppraisalById(appraisalId) || 
-                        await sheetsService.getCompletedAppraisalById(appraisalId);
+      // Get the enhanced description
+      const post = await wordpressService.getPostWithMeta(postId);
+      const enhancedDescription = post.acf?.enhanced_description || post.acf?.ia_description || '';
       
-      if (!appraisal) {
-        throw new Error(`Appraisal with ID ${appraisalId} not found`);
+      if (!enhancedDescription) {
+        console.warn('⚠️ No enhanced description found, using original content');
       }
       
-      // Call the appraisals-backend service to update WordPress
-      console.log(`🔄 Calling appraisals-backend to update WordPress for post ${postId}`);
-      
-      // Prepare ACF fields from appraisal data
-      const acfFields = {
-        appraisal_value: appraisal.value,
-        appraisal_type: appraisal.appraisalType || 'Regular',
-        appraisal_id: appraisalId,
-        // Add other fields from sheets as needed
-        last_updated: new Date().toISOString(),
-        sheets_id: appraisalId
-      };
-      
-      const response = await axios.post(
-        `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/update-wordpress`,
-        {
-          postId,
-          acfFields,
-          insertShortcodes: true,
-          appraisalType: appraisal.appraisalType || 'RegularArt'
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.SHARED_SECRET || process.env.SHARED_SECRET}`
-          },
-          timeout: 60000 // 1 minute timeout
+      // Update the WordPress post with the enhanced description
+      await wordpressService.updatePost(postId, {
+        // Use the enhanced description as the main content if available
+        content: enhancedDescription 
+          ? `<p>${enhancedDescription}</p>` 
+          : post.content?.rendered || post.content || '',
+        
+        // Update status in ACF fields
+        acf: {
+          status: 'Processing'
         }
-      );
+      });
       
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'Failed to update WordPress');
-      }
+      // Track in Google Sheets
+      await sheetsService.updateStatus(appraisalId, 'WordPress post updated');
       
-      // Update Google Sheets with WordPress update status
-      try {
-        await sheetsService.updateProcessingStatus(appraisalId, 'WordPress updated');
-      } catch (sheetsError) {
-        console.warn('Warning: Could not update Google Sheets with WordPress update status:', sheetsError.message);
-        // Continue even if sheets update fails
-      }
-      
-      console.log('✅ Successfully updated WordPress post');
       return {
         success: true,
-        message: 'WordPress post updated successfully',
-        details: response.data.details || {}
+        message: 'WordPress post updated with enhanced description'
       };
     } catch (error) {
-      console.error('❌ Error updating WordPress:', error);
+      console.error('❌ Error updating WordPress post:', error);
+      
+      // Update status in sheets
+      if (appraisalId) {
+        await sheetsService.updateStatus(appraisalId, `Error updating WordPress: ${error.message}`);
+      }
+      
       throw error;
     }
   }
-
+  
   /**
-   * Generate HTML content for the appraisal report
+   * Generate HTML content for the appraisal
+   * @deprecated This method is deprecated. HTML generation is now handled by the reprocessAppraisalStep controller which delegates to appraisals-backend.
    * @param {string} appraisalId - Appraisal ID
    * @param {string} postId - WordPress post ID
    * @returns {Promise<object>} Result of the HTML generation operation
    */
   async generateHtmlContent(appraisalId, postId) {
+    console.log(`⚠️ [DEPRECATED] generateHtmlContent method called for appraisal ${appraisalId}`);  
+    console.log(`⚠️ HTML generation should be handled by the appraisals-backend service directly`);
     try {
       console.log(`🔄 Generating HTML content for appraisal ${appraisalId} (WordPress post ${postId})...`);
       
@@ -449,11 +329,14 @@ class AppraisalService {
 
   /**
    * Generate PDF for the appraisal
+   * @deprecated This method is deprecated. PDF generation is now handled by the reprocessAppraisalStep controller which delegates to appraisals-backend.
    * @param {string} appraisalId - Appraisal ID
    * @param {string} postId - WordPress post ID
    * @returns {Promise<object>} Result of the PDF generation operation
    */
   async generatePDF(appraisalId, postId) {
+    console.log(`⚠️ [DEPRECATED] generatePDF method called for appraisal ${appraisalId}`);  
+    console.log(`⚠️ PDF generation should be handled by the appraisals-backend service directly`);
     try {
       console.log(`🔄 Generating PDF for appraisal ${appraisalId} (WordPress post ${postId})...`);
       
@@ -498,146 +381,131 @@ class AppraisalService {
 
   /**
    * Regenerate statistics for the appraisal
+   * NOTE: This method has been deprecated.
+   * Statistics regeneration is now handled directly by the appraisals-backend service
+   * via the controller. See the regenerate_statistics case in the reprocessAppraisalStep controller method.
+   * 
+   * @deprecated Statistics regeneration is now delegated to appraisals-backend service
    * @param {string} appraisalId - Appraisal ID
    * @param {string} postId - WordPress post ID
    * @returns {Promise<object>} Result of the statistics regeneration operation
    */
   async regenerateStatistics(appraisalId, postId) {
+    console.log(`⚠️ [DEPRECATED] regenerateStatistics method called for appraisal ${appraisalId}`);
+    console.log(`⚠️ Statistics regeneration should be handled by the appraisals-backend service directly`);
+    
     try {
-      console.log(`🔄 Regenerating statistics for appraisal ${appraisalId} (WordPress post ${postId})...`);
-      
-      // Update Google Sheets to indicate we're starting the process - use safe call
+      // Just update Google Sheets to indicate this is deprecated
       await safeServiceCall(
         sheetsService, 
         'updateProcessingStatus',
-        [appraisalId, 'Regenerating statistics - Started']
+        [appraisalId, 'DEPRECATED: Statistics regeneration now happens in controller']
       );
       
-      // Validate that postId exists
-      if (!postId) {
-        throw new Error('WordPress Post ID is required');
-      }
-      
-      // Try to validate the post exists using WordPress service, but don't block on failure
-      try {
-        // Check if the WordPress Service is properly initialized
-        if (!wordpressService) {
-          console.warn('⚠️ Warning: WordPress service appears to be undefined');
-          console.log('🔧 Attempting to re-import WordPress service directly...');
-          // Try to re-import the service directly
-          const wpService = require('./wordpress.service');
-          // If it was imported successfully, replace the reference
-          if (wpService) {
-            console.log('✅ Successfully re-imported WordPress service');
-            // We can't modify the global variable, but we can use the local reference
-            // for verification purposes
-            
-            // Check if the reimported service has the required methods
-            if (!wpService.getPost) {
-              console.warn('⚠️ Re-imported WordPress service is missing getPost method');
-            } else {
-              try {
-                const basicPostCheck = await wpService.getPost(postId);
-                if (basicPostCheck) {
-                  console.log(`✅ Verified WordPress post ${postId} exists using re-imported service`);
-                }
-              } catch (getPostError) {
-                console.warn(`⚠️ Could not verify post with re-imported service: ${getPostError.message}`);
-              }
-            }
-          } else {
-            throw new Error('Failed to re-import WordPress service');
-          }
-        } else {
-          // Check if the service has the required methods
-          if (!wordpressService.getPost) {
-            console.warn('⚠️ WordPress service is missing getPost method');
-          } else {
-            // Try to get WordPress post details to validate it exists
-            // First check if the post exists without fetching all metadata
-            const basicPostCheck = await wordpressService.getPost(postId);
-            
-            if (!basicPostCheck) {
-              throw new Error(`WordPress post with ID ${postId} not found`);
-            }
-            
-            console.log(`✅ Verified WordPress post ${postId} exists`);
-          }
-        }
-      } catch (wpError) {
-        console.warn(`⚠️ Warning: Could not verify WordPress post: ${wpError.message}`);
-        // Continue even if we can't verify the post exists - the appraisals-backend will handle this
-      }
-      
-      // Call the appraisals-backend service to regenerate statistics and HTML visualizations
-      console.log(`🔄 Calling appraisals-backend to regenerate statistics and HTML visualizations for post ${postId}`);
-      
-      // Ensure we have the API URL
-      const apiUrl = config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app';
-      
-      const response = await axios.post(
-        `${apiUrl}/regenerate-statistics-and-visualizations`,
-        {
-          postId
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.SHARED_SECRET || process.env.SHARED_SECRET}`
-          },
-          timeout: 300000 // 5 minute timeout for this operation
-        }
-      );
-      
-      if (!response.data.success) {
-        // Track the failure in Google Sheets - use safe call
-        await safeServiceCall(
-          sheetsService,
-          'updateProcessingStatus', 
-          [appraisalId, `Statistics regeneration failed: ${response.data.message || 'Unknown error'}`]
-        );
-        
-        throw new Error(response.data.message || 'Failed to regenerate statistics and visualizations');
-      }
-      
-      // Update Google Sheets with successful regeneration status - use safe call
-      const statsDetails = response.data.details?.statistics ? 
-        `Statistics regenerated: ${response.data.details.statistics.count || 0} results, confidence: ${response.data.details.statistics.confidence_level || 'N/A'}` :
-        'Statistics regenerated successfully';
-        
-      await safeServiceCall(
-        sheetsService, 
-        'updateProcessingStatus', 
-        [appraisalId, statsDetails]
-      );
-      
-      console.log('✅ Successfully regenerated statistics and HTML visualizations');
+      // Return a message directing to use the controller implementation instead
       return {
-        success: true,
-        message: 'Statistics and HTML visualizations regenerated successfully',
-        details: response.data.details || {}
+        success: false,
+        message: 'This method is deprecated. Statistics regeneration is now handled by the reprocessAppraisalStep controller.',
+        details: {
+          reason: 'Architecture change: Statistics regeneration now delegated directly to appraisals-backend service',
+          solution: 'Use the reprocessAppraisalStep controller with step="regenerate_statistics"',
+          postId
+        }
       };
     } catch (error) {
-      console.error('❌ Error regenerating statistics:', error);
+      console.error('❌ Error in deprecated regenerateStatistics method:', error);
       
-      // Provide more details about the error
-      const errorMessage = error.response?.data?.message || error.message;
-      const errorDetails = error.response?.data?.error || '';
-      
-      console.error(`❌ Error details: ${errorMessage} ${errorDetails}`);
-      
-      // Record the error in Google Sheets if we have an appraisal ID - use safe call
+      // Record the error in Google Sheets if we have an appraisal ID
       if (appraisalId) {
         await safeServiceCall(
           sheetsService,
           'updateProcessingStatus',
-          [appraisalId, `Error regenerating statistics: ${errorMessage.substring(0, 100)}`]
+          [appraisalId, `Error in deprecated method: ${error.message}`]
         );
       }
       
-      throw new Error(`Failed to regenerate statistics: ${errorMessage}`);
+      throw new Error(`Failed in deprecated method: ${error.message}`);
+    }
+  }
+  
+  /**
+   * Complete the appraisal process
+   * @param {string} appraisalId - Appraisal ID 
+   * @param {string} postId - WordPress post ID
+   * @param {number} appraisalValue - Appraisal value
+   * @param {string} description - Appraisal description
+   */
+  async completeAppraisal(appraisalId, postId, appraisalValue, description) {
+    try {
+      console.log(`🔄 Completing appraisal ${appraisalId} (post ID: ${postId}) with value: ${appraisalValue}`);
+      
+      // Update WordPress with the appraisal value
+      await wordpressService.updatePostACFFields(postId, {
+        value: appraisalValue,
+        appraiser_description: description || '',
+        status: 'Completed'
+      });
+      
+      // Update Google Sheets
+      await sheetsService.updateAppraisalValue(appraisalId, appraisalValue);
+      await sheetsService.updateStatus(appraisalId, 'Completed');
+      
+      return {
+        success: true,
+        message: 'Appraisal completed successfully'
+      };
+    } catch (error) {
+      console.error('❌ Error completing appraisal:', error);
+      
+      // Update status in sheets
+      if (appraisalId) {
+        await sheetsService.updateStatus(appraisalId, `Error completing appraisal: ${error.message}`);
+      }
+      
+      throw error;
+    }
+  }
+  
+  /**
+   * Process a single step for the appraisal
+   * @deprecated This method is deprecated. All step processing is now handled by the reprocessAppraisalStep controller
+   * which delegates to appraisals-backend directly. Use the controller approach instead.
+   * @param {string} appraisalId - Appraisal ID
+   * @param {string} postId - WordPress post ID
+   * @param {string} step - Processing step
+   */
+  async processStep(appraisalId, postId, step) {
+    console.log(`⚠️ [DEPRECATED] processStep method called for appraisal ${appraisalId}, step: ${step}`);
+    console.log(`⚠️ All step processing should now be handled by the reprocessAppraisalStep controller`);
+    console.log(`⚠️ which delegates directly to the appraisals-backend service.`);
+    
+    try {
+      console.log(`🔄 Processing step "${step}" for appraisal ${appraisalId} (post ID: ${postId}) - DEPRECATED METHOD`);
+      
+      // Update Google Sheets to indicate this is deprecated
+      await safeServiceCall(
+        sheetsService, 
+        'updateProcessingStatus',
+        [appraisalId, `DEPRECATED: Step processing now happens in controller, step: ${step}`]
+      );
+      
+      // Return a message directing to use the controller implementation instead
+      return {
+        success: false,
+        message: `This method is deprecated. Step "${step}" processing is now handled by the reprocessAppraisalStep controller.`,
+        details: {
+          reason: 'Architecture change: All step processing now delegated directly to appraisals-backend service',
+          solution: 'Use the reprocessAppraisalStep controller with appropriate step parameter',
+          appraisalId,
+          postId,
+          step
+        }
+      };
+    } catch (error) {
+      console.error(`❌ Error in deprecated processStep method for "${step}":`, error);
+      throw new Error(`Failed in deprecated method: ${error.message}`);
     }
   }
 }
 
-module.exports = new AppraisalService();
+module.exports = AppraisalService;

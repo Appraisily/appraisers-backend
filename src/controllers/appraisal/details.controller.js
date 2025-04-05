@@ -244,34 +244,109 @@ class AppraisalDetailsController {
       let result;
       
       try {
-        // Check if appraisalService is available
-        if (!isServiceAvailable(appraisalService, stepName)) {
+        // Special case for steps that are handled by the appraisals-backend service
+        if (stepName === 'regenerate_statistics') {
+          // Skip the service availability check for statistics regeneration
+          // This is delegated to the appraisals-backend service
+          console.log(`ℹ️ [reprocessAppraisalStep] Step '${stepName}' will be delegated to appraisals-backend service`);
+        } 
+        // Check if appraisalService is available for other steps
+        else if (!isServiceAvailable(appraisalService, stepName)) {
           throw new Error(`Appraisal service missing method for step: ${stepName}`);
         }
         
-        switch (stepName) {
-          case 'enhance_description':
-            console.log(`🔄 [reprocessAppraisalStep] Enhancing description for appraisal ID: ${id}`);
-            result = await appraisalService.enhanceDescription(id, postId);
-            break;
-          case 'update_wordpress':
-            console.log(`🔄 [reprocessAppraisalStep] Updating WordPress for appraisal ID: ${id}`);
-            result = await appraisalService.updateWordPress(id, postId);
-            break;
-          case 'generate_html':
-            console.log(`🔄 [reprocessAppraisalStep] Generating HTML content for appraisal ID: ${id}`);
-            result = await appraisalService.generateHtmlContent(id, postId);
-            break;
-          case 'generate_pdf':
-            console.log(`🔄 [reprocessAppraisalStep] Generating PDF for appraisal ID: ${id}`);
-            result = await appraisalService.generatePDF(id, postId);
-            break;
-          case 'regenerate_statistics':
-            console.log(`🔄 [reprocessAppraisalStep] Regenerating statistics for appraisal ID: ${id}`);
-            result = await appraisalService.regenerateStatistics(id, postId);
-            break;
-          default:
-            console.warn(`❌ [reprocessAppraisalStep] Unknown step: ${stepName}`);
+        // Get the appraisals-backend URL from environment or use default
+const appraisalsBackendUrl = process.env.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app';
+const axios = require('axios');
+const sharedSecret = process.env.SHARED_SECRET || 'appraisers-shared-secret';
+
+// Create a function to make requests to the appraisals-backend
+const callAppraisalsBackend = async (endpoint, data, timeoutMs = 300000) => {
+  console.log(`🔄 [reprocessAppraisalStep] Calling appraisals-backend at ${appraisalsBackendUrl}${endpoint}`);
+  
+  try {
+    const response = await axios.post(
+      `${appraisalsBackendUrl}${endpoint}`,
+      data,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sharedSecret}`
+        },
+        timeout: timeoutMs
+      }
+    );
+    
+    console.log(`✅ [reprocessAppraisalStep] Successfully received response from appraisals-backend: ${response.status}`);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ [reprocessAppraisalStep] Error calling appraisals-backend:`, error.message);
+    throw new Error(`Failed API call to ${endpoint}: ${error.response?.data?.message || error.message}`);
+  }
+};
+
+// Handle different step types by delegating to appraisals-backend
+switch (stepName) {
+  case 'enhance_description':
+    console.log(`🔄 [reprocessAppraisalStep] Delegating description enhancement to appraisals-backend for appraisal ID: ${id}`);
+    const enhanceResponse = await callAppraisalsBackend('/api/enhance-description', { postId });
+    result = {
+      success: enhanceResponse.success,
+      message: enhanceResponse.message || 'Description enhanced successfully',
+      details: enhanceResponse.details || {}
+    };
+    break;
+    
+  case 'update_wordpress':
+    console.log(`🔄 [reprocessAppraisalStep] Delegating WordPress update to appraisals-backend for appraisal ID: ${id}`);
+    const updateResponse = await callAppraisalsBackend('/api/update-wordpress-content', { postId });
+    result = {
+      success: updateResponse.success,
+      message: updateResponse.message || 'WordPress updated successfully',
+      details: updateResponse.details || {}
+    };
+    break;
+    
+  case 'generate_html':
+    console.log(`🔄 [reprocessAppraisalStep] Delegating HTML generation to appraisals-backend for appraisal ID: ${id}`);
+    const htmlResponse = await callAppraisalsBackend('/html-content', { 
+      postId,
+      contentType: 'enhanced-analytics'
+    });
+    result = {
+      success: htmlResponse.success,
+      message: htmlResponse.message || 'HTML content generated successfully',
+      details: htmlResponse.details || {}
+    };
+    break;
+    
+  case 'generate_pdf':
+    console.log(`🔄 [reprocessAppraisalStep] Delegating PDF generation to appraisals-backend for appraisal ID: ${id}`);
+    const session_ID = require('uuid').v4(); // Generate a new session ID
+    const pdfResponse = await callAppraisalsBackend('/api/pdf/generate-pdf-steps', { 
+      postId,
+      session_ID
+    });
+    result = {
+      success: pdfResponse.success,
+      message: pdfResponse.message || 'PDF generated successfully',
+      pdfUrl: pdfResponse.pdfLink,
+      docUrl: pdfResponse.docLink
+    };
+    break;
+    
+  case 'regenerate_statistics':
+    console.log(`🔄 [reprocessAppraisalStep] Delegating statistics regeneration to appraisals-backend for appraisal ID: ${id}`);
+    const statsResponse = await callAppraisalsBackend('/regenerate-statistics-and-visualizations', { postId });
+    result = {
+      success: statsResponse.success,
+      message: statsResponse.message || 'Statistics regenerated successfully',
+      details: statsResponse.details || {}
+    };
+    break;
+    
+  default:
+    console.warn(`❌ [reprocessAppraisalStep] Unknown step: ${stepName}`);
             
             // Update sheets with the error - use safe call
             await safeServiceCall(
