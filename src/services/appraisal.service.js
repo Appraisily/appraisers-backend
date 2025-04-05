@@ -241,34 +241,41 @@ class AppraisalService {
         throw new Error(`Appraisal with ID ${appraisalId} not found`);
       }
       
-      // Get AI description and appraiser description
-      const aiDescription = appraisal.iaDescription || '';
-      const appraiserDescription = appraisal.appraisersDescription || '';
+      // Call the appraisals-backend service to enhance description
+      console.log(`🔄 Calling appraisals-backend to enhance description for post ${postId}`);
       
-      if (!aiDescription) {
-        throw new Error('AI description not found');
-      }
-      
-      if (!appraiserDescription) {
-        throw new Error('Appraiser description not found');
-      }
-      
-      // Use OpenAI to merge descriptions
-      const mergedDescription = await openaiService.mergeDescriptions(
-        appraiserDescription,
-        aiDescription
+      const response = await axios.post(
+        `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/enhance-description`,
+        {
+          postId,
+          updateContent: true
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.SHARED_SECRET || process.env.SHARED_SECRET}`
+          },
+          timeout: 180000 // 3 minute timeout
+        }
       );
       
-      // Update the WordPress post with the merged description
-      await wordpressService.updatePostField(postId, 'content', mergedDescription);
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to enhance description');
+      }
       
-      // Update Google Sheets with the merged description
-      await sheetsService.updateMergedDescription(appraisalId, mergedDescription);
+      // Update Google Sheets with the enhanced description status
+      try {
+        await sheetsService.updateProcessingStatus(appraisalId, 'Description enhanced');
+      } catch (sheetsError) {
+        console.warn('Warning: Could not update Google Sheets with enhanced description status:', sheetsError.message);
+        // Continue even if sheets update fails
+      }
       
       console.log('✅ Successfully enhanced description');
       return {
         success: true,
-        mergedDescription
+        message: 'Description enhanced successfully',
+        details: response.data.details || {}
       };
     } catch (error) {
       console.error('❌ Error enhancing description:', error);
@@ -294,43 +301,53 @@ class AppraisalService {
         throw new Error(`Appraisal with ID ${appraisalId} not found`);
       }
       
-      // Get WordPress post details
-      const postDetails = await wordpressService.getPostWithMetadata(postId);
+      // Call the appraisals-backend service to update WordPress
+      console.log(`🔄 Calling appraisals-backend to update WordPress for post ${postId}`);
       
-      // Update ACF fields
-      const acfData = {
+      // Prepare ACF fields from appraisal data
+      const acfFields = {
         appraisal_value: appraisal.value,
         appraisal_type: appraisal.appraisalType || 'Regular',
         appraisal_id: appraisalId,
-        // Add other fields as needed
+        // Add other fields from sheets as needed
+        last_updated: new Date().toISOString(),
+        sheets_id: appraisalId
       };
       
-      // Update the WordPress post ACF fields
-      await wordpressService.updatePost(postId, {
-        acf: acfData
-      });
+      const response = await axios.post(
+        `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/update-wordpress`,
+        {
+          postId,
+          acfFields,
+          insertShortcodes: true,
+          appraisalType: appraisal.appraisalType || 'RegularArt'
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.SHARED_SECRET || process.env.SHARED_SECRET}`
+          },
+          timeout: 60000 // 1 minute timeout
+        }
+      );
       
-      // Insert template shortcodes if they don't exist
-      const content = postDetails.content?.rendered || '';
-      let updatedContent = content;
-      const appraisalType = appraisal.appraisalType || 'RegularArt';
-      
-      if (!updatedContent.includes('[pdf_download]')) {
-        updatedContent += '\n[pdf_download]';
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to update WordPress');
       }
       
-      if (!updatedContent.includes(`[AppraisalTemplates type="${appraisalType}"]`)) {
-        updatedContent += `\n[AppraisalTemplates type="${appraisalType}"]`;
-      }
-      
-      if (updatedContent !== content) {
-        await wordpressService.updatePostField(postId, 'content', updatedContent);
+      // Update Google Sheets with WordPress update status
+      try {
+        await sheetsService.updateProcessingStatus(appraisalId, 'WordPress updated');
+      } catch (sheetsError) {
+        console.warn('Warning: Could not update Google Sheets with WordPress update status:', sheetsError.message);
+        // Continue even if sheets update fails
       }
       
       console.log('✅ Successfully updated WordPress post');
       return {
         success: true,
-        message: 'WordPress post updated successfully'
+        message: 'WordPress post updated successfully',
+        details: response.data.details || {}
       };
     } catch (error) {
       console.error('❌ Error updating WordPress:', error);
@@ -349,17 +366,20 @@ class AppraisalService {
       console.log(`🔄 Generating HTML content for appraisal ${appraisalId} (WordPress post ${postId})...`);
       
       // Call the appraisals-backend service to generate HTML content
+      console.log(`🔄 Calling appraisals-backend to generate HTML content for post ${postId}`);
+      
       const response = await axios.post(
         `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/html-content`,
         {
           postId,
-          contentType: 'enhanced-analytics'
+          contentType: 'enhanced-analytics' // Request both types of visualization
         },
         {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${config.SHARED_SECRET || process.env.SHARED_SECRET}`
-          }
+          },
+          timeout: 180000 // 3 minute timeout
         }
       );
       
@@ -367,8 +387,20 @@ class AppraisalService {
         throw new Error(response.data.message || 'Failed to generate HTML content');
       }
       
+      // Update Google Sheets with HTML generation status
+      try {
+        await sheetsService.updateProcessingStatus(appraisalId, 'HTML content generated');
+      } catch (sheetsError) {
+        console.warn('Warning: Could not update Google Sheets with HTML generation status:', sheetsError.message);
+        // Continue even if sheets update fails
+      }
+      
       console.log('✅ Successfully generated HTML content');
-      return response.data;
+      return {
+        success: true,
+        message: 'HTML content generated successfully',
+        details: response.data.details || {}
+      };
     } catch (error) {
       console.error('❌ Error generating HTML content:', error);
       throw error;
