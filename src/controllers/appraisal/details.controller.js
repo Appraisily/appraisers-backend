@@ -299,7 +299,7 @@ switch (stepName) {
     
   case 'update_wordpress':
     console.log(`🔄 [reprocessAppraisalStep] Delegating WordPress update to appraisals-backend for appraisal ID: ${id}`);
-    const updateResponse = await callAppraisalsBackend('/api/update-wordpress-content', { postId });
+    const updateResponse = await callAppraisalsBackend('/update-wordpress', { postId });
     result = {
       success: updateResponse.success,
       message: updateResponse.message || 'WordPress updated successfully',
@@ -309,9 +309,9 @@ switch (stepName) {
     
   case 'generate_html':
     console.log(`🔄 [reprocessAppraisalStep] Delegating HTML generation to appraisals-backend for appraisal ID: ${id}`);
-    const htmlResponse = await callAppraisalsBackend('/html-content', { 
-      postId,
-      contentType: 'enhanced-analytics'
+    const htmlResponse = await callAppraisalsBackend('/api/html/generate', { 
+      postId, 
+      visualizationType: 'enhanced-analytics'
     });
     result = {
       success: htmlResponse.success,
