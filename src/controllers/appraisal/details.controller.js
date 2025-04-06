@@ -415,10 +415,11 @@ switch (stepName) {
     } catch (error) {
       console.error(`❌ [reprocessAppraisalStep] Error reprocessing step "${stepName}" for appraisal ID: ${id}:`, error);
       
+      // Use the specific error message for the main 'message' field
       return res.status(500).json({
         success: false,
-        message: `Error reprocessing step: ${stepName}`,
-        error: error.message,
+        message: error.message || `Error reprocessing step: ${stepName}`, // Use specific error message
+        error: error.message, // Keep original error message here too for detail
         details: error.details || {}
       });
     }
