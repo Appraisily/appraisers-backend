@@ -6,7 +6,7 @@ const {
   websocketService
 } = require('../services');
 const { config } = require('../config');
-const { getImageUrl } = require('../utils/getImageUrl');
+const { getImageUrl } = require('../services/getImageUrl');
 
 class AppraisalController {
   static async getAppraisals(req, res) {

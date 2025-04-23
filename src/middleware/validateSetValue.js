@@ -1,5 +1,5 @@
 const { RouteError } = require('./errorHandler');
-const { getFormattedDocumentation } = require('../utils/routeDocumentation');
+const { getFormattedDocumentation } = require('../services/routeDocumentation');
 
 /**
  * Middleware to validate appraisal value setting requests

@@ -1,7 +1,7 @@
 /**
  * Middleware to handle 404 errors and provide documentation on available endpoints
  */
-const { getFormattedDocumentation } = require('../utils/routeDocumentation');
+const { getFormattedDocumentation } = require('../services/routeDocumentation');
 
 function notFoundHandler(req, res, next) {
   // Get available endpoints based on req.app._router

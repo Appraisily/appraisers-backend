@@ -1,227 +1,143 @@
-# Appraisers Backend Service
+# Appraisers Backend
 
-A robust Node.js backend service for managing art appraisals, providing secure API endpoints for authentication, appraisal management, and integration with various services.
+This repository contains the backend service for the Appraisers application, which processes artwork appraisals through a multi-step pipeline.
 
-## 🚀 Quick Start
+## Overview
 
-```bash
-# Install dependencies
-npm install
+The backend consists of several services that work together to process appraisals:
 
-# Run in development mode
-npm run dev
+1. **Appraisal Service**: Main orchestration service for appraisal processing
+2. **AI Service**: Handles AI-powered image analysis and description generation
+3. **Sheets Service**: Interfaces with Google Sheets for data storage and retrieval
+4. **Email Service**: Sends notifications to customers
+5. **WordPress Service**: Integrates with WordPress for content management
+6. **Storage Service**: Manages file storage and retrieval
+7. **PDF Service**: Generates PDF reports for appraisals
 
-# Run in production mode
-npm start
+## Architecture
 
-# Run linting
-npm run lint
+The application follows a service-oriented architecture where each service handles a specific responsibility. The main workflow is controlled by the Appraisal Service which coordinates the other services.
 
-# Run tests
-npm test
-
-# Run a single test
-npx jest path/to/test.js -t "test name"
-
-# Debug tests
-NODE_ENV=test node --inspect-brk node_modules/.bin/jest --runInBand
-```
-
-## 🏗️ Project Structure
+### File Structure
 
 ```
-src/
-├── config/               # Configuration files
-│   ├── corsConfig.js     # CORS configuration
-│   ├── development.config.js
-│   └── index.js          # Main config
-├── constants/            # Application constants
-│   ├── authorizedUsers.js
-│   └── routes.js
-├── controllers/          # Request handlers
-│   ├── appraisal/
-│   ├── auth/
-│   └── health.controller.js
-├── middleware/           # Express middleware
-│   ├── authenticate.js
-│   ├── errorHandler.js
-│   ├── routeValidator.js
-│   └── validateService.js
-├── routes/               # API routes
-│   ├── appraisal.routes.js
-│   ├── auth.routes.js
-│   ├── health.routes.js
-│   ├── index.js
-│   └── updatePending.routes.js
-├── services/             # Business logic and external services
-│   ├── ai.service.js
-│   ├── email.service.js
-│   ├── pubsub.service.js
-│   ├── sheets.service.js
-│   └── wordpress.service.js
-├── tests/                # Test files
-│   └── routes.test.js
-├── utils/                # Utility functions
-│   ├── getImageUrl.js
-│   ├── secretManager.js
-│   └── validators.js
-├── app.js                # Express app setup
-├── index.js              # Application entry point
-└── worker.js             # Background worker process
+appraiasers-backend/
+├── src/
+│   ├── config/            # Configuration settings
+│   ├── controllers/       # API route controllers
+│   ├── middleware/        # Express middleware
+│   ├── routes/            # API route definitions
+│   ├── services/          # Service implementations
+│   │   ├── ai.service.js            # AI processing service
+│   │   ├── appraisal.service.js     # Main appraisal service
+│   │   ├── appraisal.steps.js       # Step-by-step appraisal processing
+│   │   ├── bulk.service.js          # Bulk appraisal handling
+│   │   ├── emailService.js          # Email notifications
+│   │   ├── index.js                 # Service registry and initialization
+│   │   ├── pdf.service.js           # PDF generation
+│   │   ├── pubsub.service.js        # Pub/Sub messaging service
+│   │   ├── sheets.service.js        # Google Sheets integration
+│   │   ├── storage.service.js       # File storage service
+│   │   └── wordpress.service.js     # WordPress integration
+│   └── utils/             # Utility functions
+└── package.json           # Dependencies
 ```
 
-## ✨ Features
+## Service Classes and Functions
 
-### Authentication
-- JWT-based authentication with HTTP-only cookies
-- Secure token refresh mechanism
-- Role-based access control
-- Backend-to-backend authentication using shared secrets
-- Google OAuth integration for user authentication
+### Appraisal Service (appraisal.service.js)
 
-### Appraisal Management
-- List pending and completed appraisals
-- Detailed appraisal information retrieval
-- Value setting and updating
-- Automated appraisal processing pipeline
-- PDF generation and document management
-- Email notifications with customizable delays
+The main service that orchestrates the appraisal process:
 
-### Service Integrations
-- WordPress CMS integration for content management
-- Google Sheets for data storage
-- SendGrid for email communications
-- Google Cloud PubSub for async processing
-- Google Secret Manager for secure configuration
-- OpenAI for AI-powered descriptions
+**Classes:**
+- `AppraisalService`: Main service for creating and processing appraisals
 
-## 🔌 API Endpoints
+**Key Methods:**
+- `createAppraisal(appraisalData)`: Creates a new appraisal
+- `createWordPressPost(appraisalId)`: Creates a WordPress post for the appraisal
+- `completeAppraisal(appraisalId, postId, appraisalValue, description)`: Completes an appraisal
 
-### Authentication
-```
-POST /api/auth/login         - User login
-POST /api/auth/refresh       - Refresh token
-POST /api/auth/logout        - User logout
-POST /api/auth/google        - Google authentication
-```
+### Appraisal Steps (appraisal.steps.js)
 
-### Appraisals
-```
-GET  /api/appraisals              - List pending appraisals
-GET  /api/appraisals/completed    - List completed appraisals
-GET  /api/appraisals/:id/list     - Get appraisal details
-GET  /api/appraisals/:id/list-edit - Get appraisal details for editing
-POST /api/appraisals/:id/set-value - Set appraisal value
-POST /api/appraisals/:id/complete-process - Start appraisal processing
-GET  /api/appraisals/get-session-id - Get a new session ID
-POST /api/appraisals/:id/save-links - Save related links
-POST /api/appraisals/:id/update-links - Update related links
-POST /api/appraisals/:id/update-acf-field - Update ACF fields
-```
+Contains the step-by-step processing logic for appraisals:
 
-### Update Pending Appraisal
-```
-POST /api/update-pending-appraisal - Update pending appraisal with new data
-```
+**Key Functions:**
+- `processFromStep(id, startStep, options)`: Processes an appraisal from a specific step
+- `loadInitialData(context)`: Loads data for an appraisal
+- `executeStep(context, step)`: Executes a specific processing step
+- `mergeDescriptionsStep(context)`: Merges AI and appraiser descriptions
+- `generateVisualizationStep(context)`: Generates visualizations
+- `buildReportStep(context)`: Builds the final report
+- `generatePdfStep(context)`: Generates PDF documents
+- `sendEmailStep(context)`: Sends notifications
+- `completeStep(context)`: Marks an appraisal as complete
 
-### Health Checks
-```
-GET  /api/health/status    - Service health status
-GET  /api/health/endpoints - List available endpoints
-```
+### AI Service (ai.service.js)
 
-## 🔧 Required Environment Variables
+Handles AI-powered image analysis and description generation:
 
-```bash
-# Authentication
-JWT_SECRET                   - JWT signing secret
-SHARED_SECRET                - Service-to-service auth secret
+**Classes:**
+- `AIService`: Service for AI processing
 
-# Google Auth
-GOOGLE_CLIENT_ID             - Google OAuth client ID
-GOOGLE_CLIENT_SECRET         - Google OAuth client secret
+**Key Methods:**
+- `initialize()`: Sets up connection to the AI service
+- `processImages(images, prompt)`: Processes images with the AI service
+- `generateDescription(mainImageUrl, signatureImageUrl, ageImageUrl)`: Generates artwork descriptions
+- `mergeDescriptions(appraiserDescription, iaDescription)`: Merges multiple descriptions
 
-# WordPress
-WORDPRESS_API_URL           - WordPress API endpoint
-WORDPRESS_USERNAME          - WordPress auth username
-WORDPRESS_APP_PASSWORD      - WordPress app password
+### Sheets Service (sheets.service.js)
 
-# SendGrid
-SENDGRID_API_KEY            - SendGrid API key
-SENDGRID_EMAIL              - SendGrid sender email
-SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED - Template ID
-SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE    - Template ID
+Interfaces with Google Sheets for data storage:
 
-# Google Cloud
-GOOGLE_CLOUD_PROJECT_ID     - GCP project ID
-PENDING_APPRAISALS_SPREADSHEET_ID - Google Sheets ID
-GOOGLE_SHEET_NAME           - Sheet name
-EDIT_SHEET_NAME            - Edit sheet name
+**Classes:**
+- `SheetsService`: Service for Google Sheets integration
 
-# OpenAI
-OPENAI_API_KEY             - OpenAI API key
-```
+**Key Methods:**
+- `initialize()`: Sets up connection to Google Sheets
+- `getValues(spreadsheetId, range)`: Retrieves values from a sheet
+- `updateValues(spreadsheetId, range, values)`: Updates values in a sheet
+- `getAppraisalRow(id, sheetName)`: Gets an appraisal by ID
+- `updateAppraisalValue(id, value, description)`: Updates an appraisal's value
 
-## 📦 Deployment
+### Email Service (emailService.js)
 
-The service is deployed on Google Cloud Run with:
-- Memory: 512Mi
-- CPU: 1
-- Min instances: 1
-- Max instances: 10
-- Port: 8080
+Sends email notifications to customers:
 
-## 📚 Code Style and Guidelines
+**Classes:**
+- `EmailService`: Service for email notifications
 
-The project follows specific code style guidelines:
+**Key Methods:**
+- `sendAppraisalUpdateEmail(customerEmail, customerName, description, iaDescription)`: Sends update notifications
+- `sendAppraisalCompletedEmail(customerEmail, customerName, appraisalData)`: Sends completion notifications
 
-- ES6+ JavaScript features
-- Named exports preferred over default exports
-- camelCase for variables/functions, PascalCase for classes
-- 2-space indentation, semicolons required
-- Try/catch blocks for async operations
-- JSDoc comments for public APIs and complex functions
-- Standardized API response format
+### Bulk Service (bulk.service.js)
 
-See [CLAUDE.md](../CLAUDE.md) for detailed coding guidelines.
+Handles processing of bulk appraisals:
 
-## 📋 Dependencies
+**Classes:**
+- `BulkService`: Service for bulk appraisal operations
 
-The service relies on the following key dependencies:
+**Key Methods:**
+- `getBulkImages(id)`: Gets images for a bulk appraisal
+- `processBulkImages(id, images)`: Processes images for a bulk appraisal
+- `sendToPaymentProcessor(session_id, customerEmail, customerName, images)`: Sends payment requests
 
-- **Express.js**: Web framework
-- **JWT**: Authentication and authorization
-- **Google Cloud**: PubSub, Storage, Secret Manager
-- **SendGrid**: Email service
-- **Axios**: HTTP client
-- **Winston**: Logging
-- **Jest**: Testing framework
+## Environment Configuration
 
-## ⚠️ Troubleshooting
+The backend services use environment variables for configuration. These can be set either through environment variables or using Google Cloud Runtime Variables.
 
-### Common Issues
+Key environment variables:
+- `SENDGRID_API_KEY`: API key for SendGrid email service
+- `SENDGRID_EMAIL`: Sender email for notifications
+- `SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE`: Email template ID for updates
+- `SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED`: Email template ID for completions
+- `PENDING_APPRAISALS_SPREADSHEET_ID`: Google Sheets ID for appraisal data
+- `GOOGLE_SHEET_NAME`: Sheet name for pending appraisals
+- `COMPLETED_SHEET_NAME`: Sheet name for completed appraisals
+- `SHARED_SECRET`: Secret key for inter-service authentication
 
-1. **Authentication Failures**
-   - Check JWT_SECRET environment variable
-   - Verify cookie settings match security requirements
-   - Confirm Google OAuth configuration
+## Deployment
 
-2. **WordPress Integration Issues**
-   - Verify WordPress credentials are valid
-   - Check network connectivity to WordPress instance
-   - Ensure proper error handling in WordPress service
+The application is deployed on Google Cloud Run services, which allows access to Secret Manager for secure storage of API keys and other sensitive information.
 
-3. **Google Sheets Access Problems**
-   - Confirm service account has appropriate permissions
-   - Verify spreadsheet ID is correct
-   - Check sheet names match configuration
-
-### Debugging Tips
-
-- Enable DEBUG environment variable for detailed logs
-- Use Jest's `--verbose` flag for detailed test output
-- Check Cloud Run logs for production issues
-
-## ⚖️ License
-
-This project is proprietary and confidential. All rights reserved.
+A Dockerfile is used to build the application in Cloud Run so that secrets can be accessed securely. Environment variables are managed through Runtime Variables in Cloud Run rather than .env files.

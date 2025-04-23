@@ -73,4 +73,4 @@ module.exports = {
   withDocumentation,
   documentedRouter,
   registerRoute
-};
+}; 

@@ -5,7 +5,7 @@ const { validateSetValue } = require('../middleware/validateSetValue');
 const AppraisalController = require('../controllers/appraisal');
 const BulkController = require('../controllers/appraisal/bulk.controller');
 const DetailsController = require('../controllers/appraisal/details.controller');
-const { registerRoute } = require('../utils/routeDecorator');
+const { registerRoute } = require('../services/routeDecorator');
 
 // List and View routes
 registerRoute(router, 'get', '/', {

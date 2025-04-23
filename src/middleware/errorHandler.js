@@ -1,5 +1,5 @@
 const { config } = require('../config');
-const { getFormattedDocumentation } = require('../utils/routeDocumentation');
+const { getFormattedDocumentation } = require('../services/routeDocumentation');
 
 class RouteError extends Error {
   constructor(message, statusCode = 400, includeDocumentation = true) {

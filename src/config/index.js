@@ -1,4 +1,4 @@
-const { getSecret } = require('../utils/secretManager');
+const { getSecret } = require('../services/secretManager');
 
 const config = {};
 

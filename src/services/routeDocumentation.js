@@ -110,4 +110,4 @@ module.exports = {
   registerRouteDocumentation,
   getRouteDocumentation,
   getFormattedDocumentation
-};
+}; 

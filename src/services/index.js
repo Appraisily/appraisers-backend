@@ -1,10 +1,9 @@
-const emailService = require('./email.service');
+const emailService = require('./emailService');
 const sheetsService = require('./sheets.service');
 const pubsubService = require('./pubsub.service');
 const aiService = require('./ai.service');
 const wordpressService = require('./wordpress.service');
 const storageService = require('./storage.service');
-const websocketService = require('./websocket.service');
 const appraisalService = require('./appraisal.service');
 const ServiceValidator = require('../middleware/validateService');
 
@@ -173,6 +172,5 @@ module.exports = {
   aiService,
   wordpressService,
   storageService,
-  websocketService,
   appraisalService
 };

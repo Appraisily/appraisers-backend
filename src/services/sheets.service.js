@@ -1,12 +1,18 @@
 const { google } = require('googleapis');
 const { config } = require('../config');
-const { getSecret } = require('../utils/secretManager');
+const { getSecret } = require('./secretManager');
 
+/**
+ * Service for interacting with Google Sheets
+ */
 class SheetsService {
   constructor() {
     this.sheets = null;
   }
 
+  /**
+   * Initialize the Google Sheets service with authentication
+   */
   async initialize() {
     if (this.sheets) return;
 
@@ -17,12 +23,13 @@ class SheetsService {
         scopes: ['https://www.googleapis.com/auth/spreadsheets']
       });
 
-      this.sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
+      const authClient = await auth.getClient();
+      this.sheets = google.sheets({ version: 'v4', auth: authClient });
       
       // Log all available sheets in the spreadsheet for debugging
       this.listAvailableSheets();
     } catch (error) {
-      console.error('Error initializing sheets service:', error);
+      console.error('Error initializing sheets service:', error instanceof Error ? error.message : String(error));
       throw new Error('Failed to initialize Google Sheets service');
     }
   }
@@ -32,27 +39,40 @@ class SheetsService {
    */
   async listAvailableSheets() {
     try {
+      if (!this.sheets) {
+        console.warn('Sheets API not initialized yet');
+        return;
+      }
+
       // Get list of sheets from spreadsheet
       const sheetsResponse = await this.sheets.spreadsheets.get({
-        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID || ''
       });
       
-      const allSheets = sheetsResponse.data.sheets.map(sheet => sheet.properties.title);
+      if (!sheetsResponse.data.sheets) {
+        console.warn('No sheets found in the spreadsheet');
+        return;
+      }
+
+      const allSheets = sheetsResponse.data.sheets
+        .filter(sheet => sheet.properties && sheet.properties.title)
+        .map(sheet => sheet.properties.title);
+
       console.log('📋 AVAILABLE SHEETS:', allSheets.join(', '));
       
       // Verify configured sheet names
-      console.log(`🔍 Configured pending sheet: "${config.GOOGLE_SHEET_NAME}"`);
-      console.log(`🔍 Configured completed sheet: "${config.COMPLETED_SHEET_NAME}"`);
+      console.log(`🔍 Configured pending sheet: "${config.GOOGLE_SHEET_NAME || 'undefined'}"`);
+      console.log(`🔍 Configured completed sheet: "${config.COMPLETED_SHEET_NAME || 'undefined'}"`);
       
-      if (!allSheets.includes(config.GOOGLE_SHEET_NAME)) {
+      if (config.GOOGLE_SHEET_NAME && !allSheets.includes(config.GOOGLE_SHEET_NAME)) {
         console.warn(`⚠️ WARNING: Configured pending sheet "${config.GOOGLE_SHEET_NAME}" does not exist in spreadsheet!`);
       }
       
-      if (!allSheets.includes(config.COMPLETED_SHEET_NAME)) {
+      if (config.COMPLETED_SHEET_NAME && !allSheets.includes(config.COMPLETED_SHEET_NAME)) {
         console.warn(`⚠️ WARNING: Configured completed sheet "${config.COMPLETED_SHEET_NAME}" does not exist in spreadsheet!`);
       }
     } catch (error) {
-      console.error('Error listing available sheets:', error.message);
+      console.error('Error listing available sheets:', error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -80,10 +100,20 @@ class SheetsService {
     return `${escapedSheetName}!${cellRange}`;
   }
 
+  /**
+   * Get values from a Google Sheet
+   * @param {string} spreadsheetId - ID of the spreadsheet
+   * @param {string} range - Range to read
+   * @returns {Promise<any[][]>} - Values from the sheet
+   */
   async getValues(spreadsheetId, range) {
     await this.initialize();
 
     try {
+      if (!this.sheets) {
+        throw new Error('Sheets API not initialized');
+      }
+
       const response = await this.sheets.spreadsheets.values.get({
         spreadsheetId,
         range,
@@ -93,42 +123,65 @@ class SheetsService {
 
       return response.data.values || [];
     } catch (error) {
-      console.error('Error getting values from sheets:', error);
-      throw new Error(`Failed to get values from Google Sheets: ${error.message}`);
+      console.error('Error getting values from sheets:', error instanceof Error ? error.message : String(error));
+      throw new Error(`Failed to get values from Google Sheets: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
+  /**
+   * Update values in a Google Sheet
+   * @param {string} spreadsheetId - ID of the spreadsheet
+   * @param {string} range - Range to update
+   * @param {any[][]} values - Values to write
+   */
   async updateValues(spreadsheetId, range, values) {
     await this.initialize();
 
     try {
+      if (!this.sheets) {
+        throw new Error('Sheets API not initialized');
+      }
+
       await this.sheets.spreadsheets.values.update({
         spreadsheetId,
         range,
         valueInputOption: 'RAW',
-        resource: { values }
+        requestBody: { values }
       });
     } catch (error) {
-      console.error('Error updating values in sheets:', error);
+      console.error('Error updating values in sheets:', error instanceof Error ? error.message : String(error));
       throw new Error('Failed to update values in Google Sheets');
     }
   }
 
-  async getAppraisalRow(id, sheetName = config.GOOGLE_SHEET_NAME) {
+  /**
+   * Get a row of data for an appraisal by ID
+   * @param {string|number} id - The appraisal ID
+   * @param {string} [sheetName] - Sheet name to use (defaults to pending sheet)
+   * @returns {Promise<any[]>} - Row data
+   */
+  async getAppraisalRow(id, sheetName = config.GOOGLE_SHEET_NAME || 'Pending') {
     const cellRange = `A${id}:N${id}`;
     const formattedRange = this.formatRange(sheetName, cellRange);
     const values = await this.getValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
       formattedRange
     );
     return values[0];
   }
 
-  async updateAppraisalValue(id, value, description, sheetName = config.GOOGLE_SHEET_NAME) {
+  /**
+   * Update the appraisal value and description
+   * @param {string|number} id - The appraisal ID
+   * @param {string|number} value - The appraisal value
+   * @param {string} description - The appraisal description
+   * @param {string} [sheetName] - Sheet name to use (defaults to pending sheet)
+   */
+  async updateAppraisalValue(id, value, description, sheetName = config.GOOGLE_SHEET_NAME || 'Pending') {
     const cellRange = `J${id}:K${id}`;
     const formattedRange = this.formatRange(sheetName, cellRange);
     await this.updateValues(
-      config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
       formattedRange,
       [[value, description]]
     );
@@ -136,7 +189,7 @@ class SheetsService {
 
   /**
    * Get the WordPress post ID from an appraisal ID by looking it up in Google Sheets
-   * @param {string} appraisalId - The appraisal ID to look up
+   * @param {string|number} appraisalId - The appraisal ID to look up
    * @returns {Promise<string|null>} - WordPress post ID or null if not found
    */
   async getWordPressPostIdFromAppraisalId(appraisalId) {
@@ -145,11 +198,11 @@ class SheetsService {
 
       // First try to get from the pending sheet
       const cellRange = `A${appraisalId}:G${appraisalId}`;
-      const formattedRange = this.formatRange(config.GOOGLE_SHEET_NAME, cellRange);
+      const formattedRange = this.formatRange(config.GOOGLE_SHEET_NAME || 'Pending', cellRange);
       console.log(`🔍 Checking pending range: ${formattedRange}`);
       
       const values = await this.getValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
         formattedRange
       );
 
@@ -173,27 +226,39 @@ class SheetsService {
       console.log(`🔄 Checking completed sheet for appraisal ID: ${appraisalId}`);
       
       try {
+        if (!this.sheets) {
+          throw new Error('Sheets API not initialized');
+        }
+
         // First get all sheet names to verify the completed sheet exists
         const sheetsResponse = await this.sheets.spreadsheets.get({
-          spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+          spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
         });
         
-        const allSheets = sheetsResponse.data.sheets.map(sheet => sheet.properties.title);
+        if (!sheetsResponse.data.sheets) {
+          throw new Error('No sheets found in the spreadsheet');
+        }
+
+        const allSheets = sheetsResponse.data.sheets
+          .filter(sheet => sheet.properties && sheet.properties.title)
+          .map(sheet => sheet.properties.title);
+        
         console.log(`📋 Available sheets in spreadsheet: ${allSheets.join(', ')}`);
         
         // Check if our configured sheet name exists
-        if (!allSheets.includes(config.COMPLETED_SHEET_NAME)) {
-          console.error(`❌ Configured completed sheet "${config.COMPLETED_SHEET_NAME}" does not exist in spreadsheet`);
-          throw new Error(`Completed sheet "${config.COMPLETED_SHEET_NAME}" not found in spreadsheet`);
+        const completedSheetName = config.COMPLETED_SHEET_NAME || 'Completed';
+        if (!allSheets.includes(completedSheetName)) {
+          console.error(`❌ Configured completed sheet "${completedSheetName}" does not exist in spreadsheet`);
+          throw new Error(`Completed sheet "${completedSheetName}" not found in spreadsheet`);
         }
         
         // If we get here, the sheet exists, so try to get the data
         const cellRange = `A${appraisalId}:G${appraisalId}`;
-        const completedRange = this.formatRange(config.COMPLETED_SHEET_NAME, cellRange);
+        const completedRange = this.formatRange(completedSheetName, cellRange);
         console.log(`🔍 Checking completed range: ${completedRange}`);
         
         const completedValues = await this.getValues(
-          config.PENDING_APPRAISALS_SPREADSHEET_ID,
+          config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
           completedRange
         );
 
@@ -213,28 +278,30 @@ class SheetsService {
           }
         }
       } catch (error) {
-        console.error(`❌ Error accessing completed sheet for appraisal ID ${appraisalId}:`, error.message);
+        console.error(`❌ Error accessing completed sheet for appraisal ID ${appraisalId}:`, 
+          error instanceof Error ? error.message : String(error));
         throw error; // Propagate the error rather than trying fallbacks
       }
 
       console.warn(`⚠️ No WordPress post ID found for appraisal ID ${appraisalId}`);
       return null;
     } catch (error) {
-      console.error('Error getting WordPress post ID from appraisal ID:', error);
-      throw new Error(`Failed to get WordPress post ID: ${error.message}`);
+      console.error('Error getting WordPress post ID from appraisal ID:', 
+        error instanceof Error ? error.message : String(error));
+      throw new Error(`Failed to get WordPress post ID: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
   /**
    * Get a pending appraisal by ID
-   * @param {string} id - The appraisal ID
+   * @param {string|number} id - The appraisal ID
    * @returns {Promise<object|null>} - Appraisal data or null if not found
    */
   async getPendingAppraisalById(id) {
     try {
-      const range = `${config.GOOGLE_SHEET_NAME}!A${id}:N${id}`;
+      const range = `${config.GOOGLE_SHEET_NAME || 'Pending'}!A${id}:N${id}`;
       const values = await this.getValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
         range
       );
 
@@ -276,20 +343,31 @@ class SheetsService {
 
   /**
    * Get a completed appraisal by ID
-   * @param {string} id - The appraisal ID
+   * @param {string|number} id - The appraisal ID
    * @returns {Promise<object|null>} - Appraisal data or null if not found
    */
   async getCompletedAppraisalById(id) {
     try {
-      const sheetName = config.COMPLETED_SHEET_NAME;
+      const sheetName = config.COMPLETED_SHEET_NAME || 'Completed';
       console.log(`🔍 Looking for completed appraisal ${id} in sheet "${sheetName}"`);
       
       // First verify the sheet exists
+      if (!this.sheets) {
+        throw new Error('Sheets API not initialized');
+      }
+
       const sheetsResponse = await this.sheets.spreadsheets.get({
-        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
       });
       
-      const allSheets = sheetsResponse.data.sheets.map(sheet => sheet.properties.title);
+      if (!sheetsResponse.data.sheets) {
+        throw new Error('No sheets found in the spreadsheet');
+      }
+
+      const allSheets = sheetsResponse.data.sheets
+        .filter(sheet => sheet.properties && sheet.properties.title)
+        .map(sheet => sheet.properties.title);
+      
       console.log(`📋 Available sheets in spreadsheet: ${allSheets.join(', ')}`);
       
       // Check if our configured sheet name exists
@@ -304,7 +382,7 @@ class SheetsService {
       console.log(`🔍 Checking range: ${formattedRange}`);
       
       const values = await this.getValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
         formattedRange
       );
 
@@ -316,7 +394,8 @@ class SheetsService {
       console.warn(`⚠️ Completed appraisal ${id} not found in sheet "${sheetName}"`);
       return null;
     } catch (error) {
-      console.error(`❌ Error getting completed appraisal by ID ${id}:`, error);
+      console.error(`❌ Error getting completed appraisal by ID ${id}:`, 
+        error instanceof Error ? error.message : String(error));
       throw error; // Propagate the error rather than hiding it
     }
   }
@@ -324,6 +403,9 @@ class SheetsService {
   /**
    * Helper method to parse a row from the completed appraisals sheet
    * @private
+   * @param {string|number} id - The appraisal ID
+   * @param {any[]} row - The row data
+   * @returns {object|null} - Parsed appraisal data
    */
   _parseCompletedAppraisalRow(id, row) {
     if (!row) return null;
@@ -359,16 +441,16 @@ class SheetsService {
 
   /**
    * Update the merged description in Google Sheets
-   * @param {string} id - The appraisal ID
+   * @param {string|number} id - The appraisal ID
    * @param {string} mergedDescription - The merged description
    * @returns {Promise<boolean>} - Success status
    */
   async updateMergedDescription(id, mergedDescription) {
     try {
       const cellRange = `L${id}`;
-      const formattedRange = this.formatRange(config.GOOGLE_SHEET_NAME, cellRange);
+      const formattedRange = this.formatRange(config.GOOGLE_SHEET_NAME || 'Pending', cellRange);
       await this.updateValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
         formattedRange,
         [[mergedDescription]]
       );
@@ -381,16 +463,16 @@ class SheetsService {
 
   /**
    * Update the PDF URL in Google Sheets
-   * @param {string} id - The appraisal ID
+   * @param {string|number} id - The appraisal ID
    * @param {string} pdfUrl - The PDF URL
    * @returns {Promise<boolean>} - Success status
    */
   async updatePdfUrl(id, pdfUrl) {
     try {
       const cellRange = `M${id}`;
-      const formattedRange = this.formatRange(config.GOOGLE_SHEET_NAME, cellRange);
+      const formattedRange = this.formatRange(config.GOOGLE_SHEET_NAME || 'Pending', cellRange);
       await this.updateValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
         formattedRange,
         [[pdfUrl]]
       );
@@ -403,9 +485,8 @@ class SheetsService {
 
   /**
    * Update the processing status of an appraisal in Google Sheets
-   * @param {string} id - The appraisal ID
+   * @param {string|number} id - The appraisal ID
    * @param {string} status - The processing status message
-   * @param {string} [sheetName] - Optional sheet name (defaults to completed sheet if appraisal is completed, otherwise pending sheet)
    * @returns {Promise<boolean>} - Success status
    */
   async updateProcessingStatus(id, status) {
@@ -413,30 +494,29 @@ class SheetsService {
       console.log(`🔄 Updating processing status for appraisal ID ${id}: "${status}"`);
       
       // First determine if this is a pending or completed appraisal to use the right sheet
-      let isCompleted = false;
-      let sheetName = config.GOOGLE_SHEET_NAME; // Default to pending sheet
+      let sheetName = config.GOOGLE_SHEET_NAME || 'Pending'; // Default to pending sheet
       
       try {
         // Check status in pending sheet first
         const statusRange = `F${id}`;
-        const formattedStatusRange = this.formatRange(config.GOOGLE_SHEET_NAME, statusRange);
+        const formattedStatusRange = this.formatRange(config.GOOGLE_SHEET_NAME || 'Pending', statusRange);
         
         const statusValues = await this.getValues(
-          config.PENDING_APPRAISALS_SPREADSHEET_ID,
+          config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
           formattedStatusRange
         );
         
         // If we get a value and it's "Completed", use the completed sheet
         if (statusValues && statusValues.length > 0 && statusValues[0][0] === "Completed") {
-          isCompleted = true;
-          sheetName = config.COMPLETED_SHEET_NAME;
+          sheetName = config.COMPLETED_SHEET_NAME || 'Completed';
           console.log(`🔍 Appraisal ${id} is marked as completed, using sheet "${sheetName}"`);
         } else {
           console.log(`🔍 Appraisal ${id} is not completed, using pending sheet "${sheetName}"`);
         }
       } catch (checkError) {
         // If we can't determine status, default to pending sheet
-        console.warn(`⚠️ Could not determine completion status for appraisal ${id}: ${checkError.message}`);
+        console.warn(`⚠️ Could not determine completion status for appraisal ${id}: ${
+          checkError instanceof Error ? checkError.message : String(checkError)}`);
         console.log(`🔍 Defaulting to pending sheet "${sheetName}"`);
       }
       
@@ -451,7 +531,7 @@ class SheetsService {
       console.log(`📝 Writing status to ${formattedRange}: "${statusWithTimestamp}"`);
       
       await this.updateValues(
-        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
         formattedRange,
         [[statusWithTimestamp]]
       );

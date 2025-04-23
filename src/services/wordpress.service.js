@@ -300,57 +300,83 @@ class WordPressService {
         postData = JSON.parse(responseText);
       }
 
-      // Fetch the post meta separately - using appraisals custom post type endpoint
-      const metaResponse = await fetch(
-        `${this.baseUrl}/appraisals/${postId}/meta`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${this.auth}`
-          }
-        }
-      );
-
-      if (!metaResponse.ok) {
-        console.warn(`⚠️ Failed to fetch post meta: ${metaResponse.status}`);
-        postData.meta = {};
-      } else {
-        const metaResponseText = await metaResponse.text();
-        let metaData;
-
-        if (metaResponseText.trim().startsWith('<div')) {
-          // Handle HTML debug content in meta response
-          const jsonMatch = metaResponseText.match(/<\/div>(.+)/s);
-          if (jsonMatch && jsonMatch[1]) {
-            metaData = JSON.parse(jsonMatch[1].trim());
-          } else {
-            console.warn('⚠️ Could not extract meta JSON data from HTML/JSON response');
-            metaData = [];
-          }
-        } else {
-          // Regular JSON response
-          metaData = JSON.parse(metaResponseText);
-        }
-
-        // Format the metadata for easier access
-        const formattedMeta = {};
-        if (Array.isArray(metaData)) {
-          metaData.forEach(meta => {
+      // Initialize metadata from ACF fields 
+      // WordPress stores custom fields in ACF, so we can use those instead of a separate meta endpoint
+      postData.meta = {};
+      
+      // Extract metadata from ACF fields which are already in the post data
+      if (postData.acf) {
+        // Look for metadata fields in ACF
+        const metadataFields = ['processing_history', 'processing_steps', 'last_processed'];
+        
+        metadataFields.forEach(field => {
+          if (postData.acf[field]) {
             try {
-              // Try to parse JSON values
-              formattedMeta[meta.key] = typeof meta.value === 'string' && 
-                (meta.value.startsWith('{') || meta.value.startsWith('[')) ? 
-                JSON.parse(meta.value) : meta.value;
+              // Try to parse JSON string values
+              if (typeof postData.acf[field] === 'string' && 
+                  (postData.acf[field].startsWith('{') || postData.acf[field].startsWith('['))) {
+                postData.meta[field] = JSON.parse(postData.acf[field]);
+              } else {
+                postData.meta[field] = postData.acf[field];
+              }
             } catch (e) {
-              // If parsing fails, use the raw value
-              formattedMeta[meta.key] = meta.value;
+              // If parsing fails, use raw value
+              postData.meta[field] = postData.acf[field];
             }
-          });
-        }
+          }
+        });
+      }
 
-        // Add formatted meta to the post data
-        postData.meta = formattedMeta;
+      // Try the separate meta endpoint, but don't fail if it's not available
+      try {
+        const metaResponse = await fetch(
+          `${this.baseUrl}/appraisals/${postId}/meta`,
+          {
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': `Basic ${this.auth}`
+            }
+          }
+        );
+
+        if (!metaResponse.ok) {
+          console.warn(`⚠️ Metadata endpoint not available: ${metaResponse.status}. Using ACF fields for metadata.`);
+        } else {
+          const metaResponseText = await metaResponse.text();
+          let metaData;
+
+          if (metaResponseText.trim().startsWith('<div')) {
+            // Handle HTML debug content in meta response
+            const jsonMatch = metaResponseText.match(/<\/div>(.+)/s);
+            if (jsonMatch && jsonMatch[1]) {
+              metaData = JSON.parse(jsonMatch[1].trim());
+            } else {
+              console.warn('⚠️ Could not extract meta JSON data from HTML/JSON response');
+              metaData = [];
+            }
+          } else {
+            // Regular JSON response
+            metaData = JSON.parse(metaResponseText);
+          }
+
+          // Format the metadata for easier access
+          if (Array.isArray(metaData)) {
+            metaData.forEach(meta => {
+              try {
+                // Try to parse JSON values
+                postData.meta[meta.key] = typeof meta.value === 'string' && 
+                  (meta.value.startsWith('{') || meta.value.startsWith('[')) ? 
+                  JSON.parse(meta.value) : meta.value;
+              } catch (e) {
+                // If parsing fails, use the raw value
+                postData.meta[meta.key] = meta.value;
+              }
+            });
+          }
+        }
+      } catch (metaError) {
+        console.warn(`⚠️ Error accessing metadata endpoint: ${metaError.message}. Using ACF fields for metadata.`);
       }
 
       console.log('✅ Successfully fetched WordPress post with metadata');

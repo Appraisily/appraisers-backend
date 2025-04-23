@@ -5,7 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const config = require('../config');
 const { isServiceAvailable, safeServiceCall } = require('./index');
-const { cleanDataForWordPress } = require('../utils/appraisalUtils');
+const { cleanDataForWordPress } = require('./appraisalUtils');
 
 // Service dependencies
 let wordpressService, sheetsService, openaiService, pdfService, storageService;

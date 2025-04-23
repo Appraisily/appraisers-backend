@@ -1,6 +1,7 @@
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const { config } = require('../config');
+const { getSecret } = require('./secretManager');
 
 class AIService {
   constructor() {
@@ -12,7 +13,6 @@ class AIService {
   async initialize() {
     try {
       // Get API key from Secret Manager
-      const { getSecret } = require('../utils/secretManager');
       this.apiKey = await getSecret('DIRECT_API_KEY');
 
       if (!this.apiKey) {
