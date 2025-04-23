@@ -5,7 +5,9 @@
 const express = require('express');
 const router = express.Router();
 const authenticate = require('../middleware/authenticate');
-const { STEPS, processFromStep } = require('../services/appraisal.steps');
+const axios = require('axios');
+const { config } = require('../config');
+const { STEPS } = require('../services/appraisal.steps');
 
 /**
  * Get available appraisal processing steps
@@ -41,10 +43,13 @@ router.get('/steps', authenticate, async (req, res) => {
 /**
  * Process an appraisal from a specific step
  * POST /api/appraisals/:id/process-from-step
+ * 
+ * MODIFIED: This endpoint now forwards processing to the task queue service
+ * instead of executing steps directly.
  */
 router.post('/:id/process-from-step', authenticate, async (req, res) => {
   const { id } = req.params;
-  const { startStep, options } = req.body;
+  const { startStep, options = {} } = req.body;
 
   if (!startStep) {
     return res.status(400).json({
@@ -61,23 +66,49 @@ router.post('/:id/process-from-step', authenticate, async (req, res) => {
   }
 
   try {
-    console.log(`Starting appraisal processing for ID ${id} from step ${startStep}`);
+    console.log(`[Backend] Forwarding appraisal ${id} processing from step ${startStep} to task queue`);
     
-    const result = await processFromStep(id, startStep, options || {});
+    // Forward the request to the task queue service
+    const taskQueueUrl = `${config.TASK_QUEUE_URL}/api/process-step`;
+    console.log(`[Backend] Sending request to: ${taskQueueUrl}`);
     
+    const response = await axios.post(taskQueueUrl, {
+      id,
+      startStep,
+      options
+    });
+    
+    console.log(`[Backend] Task queue responded: ${response.status} ${JSON.stringify(response.data)}`);
+    
+    // Return a proper response to the client
     res.json({
       success: true,
-      message: `Appraisal processing completed successfully from step ${startStep}`,
-      steps: result.logs || [],
-      ...result
+      message: `Appraisal ${id} has been queued for processing from step ${startStep}`,
+      taskQueueResponse: response.data
     });
   } catch (error) {
-    console.error(`Error processing appraisal ${id} from step ${startStep}:`, error);
-    res.status(500).json({
+    console.error(`[Backend] Error forwarding request to task queue:`, error);
+    
+    let errorResponse = {
       success: false,
-      message: error.message || 'Failed to process appraisal',
-      steps: error.logs || []
-    });
+      message: 'Failed to process appraisal'
+    };
+    
+    if (error.response) {
+      // The task queue service returned an error response
+      errorResponse.message = error.response.data.message || 'Task queue error';
+      errorResponse.details = error.response.data;
+      res.status(error.response.status).json(errorResponse);
+    } else if (error.request) {
+      // No response received from task queue
+      errorResponse.message = 'Task queue service is unavailable';
+      errorResponse.details = 'No response received from service';
+      res.status(503).json(errorResponse);
+    } else {
+      // Something went wrong in making the request
+      errorResponse.message = `Error: ${error.message}`;
+      res.status(500).json(errorResponse);
+    }
   }
 });
 

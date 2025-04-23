@@ -292,6 +292,7 @@ class AppraisalController {
     }
 
     try {
+      // Create the message for the task queue
       const message = {
         type: 'COMPLETE_APPRAISAL',
         data: {
@@ -306,9 +307,18 @@ class AppraisalController {
         message.data.appraisalType = appraisalType;
       }
 
+      // Log the message before sending
+      console.log(`[Backend] Sending complete appraisal request to task queue for appraisal ${id}`);
+
+      // Use pubsubService to forward the request to the task queue
       await pubsubService.publishMessage('appraisal-tasks', message);
 
-      res.json({ success: true, message: 'Appraisal process started successfully.' });
+      // Return success response
+      res.json({ 
+        success: true, 
+        message: 'Appraisal process started successfully.',
+        details: 'Request sent to task queue for processing.' 
+      });
     } catch (error) {
       console.error('Error starting appraisal process:', error);
       res.status(500).json({ success: false, message: error.message });

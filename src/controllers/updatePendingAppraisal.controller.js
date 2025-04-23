@@ -6,7 +6,6 @@ const {
 } = require('../services');
 const { config } = require('../config');
 const aiService = require('../services/ai.service');
-const { initializeSheets } = require('../services/googleSheets');
 
 class UpdatePendingAppraisalController {
   static async updatePendingAppraisal(req, res) {

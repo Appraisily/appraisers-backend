@@ -36,9 +36,8 @@ api.interceptors.response.use(
         // Retry the original request
         return api(originalRequest);
       } catch (refreshError) {
-        // If refresh fails, redirect to login
-        window.location.href = '/';
-        return Promise.reject(new Error('Session expired. Please log in again.'));
+        // If refresh fails, just return the error
+        return Promise.reject(new Error('Session expired. Authentication required.'));
       }
     }
 

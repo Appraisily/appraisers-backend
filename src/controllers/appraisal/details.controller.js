@@ -1,6 +1,7 @@
 const { sheetsService, wordpressService, appraisalService, isServiceAvailable, safeServiceCall } = require('../../services');
 const { config } = require('../../config');
-const { getImageUrl } = require('../../utils/getImageUrl');
+const { getImageUrl } = require('../../services/getImageUrl');
+const axios = require('axios');
 
 class AppraisalDetailsController {
   static async getDetails(req, res) {
@@ -211,21 +212,20 @@ class AppraisalDetailsController {
     }
     
     try {
-      // Track the processing in Google Sheets - use safe call to avoid errors
+      // Log the request intent in sheets
       await safeServiceCall(
         sheetsService, 
         'updateProcessingStatus', 
-        [id, `Reprocessing ${stepName} - Started`]
+        [id, `Reprocessing ${stepName} - Request sent to task queue`]
       );
       
-      // Get WordPress post ID from the appraisal ID - use safe call but we need the result
+      // Get WordPress post ID to include in the forwarded request
       console.log(`🔍 [reprocessAppraisalStep] Getting WordPress post ID for appraisal ID: ${id}`);
       const postId = await sheetsService.getWordPressPostIdFromAppraisalId(id);
       
       if (!postId) {
         console.error(`❌ [reprocessAppraisalStep] Appraisal ${id} not found or has no WordPress post ID`);
         
-        // Try to update the failure in sheets - use safe call
         await safeServiceCall(
           sheetsService, 
           'updateProcessingStatus', 
@@ -238,189 +238,69 @@ class AppraisalDetailsController {
         });
       }
       
-      console.log(`🔄 [reprocessAppraisalStep] Processing step "${stepName}" for appraisal ID: ${id}, WordPress post ID: ${postId}`);
+      console.log(`🔄 [reprocessAppraisalStep] Forwarding step "${stepName}" processing for appraisal ${id} to task queue`);
       
-      // Process the specific step based on stepName
-      let result;
+      // Map frontend step names to task queue step names if necessary
+      const stepMapping = {
+        'enhance_description': 'STEP_MERGE_DESCRIPTIONS',
+        'update_wordpress': 'STEP_UPDATE_WORDPRESS',
+        'generate_html': 'STEP_BUILD_REPORT',
+        'generate_pdf': 'STEP_GENERATE_PDF',
+        'regenerate_statistics': 'STEP_GENERATE_VISUALIZATION'
+      };
       
-      try {
-        // Special case for steps that are handled by the appraisals-backend service
-        if (stepName === 'regenerate_statistics') {
-          // Skip the service availability check for statistics regeneration
-          // This is delegated to the appraisals-backend service
-          console.log(`ℹ️ [reprocessAppraisalStep] Step '${stepName}' will be delegated to appraisals-backend service`);
-        } 
-        // Check if appraisalService is available for other steps
-        else if (!isServiceAvailable(appraisalService, stepName)) {
-          throw new Error(`Appraisal service missing method for step: ${stepName}`);
+      // Determine the task queue step name
+      const taskQueueStep = stepMapping[stepName] || stepName;
+      
+      // Forward to task queue
+      const response = await axios.post(`${config.TASK_QUEUE_URL}/api/process-step`, {
+        id,
+        startStep: taskQueueStep,
+        options: {
+          postId,
+          username: req.user?.name || 'Unknown User',
+          timestamp: new Date().toISOString()
         }
-        
-        // Get the appraisals-backend URL from environment or use default
-const appraisalsBackendUrl = process.env.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app';
-const axios = require('axios');
-const sharedSecret = process.env.SHARED_SECRET || 'appraisers-shared-secret';
-
-// Create a function to make requests to the appraisals-backend
-const callAppraisalsBackend = async (endpoint, data, timeoutMs = 300000) => {
-  console.log(`🔄 [reprocessAppraisalStep] Calling appraisals-backend at ${appraisalsBackendUrl}${endpoint}`);
-  
-  try {
-    const response = await axios.post(
-      `${appraisalsBackendUrl}${endpoint}`,
-      data,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sharedSecret}`
-        },
-        timeout: timeoutMs
-      }
-    );
-    
-    console.log(`✅ [reprocessAppraisalStep] Successfully received response from appraisals-backend: ${response.status}`);
-    return response.data;
-  } catch (error) {
-    console.error(`❌ [reprocessAppraisalStep] Error calling appraisals-backend:`, error.message);
-    throw new Error(`Failed API call to ${endpoint}: ${error.response?.data?.message || error.message}`);
-  }
-};
-
-// Handle different step types by delegating to appraisals-backend
-switch (stepName) {
-  case 'enhance_description':
-    console.log(`🔄 [reprocessAppraisalStep] Delegating description enhancement to appraisals-backend for appraisal ID: ${id}`);
-    const enhanceResponse = await callAppraisalsBackend('/api/enhance-description', { postId });
-    result = {
-      success: enhanceResponse.success,
-      message: enhanceResponse.message || 'Description enhanced successfully',
-      details: enhanceResponse.details || {}
-    };
-    break;
-    
-  case 'update_wordpress':
-    console.log(`🔄 [reprocessAppraisalStep] Delegating WordPress update to appraisals-backend for appraisal ID: ${id}`);
-    const updateResponse = await callAppraisalsBackend('/update-wordpress', { postId });
-    result = {
-      success: updateResponse.success,
-      message: updateResponse.message || 'WordPress updated successfully',
-      details: updateResponse.details || {}
-    };
-    break;
-    
-  case 'generate_html':
-    console.log(`🔄 [reprocessAppraisalStep] Delegating HTML generation to appraisals-backend for appraisal ID: ${id}`);
-    const htmlResponse = await callAppraisalsBackend('/api/html/generate', { 
-      postId, 
-      visualizationType: 'enhanced-analytics'
-    });
-    result = {
-      success: htmlResponse.success,
-      message: htmlResponse.message || 'HTML content generated successfully',
-      details: htmlResponse.details || {}
-    };
-    break;
-    
-  case 'generate_pdf':
-    console.log(`🔄 [reprocessAppraisalStep] Delegating PDF generation to appraisals-backend for appraisal ID: ${id}`);
-    const session_ID = require('uuid').v4(); // Generate a new session ID
-    const pdfResponse = await callAppraisalsBackend('/api/pdf/generate-pdf-steps', { 
-      postId,
-      session_ID
-    });
-    result = {
-      success: pdfResponse.success,
-      message: pdfResponse.message || 'PDF generated successfully',
-      pdfUrl: pdfResponse.pdfLink,
-      docUrl: pdfResponse.docLink
-    };
-    break;
-    
-  case 'regenerate_statistics':
-    console.log(`🔄 [reprocessAppraisalStep] Delegating statistics regeneration to appraisals-backend for appraisal ID: ${id}`);
-    const statsResponse = await callAppraisalsBackend('/regenerate-statistics-and-visualizations', { postId });
-    result = {
-      success: statsResponse.success,
-      message: statsResponse.message || 'Statistics regenerated successfully',
-      details: statsResponse.details || {}
-    };
-    break;
-    
-  default:
-    console.warn(`❌ [reprocessAppraisalStep] Unknown step: ${stepName}`);
-            
-            // Update sheets with the error - use safe call
-            await safeServiceCall(
-              sheetsService, 
-              'updateProcessingStatus', 
-              [id, `Reprocessing failed: Unknown step "${stepName}"`]
-            );
-            
-            return res.status(400).json({
-              success: false,
-              message: `Unknown step: ${stepName}`
-            });
-        }
-      } catch (stepError) {
-        console.error(`❌ [reprocessAppraisalStep] Error processing step "${stepName}":`, stepError);
-        
-        // Log the error in WordPress metadata - use safe call
-        const timestamp = new Date().toISOString();
-        await safeServiceCall(
-          wordpressService, 
-          'updateStepProcessingHistory', 
-          [postId, stepName, {
-            timestamp,
-            user: req.user?.name || 'Unknown User',
-            status: 'failed',
-            error: stepError.message
-          }]
-        );
-        
-        // Update sheets with the error - use safe call
-        await safeServiceCall(
-          sheetsService, 
-          'updateProcessingStatus', 
-          [id, `${stepName} failed: ${stepError.message.substring(0, 100)}`]
-        );
-        
-        throw stepError; // Re-throw to be caught by the outer try/catch
-      }
+      });
       
-      // Log the successful reprocessing action in WordPress metadata - use safe call
-      const timestamp = new Date().toISOString();
+      console.log(`✅ [reprocessAppraisalStep] Request forwarded to task queue for step "${stepName}"`);
+      
+      // Record in WordPress that the step was submitted for reprocessing
       await safeServiceCall(
         wordpressService, 
         'updateStepProcessingHistory', 
         [postId, stepName, {
-          timestamp,
+          timestamp: new Date().toISOString(),
           user: req.user?.name || 'Unknown User',
-          status: 'completed'
+          status: 'submitted',
+          message: 'Forwarded to task queue for processing'
         }]
       );
       
-      // Update final success status in sheets - use safe call
+      // Return response to client
+      return res.json({
+        success: true,
+        message: `Step "${stepName}" submitted for reprocessing`,
+        result: {
+          taskQueueResponse: response.data,
+          step: stepName
+        }
+      });
+    } catch (error) {
+      console.error(`❌ [reprocessAppraisalStep] Error:`, error);
+      
+      // Try to update sheets with error
       await safeServiceCall(
         sheetsService, 
         'updateProcessingStatus', 
-        [id, `${stepName} completed successfully`]
+        [id, `Reprocessing failed: ${error.message}`]
       );
       
-      console.log(`✅ [reprocessAppraisalStep] Successfully reprocessed step "${stepName}" for appraisal ID: ${id}`);
-      
-      return res.json({
-        success: true,
-        message: `Successfully reprocessed step: ${stepName}`,
-        result
-      });
-    } catch (error) {
-      console.error(`❌ [reprocessAppraisalStep] Error reprocessing step "${stepName}" for appraisal ID: ${id}:`, error);
-      
-      // Use the specific error message for the main 'message' field
+      // Send error response to client
       return res.status(500).json({
         success: false,
-        message: error.message || `Error reprocessing step: ${stepName}`, // Use specific error message
-        error: error.message, // Keep original error message here too for detail
-        details: error.details || {}
+        message: `Error submitting step for reprocessing: ${error.message}`,
+        details: error.response?.data || {}
       });
     }
   }

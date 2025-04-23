@@ -35,8 +35,18 @@ async function initializeConfig() {
     
     // Set the exact sheet name for completed appraisals - must match exactly what's in the spreadsheet
     config.COMPLETED_SHEET_NAME = 'Completed Appraisals';
+    
+    // Task Queue service URL
+    try {
+      config.TASK_QUEUE_URL = (await getSecret('TASK_QUEUE_URL')).trim();
+      console.log(`Task Queue URL loaded: ${config.TASK_QUEUE_URL}`);
+    } catch (error) {
+      // Fallback to default URL if secret is not set
+      config.TASK_QUEUE_URL = 'https://appraisers-task-queue-856401495068.us-central1.run.app';
+      console.warn(`Using default Task Queue URL: ${config.TASK_QUEUE_URL}`);
+    }
 
-    console.log('Configuration initialized successfully');
+    console.log('Configuration initialized successfully.');
     return config;
   } catch (error) {
     console.error('Error initializing configuration:', error);

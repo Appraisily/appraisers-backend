@@ -52,7 +52,7 @@ function findRoutes(stack, basePath = '') {
       });
     } else if (layer.name === 'router' && layer.handle.stack) {
       // Nested routers
-      const path = layer.regexp.source.replace('^\\\/', '/').replace('\\/?(?=\\/|$)', '');
+      const path = layer.regexp.source.replace('^\\//', '/').replace('\\/?(?=\\/|$)', '');
       const nestedBase = basePath + (path === '/' ? '' : path);
       
       // Recursively get routes from nested router
