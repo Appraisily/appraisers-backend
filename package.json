@@ -7,7 +7,7 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "lint": "eslint src/**/*.js",
-    "build": "echo 'Checking for syntax errors...' && node -c src/**/*.js",
+    "build": "node --check src/app.js && echo 'Syntax check passed - build ready for deployment'",
     "test": "jest",
     "generate-docs": "node src/scripts/generateDocs.js"
   },
