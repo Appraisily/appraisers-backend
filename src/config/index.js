@@ -36,23 +36,23 @@ async function initializeConfig() {
     // Set the exact sheet name for completed appraisals - must match exactly what's in the spreadsheet
     config.COMPLETED_SHEET_NAME = 'Completed Appraisals';
     
-    // Task Queue service URL
-    try {
-      config.TASK_QUEUE_URL = (await getSecret('TASK_QUEUE_URL')).trim();
-      console.log(`Task Queue URL loaded: ${config.TASK_QUEUE_URL}`);
-    } catch (error) {
-      // Fallback to default URL if secret is not set
+    // Task Queue service URL - read from runtime variables, not secrets
+    config.TASK_QUEUE_URL = process.env.TASK_QUEUE_URL;
+    if (config.TASK_QUEUE_URL) {
+      console.log(`Task Queue URL loaded from environment: ${config.TASK_QUEUE_URL}`);
+    } else {
+      // Fallback to default URL if environment variable is not set
       config.TASK_QUEUE_URL = 'https://appraisers-task-queue-856401495068.us-central1.run.app';
       console.warn(`Using default Task Queue URL: ${config.TASK_QUEUE_URL}`);
     }
 
-    // Appraisals Backend URL
-    try {
-      config.APPRAISALS_BACKEND_URL = (await getSecret('APPRAISALS_BACKEND_URL')).trim();
-      console.log(`Appraisals Backend URL loaded: ${config.APPRAISALS_BACKEND_URL}`);
-    } catch (error) {
-      // Fallback to default URL if secret is not set
-      config.APPRAISALS_BACKEND_URL = 'https://appraisers-backend-856401495068.us-central1.run.app';
+    // Appraisals Backend URL - read from runtime variables, not secrets
+    config.APPRAISALS_BACKEND_URL = process.env.APPRAISALS_BACKEND_URL;
+    if (config.APPRAISALS_BACKEND_URL) {
+      console.log(`Appraisals Backend URL loaded from environment: ${config.APPRAISALS_BACKEND_URL}`);
+    } else {
+      // Fallback to default URL if environment variable is not set
+      config.APPRAISALS_BACKEND_URL = 'https://appraisals-backend-856401495068.us-central1.run.app';
       console.warn(`Using default Appraisals Backend URL: ${config.APPRAISALS_BACKEND_URL}`);
     }
 

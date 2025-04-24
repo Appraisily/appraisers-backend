@@ -242,19 +242,6 @@ class AppraisalDetailsController {
       const stepsForAppraisalsBackend = ['regenerate_statistics', 'regenerate_visualization', 'update_statistics'];
       const useAppraisalsBackend = stepsForAppraisalsBackend.includes(stepName);
       
-      // Prepare common request data
-      const requestData = {
-        id,
-        postId,
-        step: stepName,
-        options: {
-          username: req.user?.name || 'Unknown User',
-          timestamp: new Date().toISOString()
-        }
-      };
-
-      let response;
-      
       if (useAppraisalsBackend) {
         // Steps that should be handled by the appraisals-backend service
         console.log(`🔄 [reprocessAppraisalStep] Forwarding step "${stepName}" processing for appraisal ${id} to appraisals-backend service`);
@@ -269,13 +256,68 @@ class AppraisalDetailsController {
         const url = `${config.APPRAISALS_BACKEND_URL}${appraisalsEndpoint}`;
         
         console.log(`🔄 [reprocessAppraisalStep] Calling appraisals-backend at ${url}`);
-        response = await axios.post(url, {
+        
+        // Prepare the request data for backend processing
+        const requestData = {
           postId,
           appraisalId: id,
-          options: requestData.options
-        });
+          options: {
+            username: req.user?.name || 'Unknown User',
+            timestamp: new Date().toISOString()
+          }
+        };
         
-        console.log(`✅ [reprocessAppraisalStep] Request forwarded to appraisals-backend for step "${stepName}"`);
+        // Update WordPress that we're submitting the step for processing
+        await safeServiceCall(
+          wordpressService, 
+          'updateStepProcessingHistory', 
+          [postId, stepName, {
+            timestamp: new Date().toISOString(),
+            user: req.user?.name || 'Unknown User',
+            status: 'submitted',
+            message: `Forwarded to appraisals-backend for processing`
+          }]
+        );
+        
+        // Return immediate success response
+        const responseForClient = {
+          success: true,
+          message: `Step "${stepName}" submitted for reprocessing`,
+          result: {
+            step: stepName,
+            service: 'appraisals-backend',
+            status: 'processing',
+            details: `Request forwarded to appraisals-backend at ${new Date().toISOString()}`
+          }
+        };
+        
+        // Send the response to the client immediately
+        res.json(responseForClient);
+        
+        // Then submit the request to the appraisals-backend in the background
+        try {
+          const backendResponse = await axios.post(url, requestData);
+          console.log(`✅ [reprocessAppraisalStep] Request successfully processed by appraisals-backend for step "${stepName}"`);
+          console.log(`✅ [reprocessAppraisalStep] Backend response: ${backendResponse.status}`);
+        } catch (backendError) {
+          // Log error but don't fail the request since we've already sent a response
+          console.error(`❌ [reprocessAppraisalStep] Error from appraisals-backend:`, backendError.message);
+          
+          // Update WordPress with error status
+          await safeServiceCall(
+            wordpressService, 
+            'updateStepProcessingHistory', 
+            [postId, stepName, {
+              timestamp: new Date().toISOString(),
+              user: req.user?.name || 'Unknown User',
+              status: 'error',
+              message: `Error from appraisals-backend: ${backendError.message}`
+            }]
+          );
+        }
+        
+        // Function has already sent a response, so return to prevent further execution
+        return;
       } else {
         // Steps that should be handled by the task-queue service
         console.log(`🔄 [reprocessAppraisalStep] Forwarding step "${stepName}" processing for appraisal ${id} to task queue`);
@@ -293,7 +335,7 @@ class AppraisalDetailsController {
         const taskQueueStep = stepMapping[stepName] || stepName;
         
         // Forward to task queue
-        response = await axios.post(`${config.TASK_QUEUE_URL}/api/process-step`, {
+        const response = await axios.post(`${config.TASK_QUEUE_URL}/api/process-step`, {
           id,
           startStep: taskQueueStep,
           options: {
@@ -304,31 +346,30 @@ class AppraisalDetailsController {
         });
         
         console.log(`✅ [reprocessAppraisalStep] Request forwarded to task queue for step "${stepName}"`);
+        
+        // Record in WordPress that the step was submitted for reprocessing
+        await safeServiceCall(
+          wordpressService, 
+          'updateStepProcessingHistory', 
+          [postId, stepName, {
+            timestamp: new Date().toISOString(),
+            user: req.user?.name || 'Unknown User',
+            status: 'submitted',
+            message: `Forwarded to task queue for processing`
+          }]
+        );
+        
+        // Return response to client
+        return res.json({
+          success: true,
+          message: `Step "${stepName}" submitted for reprocessing`,
+          result: {
+            serviceResponse: response.data,
+            step: stepName,
+            service: 'task-queue'
+          }
+        });
       }
-      
-      // Record in WordPress that the step was submitted for reprocessing
-      const targetService = useAppraisalsBackend ? 'appraisals-backend' : 'task queue';
-      await safeServiceCall(
-        wordpressService, 
-        'updateStepProcessingHistory', 
-        [postId, stepName, {
-          timestamp: new Date().toISOString(),
-          user: req.user?.name || 'Unknown User',
-          status: 'submitted',
-          message: `Forwarded to ${targetService} for processing`
-        }]
-      );
-      
-      // Return response to client
-      return res.json({
-        success: true,
-        message: `Step "${stepName}" submitted for reprocessing`,
-        result: {
-          serviceResponse: response.data,
-          step: stepName,
-          service: useAppraisalsBackend ? 'appraisals-backend' : 'task-queue'
-        }
-      });
     } catch (error) {
       console.error(`❌ [reprocessAppraisalStep] Error:`, error);
       
