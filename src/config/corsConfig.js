@@ -1,3 +1,21 @@
+const { config } = require('../config');
+
+// Default URLs for local development
+const taskQueueUrl = 'https://appraisers-task-queue-856401495068.us-central1.run.app';
+const appraisalsBackendUrl = 'https://appraisers-backend-856401495068.us-central1.run.app';
+
+// Function to extract domains from URLs
+function extractDomain(url) {
+  try {
+    if (!url) return null;
+    const domain = new URL(url).origin;
+    return domain;
+  } catch (error) {
+    console.warn(`Failed to parse URL: ${url}`);
+    return null;
+  }
+}
+
 const allowedOrigins = [
   // Frontend origins
   'https://earnest-choux-a0ec16.netlify.app',
@@ -12,12 +30,13 @@ const allowedOrigins = [
   
   // Backend origins
   'https://michelle-gmail-856401495068.us-central1.run.app',
-  'https://appraisers-task-queue-856401495068.us-central1.run.app',
+  extractDomain(config?.TASK_QUEUE_URL) || taskQueueUrl,
+  extractDomain(config?.APPRAISALS_BACKEND_URL) || appraisalsBackendUrl,
   
   // Development origins
   'http://localhost:3000',
   'http://localhost:8080'
-];
+].filter(Boolean); // Remove any null values
 
 const corsOptions = {
   origin: function(origin, callback) {

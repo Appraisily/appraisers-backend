@@ -1,7 +1,8 @@
 const axios = require('axios');
+const { config } = require('../config');
 
 const api = axios.create({
-  baseURL: 'https://appraisers-backend-856401495068.us-central1.run.app',
+  baseURL: config.APPRAISALS_BACKEND_URL || 'https://appraisers-backend-856401495068.us-central1.run.app',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
