@@ -216,7 +216,7 @@ class AppraisalDetailsController {
       await safeServiceCall(
         sheetsService, 
         'updateProcessingStatus', 
-        [id, `Reprocessing ${stepName} - Request sent to task queue`]
+        [id, `Reprocessing ${stepName} - Request initiated`]
       );
       
       // Get WordPress post ID to include in the forwarded request
@@ -237,35 +237,77 @@ class AppraisalDetailsController {
           message: 'Appraisal not found or has no WordPress post ID.'
         });
       }
+
+      // Determine whether to send to appraisals-backend or task-queue based on step
+      const stepsForAppraisalsBackend = ['regenerate_statistics', 'regenerate_visualization', 'update_statistics'];
+      const useAppraisalsBackend = stepsForAppraisalsBackend.includes(stepName);
       
-      console.log(`🔄 [reprocessAppraisalStep] Forwarding step "${stepName}" processing for appraisal ${id} to task queue`);
-      
-      // Map frontend step names to task queue step names if necessary
-      const stepMapping = {
-        'enhance_description': 'STEP_MERGE_DESCRIPTIONS',
-        'update_wordpress': 'STEP_UPDATE_WORDPRESS',
-        'generate_html': 'STEP_BUILD_REPORT',
-        'generate_pdf': 'STEP_GENERATE_PDF',
-        'regenerate_statistics': 'STEP_GENERATE_VISUALIZATION'
-      };
-      
-      // Determine the task queue step name
-      const taskQueueStep = stepMapping[stepName] || stepName;
-      
-      // Forward to task queue
-      const response = await axios.post(`${config.TASK_QUEUE_URL}/api/process-step`, {
+      // Prepare common request data
+      const requestData = {
         id,
-        startStep: taskQueueStep,
+        postId,
+        step: stepName,
         options: {
-          postId,
           username: req.user?.name || 'Unknown User',
           timestamp: new Date().toISOString()
         }
-      });
+      };
+
+      let response;
       
-      console.log(`✅ [reprocessAppraisalStep] Request forwarded to task queue for step "${stepName}"`);
+      if (useAppraisalsBackend) {
+        // Steps that should be handled by the appraisals-backend service
+        console.log(`🔄 [reprocessAppraisalStep] Forwarding step "${stepName}" processing for appraisal ${id} to appraisals-backend service`);
+        
+        // Ensure APPRAISALS_BACKEND_URL is available
+        if (!config.APPRAISALS_BACKEND_URL) {
+          throw new Error('APPRAISALS_BACKEND_URL is not configured');
+        }
+        
+        // Use the existing endpoint for statistics regeneration
+        const appraisalsEndpoint = `/api/visualizations/regenerate-statistics-and-visualizations`;
+        const url = `${config.APPRAISALS_BACKEND_URL}${appraisalsEndpoint}`;
+        
+        console.log(`🔄 [reprocessAppraisalStep] Calling appraisals-backend at ${url}`);
+        response = await axios.post(url, {
+          postId,
+          appraisalId: id,
+          options: requestData.options
+        });
+        
+        console.log(`✅ [reprocessAppraisalStep] Request forwarded to appraisals-backend for step "${stepName}"`);
+      } else {
+        // Steps that should be handled by the task-queue service
+        console.log(`🔄 [reprocessAppraisalStep] Forwarding step "${stepName}" processing for appraisal ${id} to task queue`);
+        
+        // Map frontend step names to task queue step names if necessary
+        const stepMapping = {
+          'enhance_description': 'STEP_MERGE_DESCRIPTIONS',
+          'update_wordpress': 'STEP_UPDATE_WORDPRESS',
+          'generate_html': 'STEP_BUILD_REPORT',
+          'generate_pdf': 'STEP_GENERATE_PDF',
+          'regenerate_statistics': 'STEP_GENERATE_VISUALIZATION'  // This mapping is kept for backwards compatibility
+        };
+        
+        // Determine the task queue step name
+        const taskQueueStep = stepMapping[stepName] || stepName;
+        
+        // Forward to task queue
+        response = await axios.post(`${config.TASK_QUEUE_URL}/api/process-step`, {
+          id,
+          startStep: taskQueueStep,
+          options: {
+            postId,
+            username: req.user?.name || 'Unknown User',
+            timestamp: new Date().toISOString()
+          }
+        });
+        
+        console.log(`✅ [reprocessAppraisalStep] Request forwarded to task queue for step "${stepName}"`);
+      }
       
       // Record in WordPress that the step was submitted for reprocessing
+      const targetService = useAppraisalsBackend ? 'appraisals-backend' : 'task queue';
       await safeServiceCall(
         wordpressService, 
         'updateStepProcessingHistory', 
@@ -273,7 +315,7 @@ class AppraisalDetailsController {
           timestamp: new Date().toISOString(),
           user: req.user?.name || 'Unknown User',
           status: 'submitted',
-          message: 'Forwarded to task queue for processing'
+          message: `Forwarded to ${targetService} for processing`
         }]
       );
       
@@ -282,8 +324,9 @@ class AppraisalDetailsController {
         success: true,
         message: `Step "${stepName}" submitted for reprocessing`,
         result: {
-          taskQueueResponse: response.data,
-          step: stepName
+          serviceResponse: response.data,
+          step: stepName,
+          service: useAppraisalsBackend ? 'appraisals-backend' : 'task-queue'
         }
       });
     } catch (error) {
