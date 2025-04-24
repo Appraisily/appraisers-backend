@@ -1,6 +1,6 @@
 const authController = require('./auth/auth.controller');
-const appraisalController = require('./appraisal/appraisal.controller');
-const updatePendingController = require('./appraisal/updatePending.controller');
+const appraisalController = require('./appraisal');
+const updatePendingController = require('./updatePendingAppraisal.controller');
 
 module.exports = {
   authController,

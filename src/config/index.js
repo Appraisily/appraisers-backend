@@ -46,6 +46,16 @@ async function initializeConfig() {
       console.warn(`Using default Task Queue URL: ${config.TASK_QUEUE_URL}`);
     }
 
+    // Appraisals Backend URL
+    try {
+      config.APPRAISALS_BACKEND_URL = (await getSecret('APPRAISALS_BACKEND_URL')).trim();
+      console.log(`Appraisals Backend URL loaded: ${config.APPRAISALS_BACKEND_URL}`);
+    } catch (error) {
+      // Fallback to default URL if secret is not set
+      config.APPRAISALS_BACKEND_URL = 'https://appraisers-backend-856401495068.us-central1.run.app';
+      console.warn(`Using default Appraisals Backend URL: ${config.APPRAISALS_BACKEND_URL}`);
+    }
+
     console.log('Configuration initialized successfully.');
     return config;
   } catch (error) {
