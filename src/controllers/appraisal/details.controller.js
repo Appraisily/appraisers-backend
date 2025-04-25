@@ -326,6 +326,7 @@ class AppraisalDetailsController {
         const stepMapping = {
           'enhance_description': 'STEP_MERGE_DESCRIPTIONS',
           'update_wordpress': 'STEP_UPDATE_WORDPRESS',
+          'metadata_reprocessing': 'STEP_METADATA_REPROCESSING',
           'generate_html': 'STEP_BUILD_REPORT',
           'generate_pdf': 'STEP_GENERATE_PDF',
           'regenerate_statistics': 'STEP_GENERATE_VISUALIZATION'  // This mapping is kept for backwards compatibility
