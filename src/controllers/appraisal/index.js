@@ -22,6 +22,6 @@ module.exports = {
   BulkController,
   DetailsController,
   ValueController,
-  WordpressController,
+  WordPressController,
   ImageAnalysisController,
 };
