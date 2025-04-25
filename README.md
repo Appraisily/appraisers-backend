@@ -136,6 +136,23 @@ Key environment variables:
 - `COMPLETED_SHEET_NAME`: Sheet name for completed appraisals
 - `SHARED_SECRET`: Secret key for inter-service authentication
 
+## Environment Variables
+
+The backend requires the following environment variables:
+
+```
+PORT=8080
+NODE_ENV=development
+JWT_SECRET=your-jwt-secret
+GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
+GOOGLE_CLOUD_PROJECT=your-google-cloud-project
+STORAGE_BUCKET=your-gcs-bucket
+WORDPRESS_API_URL=your-wordpress-api-url
+WORDPRESS_USERNAME=your-wordpress-username
+WORDPRESS_PASSWORD=your-wordpress-password
+TASK_QUEUE_URL=https://appraisers-task-queue-856401495068.us-central1.run.app
+```
+
 ## Deployment
 
 The application is deployed on Google Cloud Run services, which allows access to Secret Manager for secure storage of API keys and other sensitive information.

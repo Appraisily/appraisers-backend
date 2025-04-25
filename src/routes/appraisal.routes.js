@@ -5,6 +5,7 @@ const { validateSetValue } = require('../middleware/validateSetValue');
 const AppraisalController = require('../controllers/appraisal');
 const BulkController = require('../controllers/appraisal/bulk.controller');
 const DetailsController = require('../controllers/appraisal/details.controller');
+const { ImageAnalysisController } = require('../controllers/appraisal');
 const { registerRoute } = require('../services/routeDecorator');
 
 // List and View routes
@@ -230,5 +231,20 @@ registerRoute(router, 'post', '/:id/reprocess-step', {
     }
   }
 }, authenticate, DetailsController.reprocessAppraisalStep);
+
+// AI image analysis and description merging
+registerRoute(router, 'post', '/analyze-image-and-merge', {
+  description: 'Analyze image with GPT-4o and merge descriptions',
+  requestBody: {
+    id: 'String - Appraisal ID',
+    postId: 'String - WordPress post ID',
+    description: 'String - Customer description (optional)'
+  },
+  response: {
+    success: true,
+    message: 'Request to analyze image has been submitted',
+    timestamp: '2023-01-02T00:00:00Z'
+  }
+}, authenticate, ImageAnalysisController.analyzeImageAndMergeDescriptions);
 
 module.exports = router;

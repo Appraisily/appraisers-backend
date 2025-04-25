@@ -82,3 +82,65 @@ This will create an `api-docs.md` file in the project root with the complete API
 4. **Include Validation Rules**: Document any validation requirements for parameters or request body fields.
 
 5. **Generate Documentation Regularly**: Run the documentation generator after making API changes to keep the documentation up-to-date.
+
+## Image Analysis with GPT-4o
+
+### Analyze Image and Merge Descriptions
+
+**Endpoint**: `POST /api/appraisals/analyze-image-and-merge`
+
+**Description**: Analyzes an image using GPT-4o and merges descriptions
+
+**Authentication**: Required
+
+**Request Body**:
+
+```json
+{
+  "id": "140",
+  "postId": "145911",
+  "description": "Optional customer description"
+}
+```
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "message": "Request to analyze image for appraisal 140 has been submitted",
+  "timestamp": "2023-01-02T00:00:00Z"
+}
+```
+
+**Example Usage**:
+
+```javascript
+// Example API call from frontend
+async function analyzeImage(id, postId, description = '') {
+  try {
+    const response = await fetch('/api/appraisals/analyze-image-and-merge', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        id,
+        postId,
+        description
+      })
+    });
+
+    const result = await response.json();
+    if (result.success) {
+      console.log('Image analysis request submitted successfully');
+      // You may want to poll for status updates or show a notification to the user
+    } else {
+      console.error('Failed to submit image analysis request:', result.message);
+    }
+  } catch (error) {
+    console.error('Error calling image analysis endpoint:', error);
+  }
+}
+```

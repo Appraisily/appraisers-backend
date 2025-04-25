@@ -547,7 +547,7 @@ async function generatePdfStep(context) {
     // This would use the PDF service from the appraisals-backend
     // For now, we'll just make a direct call to the PDF endpoint
     
-    const response = await fetch(`${config.EXTERNAL_SERVICES.APPRAISALS_BACKEND}/generate-pdf`, {
+    const response = await fetch(`${config.EXTERNAL_SERVICES.APPRAISALS_BACKEND}/api/pdf/generate-pdf`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

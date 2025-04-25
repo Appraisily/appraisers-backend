@@ -344,7 +344,7 @@ class AppraisalService {
       const session_ID = uuidv4(); // Generate a new session ID
       
       const response = await axios.post(
-        `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/generate-pdf`,
+        `${config.APPRAISALS_BACKEND_URL || 'https://appraisals-backend-856401495068.us-central1.run.app'}/api/pdf/generate-pdf`,
         {
           postId,
           session_ID
