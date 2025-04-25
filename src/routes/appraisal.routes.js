@@ -254,29 +254,6 @@ registerRoute(router, 'post', '/:id/reprocess-completed', {
   }
 }, authenticate, DetailsController.reprocessCompleteAppraisal);
 
-// PDF generation endpoint
-registerRoute(router, 'post', '/:id/generate-pdf', {
-  description: 'Generate PDF for a completed appraisal',
-  parameters: {
-    id: {
-      description: 'Appraisal ID',
-      required: true
-    }
-  },
-  response: {
-    success: true,
-    message: 'PDF generation request submitted',
-    details: {
-      id: 'appraisal123',
-      postId: '456',
-      session_ID: 'session123',
-      service: 'appraisals-backend',
-      status: 'processing',
-      timestamp: '2023-01-02T00:00:00Z'
-    }
-  }
-}, authenticate, DetailsController.generatePdf);
-
 // AI image analysis and description merging
 registerRoute(router, 'post', '/analyze-image-and-merge', {
   description: 'Analyze image with GPT-4o and merge descriptions',
