@@ -387,6 +387,346 @@ class AppraisalDetailsController {
       });
     }
   }
+
+  /**
+   * Completely reprocess an appraisal
+   * @param {object} req - Express request object
+   * @param {object} res - Express response object
+   */
+  static async reprocessCompleteAppraisal(req, res) {
+    const { id } = req.params;
+    
+    console.log(`🔄 [reprocessCompleteAppraisal] Starting complete reprocessing for appraisal ID: ${id}`);
+    
+    try {
+      // Log the request intent in sheets
+      await safeServiceCall(
+        sheetsService, 
+        'updateProcessingStatus', 
+        [id, `Complete reprocessing - Request initiated by ${req.user?.name || 'Unknown User'}`]
+      );
+      
+      // Get WordPress post ID to include in the forwarded request
+      console.log(`🔍 [reprocessCompleteAppraisal] Getting WordPress post ID for appraisal ID: ${id}`);
+      const postId = await sheetsService.getWordPressPostIdFromAppraisalId(id);
+      
+      if (!postId) {
+        console.error(`❌ [reprocessCompleteAppraisal] Appraisal ${id} not found or has no WordPress post ID`);
+        
+        await safeServiceCall(
+          sheetsService, 
+          'updateProcessingStatus', 
+          [id, `Complete reprocessing failed: No WordPress post ID found`]
+        );
+        
+        return res.status(404).json({
+          success: false,
+          message: 'Appraisal not found or has no WordPress post ID.'
+        });
+      }
+      
+      // Ensure APPRAISALS_BACKEND_URL is available
+      if (!config.APPRAISALS_BACKEND_URL) {
+        throw new Error('APPRAISALS_BACKEND_URL is not configured');
+      }
+      
+      // Use the complete-appraisal-report endpoint in appraisals-backend
+      const appraisalsEndpoint = `/api/report/complete-appraisal-report`;
+      const url = `${config.APPRAISALS_BACKEND_URL}${appraisalsEndpoint}`;
+      
+      console.log(`🔄 [reprocessCompleteAppraisal] Calling appraisals-backend at ${url} for postId: ${postId}`);
+      
+      // Prepare the request data for backend processing
+      const requestData = {
+        postId,
+        justificationOnly: false // We want to process the entire appraisal
+      };
+      
+      // Update WordPress that we're submitting for complete reprocessing
+      await safeServiceCall(
+        wordpressService, 
+        'updateStepProcessingHistory', 
+        [postId, 'complete_reprocess', {
+          timestamp: new Date().toISOString(),
+          user: req.user?.name || 'Unknown User',
+          status: 'submitted',
+          message: `Forwarded to appraisals-backend for complete reprocessing`
+        }]
+      );
+      
+      // Return immediate success response to client
+      const responseForClient = {
+        success: true,
+        message: `Appraisal submitted for complete reprocessing`,
+        details: {
+          id,
+          postId,
+          service: 'appraisals-backend',
+          status: 'processing',
+          timestamp: new Date().toISOString()
+        }
+      };
+      
+      // Send the response to the client immediately
+      res.json(responseForClient);
+      
+      // Then submit the request to the appraisals-backend in the background
+      try {
+        const backendResponse = await axios.post(url, requestData);
+        console.log(`✅ [reprocessCompleteAppraisal] Request successfully processed by appraisals-backend`);
+        console.log(`✅ [reprocessCompleteAppraisal] Backend response status: ${backendResponse.status}`);
+        
+        // Update the processing status in sheets
+        await safeServiceCall(
+          sheetsService, 
+          'updateProcessingStatus', 
+          [id, `Complete reprocessing - Successfully submitted to appraisals-backend`]
+        );
+        
+        // Record success in WordPress
+        await safeServiceCall(
+          wordpressService, 
+          'updateStepProcessingHistory', 
+          [postId, 'complete_reprocess', {
+            timestamp: new Date().toISOString(),
+            user: req.user?.name || 'Unknown User',
+            status: 'completed',
+            message: `Successfully forwarded to appraisals-backend for complete reprocessing`
+          }]
+        );
+      } catch (backendError) {
+        // Log error but don't fail the request since we've already sent a response
+        console.error(`❌ [reprocessCompleteAppraisal] Error from appraisals-backend:`, backendError.message);
+        
+        // Update the processing status in sheets with error
+        await safeServiceCall(
+          sheetsService, 
+          'updateProcessingStatus', 
+          [id, `Complete reprocessing failed: ${backendError.message}`]
+        );
+        
+        // Update WordPress with error status
+        await safeServiceCall(
+          wordpressService, 
+          'updateStepProcessingHistory', 
+          [postId, 'complete_reprocess', {
+            timestamp: new Date().toISOString(),
+            user: req.user?.name || 'Unknown User',
+            status: 'error',
+            message: `Error from appraisals-backend: ${backendError.message}`
+          }]
+        );
+      }
+    } catch (error) {
+      console.error(`❌ [reprocessCompleteAppraisal] Error:`, error);
+      
+      // Try to update sheets with error
+      await safeServiceCall(
+        sheetsService, 
+        'updateProcessingStatus', 
+        [id, `Complete reprocessing failed: ${error.message}`]
+      );
+      
+      // Only send error response if we haven't sent a response yet
+      if (!res.headersSent) {
+        return res.status(500).json({
+          success: false,
+          message: `Error submitting appraisal for complete reprocessing: ${error.message}`
+        });
+      }
+    }
+  }
+
+  /**
+   * Generate PDF for a completed appraisal
+   * @param {object} req - Express request object
+   * @param {object} res - Express response object
+   */
+  static async generatePdf(req, res) {
+    const { id } = req.params;
+    
+    console.log(`🔄 [generatePdf] Starting PDF generation for appraisal ID: ${id}`);
+    
+    try {
+      // Log the request intent in sheets
+      await safeServiceCall(
+        sheetsService, 
+        'updateProcessingStatus', 
+        [id, `PDF generation - Request initiated by ${req.user?.name || 'Unknown User'}`]
+      );
+      
+      // Get WordPress post ID to include in the forwarded request
+      console.log(`🔍 [generatePdf] Getting WordPress post ID for appraisal ID: ${id}`);
+      const postId = await sheetsService.getWordPressPostIdFromAppraisalId(id);
+      
+      if (!postId) {
+        console.error(`❌ [generatePdf] Appraisal ${id} not found or has no WordPress post ID`);
+        
+        await safeServiceCall(
+          sheetsService, 
+          'updateProcessingStatus', 
+          [id, `PDF generation failed: No WordPress post ID found`]
+        );
+        
+        return res.status(404).json({
+          success: false,
+          message: 'Appraisal not found or has no WordPress post ID.'
+        });
+      }
+      
+      // Get WordPress data to retrieve session_ID
+      console.log(`🔍 [generatePdf] Getting WordPress data for post ID: ${postId}`);
+      let wpData;
+      try {
+        wpData = await wordpressService.getPost(postId);
+      } catch (wpError) {
+        console.error(`❌ [generatePdf] Failed to get WordPress data: ${wpError.message}`);
+        return res.status(500).json({
+          success: false,
+          message: `Failed to retrieve WordPress data: ${wpError.message}`
+        });
+      }
+      
+      // Get session_ID from WordPress post data (ACF field)
+      const session_ID = wpData.acf?.session_id || wpData.acf?.session_ID;
+      
+      // Ensure APPRAISALS_BACKEND_URL is available
+      if (!config.APPRAISALS_BACKEND_URL) {
+        throw new Error('APPRAISALS_BACKEND_URL is not configured');
+      }
+      
+      // Use the PDF generation endpoint in appraisals-backend
+      const appraisalsEndpoint = `/api/pdf/generate-pdf`;
+      const url = `${config.APPRAISALS_BACKEND_URL}${appraisalsEndpoint}`;
+      
+      console.log(`🔄 [generatePdf] Calling appraisals-backend at ${url} for postId: ${postId}`);
+      
+      // Prepare the request data for backend processing
+      const requestData = {
+        postId,
+        session_ID, // Important: This is required by the PDF generation service
+        options: {
+          username: req.user?.name || 'Unknown User',
+          timestamp: new Date().toISOString()
+        }
+      };
+      
+      // Update WordPress that we're submitting for PDF generation
+      await safeServiceCall(
+        wordpressService, 
+        'updateStepProcessingHistory', 
+        [postId, 'generate_pdf', {
+          timestamp: new Date().toISOString(),
+          user: req.user?.name || 'Unknown User',
+          status: 'submitted',
+          message: `Forwarded to appraisals-backend for PDF generation`
+        }]
+      );
+      
+      // Return immediate success response to client
+      const responseForClient = {
+        success: true,
+        message: `PDF generation request submitted`,
+        details: {
+          id,
+          postId,
+          session_ID: session_ID || 'Not available',
+          service: 'appraisals-backend',
+          status: 'processing',
+          timestamp: new Date().toISOString()
+        }
+      };
+      
+      // Send the response to the client immediately
+      res.json(responseForClient);
+      
+      // Then submit the request to the appraisals-backend in the background
+      try {
+        const backendResponse = await axios.post(url, requestData);
+        console.log(`✅ [generatePdf] Request successfully processed by appraisals-backend`);
+        console.log(`✅ [generatePdf] Backend response status: ${backendResponse.status}`);
+        
+        // Extract PDF and Doc links if available
+        const pdfLink = backendResponse.data?.pdfLink;
+        const docLink = backendResponse.data?.docLink;
+        
+        // Update the processing status in sheets
+        await safeServiceCall(
+          sheetsService, 
+          'updateProcessingStatus', 
+          [id, `PDF generation complete - PDF: ${pdfLink || 'N/A'}, Doc: ${docLink || 'N/A'}`]
+        );
+        
+        // Update PDF and Doc links in sheets if available
+        if (pdfLink && docLink) {
+          await safeServiceCall(
+            sheetsService,
+            'updateValues',
+            [
+              config.PENDING_APPRAISALS_SPREADSHEET_ID,
+              `${config.GOOGLE_SHEET_NAME}!M${id}:N${id}`,
+              [[pdfLink, docLink]]
+            ]
+          );
+        }
+        
+        // Record success in WordPress
+        await safeServiceCall(
+          wordpressService, 
+          'updateStepProcessingHistory', 
+          [postId, 'generate_pdf', {
+            timestamp: new Date().toISOString(),
+            user: req.user?.name || 'Unknown User',
+            status: 'completed',
+            message: `Successfully generated PDF: ${pdfLink || 'Link not available'}`,
+            result: {
+              pdfLink,
+              docLink
+            }
+          }]
+        );
+      } catch (backendError) {
+        // Log error but don't fail the request since we've already sent a response
+        console.error(`❌ [generatePdf] Error from appraisals-backend:`, backendError.message);
+        
+        // Update the processing status in sheets with error
+        await safeServiceCall(
+          sheetsService, 
+          'updateProcessingStatus', 
+          [id, `PDF generation failed: ${backendError.message}`]
+        );
+        
+        // Update WordPress with error status
+        await safeServiceCall(
+          wordpressService, 
+          'updateStepProcessingHistory', 
+          [postId, 'generate_pdf', {
+            timestamp: new Date().toISOString(),
+            user: req.user?.name || 'Unknown User',
+            status: 'error',
+            message: `Error from appraisals-backend: ${backendError.message}`
+          }]
+        );
+      }
+    } catch (error) {
+      console.error(`❌ [generatePdf] Error:`, error);
+      
+      // Try to update sheets with error
+      await safeServiceCall(
+        sheetsService, 
+        'updateProcessingStatus', 
+        [id, `PDF generation failed: ${error.message}`]
+      );
+      
+      // Only send error response if we haven't sent a response yet
+      if (!res.headersSent) {
+        return res.status(500).json({
+          success: false,
+          message: `Error generating PDF: ${error.message}`
+        });
+      }
+    }
+  }
 }
 
 module.exports = AppraisalDetailsController;
