@@ -166,9 +166,7 @@ class AppraisalDetailsController {
           // Extract all ACF fields
           ...postDetails.acf,
           // Extract processing metadata
-          lastProcessed: postDetails.meta?.last_processed || '',
-          processingSteps: postDetails.meta?.processing_steps || {},
-          processingHistory: postDetails.meta?.processing_history || []
+          processingSteps: postDetails.meta?.processing_steps || {}
         },
         // Links to the WordPress admin, public post, etc.
         links: {

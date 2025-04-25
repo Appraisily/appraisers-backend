@@ -395,53 +395,42 @@ class WordPressService {
    */
   async updateStepProcessingHistory(postId, stepName, historyEntry) {
     try {
-      console.log(`🔄 Updating processing history for step '${stepName}' in post ${postId}...`);
+      console.log(`🔄 Updating processing step '${stepName}' in post ${postId}...`);
 
       if (!this.isAvailable) {
         await this.initialize();
       }
 
-      // First, get the current processing history
+      // Get the current processing steps
       const post = await this.getPostWithMetadata(postId);
-      const processingHistory = post.meta?.processing_history || {};
-      
-      // Add the new entry to the step's history
-      if (!processingHistory[stepName]) {
-        processingHistory[stepName] = [];
-      }
-      
-      processingHistory[stepName].push(historyEntry);
-      
-      // Debug the metadata we're trying to update
-      console.log(`🔍 DEBUG - Processing history data to update for step '${stepName}'`);
-      console.log('🔍 DEBUG - History entry sample:', JSON.stringify(historyEntry).substring(0, 100));
-      
-      // Instead of using the custom /meta endpoint which seems to be failing,
-      // use the standard ACF fields update approach via the main post endpoint
-      console.log('🔍 DEBUG - Attempting to update using ACF fields approach instead of meta endpoint');
-      
-      const endpoint = `${this.baseUrl}/appraisals/${postId}`;
-      console.log(`🔍 DEBUG - Using main post endpoint: ${endpoint}`);
-      
-      // Prepare ACF data with all three fields we need to update
       const processingSteps = post.meta?.processing_steps || {};
+      
+      // Update the step with latest info
       processingSteps[stepName] = {
         lastProcessed: historyEntry.timestamp,
         status: historyEntry.status,
         user: historyEntry.user
       };
       
+      // Debug the metadata we're trying to update
+      console.log(`🔍 DEBUG - Processing step data to update for step '${stepName}'`);
+      console.log('🔍 DEBUG - Step entry sample:', JSON.stringify(processingSteps[stepName]).substring(0, 100));
+      
+      // Use the standard ACF fields update approach via the main post endpoint
+      console.log('🔍 DEBUG - Updating using ACF fields approach');
+      
+      const endpoint = `${this.baseUrl}/appraisals/${postId}`;
+      console.log(`🔍 DEBUG - Using main post endpoint: ${endpoint}`);
+      
       const acfData = {
         acf: {
-          processing_history: JSON.stringify(processingHistory),
-          processing_steps: JSON.stringify(processingSteps),
-          last_processed: historyEntry.timestamp
+          processing_steps: JSON.stringify(processingSteps)
         }
       };
       
       console.log('🔍 DEBUG - Using ACF update with payload:', JSON.stringify(acfData).substring(0, 200) + '...');
       
-      // Make a single request to update all fields at once
+      // Make request to update the field
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -455,18 +444,18 @@ class WordPressService {
       // Check response
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('WordPress API error updating processing history:', errorText);
+        console.error('WordPress API error updating processing step:', errorText);
         throw new Error(`WordPress API error (${response.status}): ${errorText}`);
       }
       
       // Log successful response
       const responseData = await response.json();
-      console.log(`✅ Successfully updated post with ACF fields, response ID: ${responseData.id || 'unknown'}`);
+      console.log(`✅ Successfully updated post with ACF field, response ID: ${responseData.id || 'unknown'}`);
       
-      console.log('✅ Successfully updated processing history');
+      console.log('✅ Successfully updated processing step');
       return true;
     } catch (error) {
-      console.error('❌ Error updating processing history:', error);
+      console.error('❌ Error updating processing step:', error);
       throw error;
     }
   }
