@@ -1,5 +1,6 @@
 const { sheetsService, wordpressService, pubsubService } = require('../../services');
 const { config } = require('../../config');
+const fetch = require('node-fetch');
 
 class AppraisalValueController {
   static async setValue(req, res) {
@@ -143,17 +144,27 @@ ${aiDescription}`
     }
 
     try {
-      const message = {
-        type: 'COMPLETE_APPRAISAL',
-        data: {
+      // Instead of publishing a message to Pub/Sub, make a direct HTTP request to the task queue service
+      const taskQueueResponse = await fetch(`${config.TASK_QUEUE_URL}/api/process-step`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
           id,
-          appraisalValue,
-          description,
-          ...(appraisalType && { appraisalType })
-        }
-      };
+          startStep: 'STEP_SET_VALUE',
+          options: {
+            appraisalValue,
+            description,
+            ...(appraisalType && { appraisalType })
+          }
+        })
+      });
 
-      await pubsubService.publishMessage('appraisal-tasks', message);
+      if (!taskQueueResponse.ok) {
+        const errorData = await taskQueueResponse.json();
+        throw new Error(`Task queue service error: ${errorData.message || taskQueueResponse.statusText}`);
+      }
 
       res.json({ success: true, message: 'Appraisal process started successfully.' });
     } catch (error) {
