@@ -144,8 +144,15 @@ ${aiDescription}`
     }
 
     try {
-      // Instead of publishing a message to Pub/Sub, make a direct HTTP request to the task queue service
-      const taskQueueResponse = await fetch(`${config.TASK_QUEUE_URL}/api/process-step`, {
+      // Send an immediate response that the request was received
+      res.json({ 
+        success: true, 
+        message: 'Appraisal process started successfully. Processing will continue in the background.' 
+      });
+
+      // Make the request to the task queue service asynchronously after sending response
+      // We don't await this, it will run in the background
+      fetch(`${config.TASK_QUEUE_URL}/api/process-step`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -159,16 +166,20 @@ ${aiDescription}`
             ...(appraisalType && { appraisalType })
           }
         })
+      }).then(taskQueueResponse => {
+        if (!taskQueueResponse.ok) {
+          return taskQueueResponse.json().then(errorData => {
+            console.error(`Task queue service error: ${errorData.message || taskQueueResponse.statusText}`);
+          });
+        }
+        console.log(`Background task for appraisal ${id} initiated successfully`);
+      }).catch(error => {
+        console.error('Error in background task processing:', error);
       });
-
-      if (!taskQueueResponse.ok) {
-        const errorData = await taskQueueResponse.json();
-        throw new Error(`Task queue service error: ${errorData.message || taskQueueResponse.statusText}`);
-      }
-
-      res.json({ success: true, message: 'Appraisal process started successfully.' });
+      
     } catch (error) {
       console.error('Error starting appraisal process:', error);
+      // Only reach here if there's an error before sending the response
       res.status(500).json({ success: false, message: error.message });
     }
   }
