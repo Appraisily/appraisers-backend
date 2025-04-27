@@ -1,6 +1,5 @@
 const sendGridMail = require('@sendgrid/mail');
 const { getSecret } = require('./secretManager');
-const { config } = require('../config');
 
 /**
  * Service for sending emails via SendGrid

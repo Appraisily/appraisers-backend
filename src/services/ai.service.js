@@ -1,6 +1,5 @@
 const fetch = require('node-fetch');
 const { getSecret } = require('./secretManager');
-const { config } = require('../config');
 const OpenAI = require('openai');
 
 class AIService {
