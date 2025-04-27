@@ -1,17 +1,55 @@
 const sendGridMail = require('@sendgrid/mail');
+const { getSecret } = require('./secretManager');
+const { config } = require('../config');
 
 /**
  * Service for sending emails via SendGrid
  */
 class EmailService {
   constructor() {
-    // Initialize SendGrid only if API key is available
-    const apiKey = process.env.SENDGRID_API_KEY;
-    if (apiKey) {
+    this.isInitialized = false;
+    this.fromEmail = null;
+    this.templateIds = {
+      appraisalCompleted: null,
+      appraisalUpdate: null
+    };
+  }
+
+  /**
+   * Initialize SendGrid with API key from Secret Manager
+   */
+  async initialize() {
+    if (this.isInitialized) return true;
+
+    try {
+      console.log('🔄 Initializing SendGrid service...');
+      
+      // Get API key from Secret Manager
+      const apiKey = await getSecret('SENDGRID_API_KEY');
+      
+      if (!apiKey) {
+        console.warn('❌ SENDGRID_API_KEY not found in Secret Manager');
+        return false;
+      }
+      
       sendGridMail.setApiKey(apiKey);
-      console.log('SendGrid initialized with API key');
-    } else {
-      console.warn('No SendGrid API key found in environment variables');
+      
+      // Get email settings from environment or Secret Manager
+      this.fromEmail = process.env.SENDGRID_EMAIL || await getSecret('SENDGRID_EMAIL') || 'noreply@appraisily.com';
+      
+      // Get template IDs
+      this.templateIds.appraisalCompleted = process.env.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED || 
+                                          await getSecret('SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED');
+      
+      this.templateIds.appraisalUpdate = process.env.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE || 
+                                       await getSecret('SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE');
+      
+      this.isInitialized = true;
+      console.log('✅ SendGrid initialized with API key');
+      return true;
+    } catch (error) {
+      console.error('❌ SendGrid initialization failed:', error instanceof Error ? error.message : String(error));
+      return false;
     }
   }
 
@@ -23,7 +61,7 @@ class EmailService {
    * @returns {Promise<boolean>} Success status
    */
   async sendAppraisalCompletedEmail(customerEmail, customerName, appraisalData) {
-    if (!process.env.SENDGRID_API_KEY) {
+    if (!await this.initialize()) {
       console.warn('SendGrid API key not configured, skipping email send');
       return false;
     }
@@ -37,8 +75,8 @@ class EmailService {
 
       const emailContent = {
         to: customerEmail,
-        from: process.env.SENDGRID_EMAIL || 'noreply@appraisily.com',
-        templateId: process.env.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_COMPLETED,
+        from: this.fromEmail,
+        templateId: this.templateIds.appraisalCompleted,
         dynamic_template_data: {
           customer_name: customerName || 'Valued Customer',
           appraisal_value: appraisalData?.value || 'N/A',
@@ -50,10 +88,10 @@ class EmailService {
       };
 
       await sendGridMail.send(emailContent);
-      console.log(`Appraisal completed email sent to ${customerEmail}`);
+      console.log(`✅ Appraisal completed email sent to ${customerEmail}`);
       return true;
     } catch (error) {
-      console.error('Error sending appraisal completed email:', error instanceof Error ? error.message : String(error));
+      console.error('❌ Error sending appraisal completed email:', error instanceof Error ? error.message : String(error));
       return false;
     }
   }
@@ -67,7 +105,7 @@ class EmailService {
    * @returns {Promise<boolean>} Success status
    */
   async sendAppraisalUpdateEmail(customerEmail, customerName, description, iaDescription) {
-    if (!process.env.SENDGRID_API_KEY) {
+    if (!await this.initialize()) {
       console.warn('SendGrid API key not configured, skipping email send');
       return false;
     }
@@ -83,8 +121,8 @@ class EmailService {
 
       const emailContent = {
         to: customerEmail,
-        from: process.env.SENDGRID_EMAIL || 'noreply@appraisily.com',
-        templateId: process.env.SEND_GRID_TEMPLATE_NOTIFY_APPRAISAL_UPDATE,
+        from: this.fromEmail,
+        templateId: this.templateIds.appraisalUpdate,
         dynamic_template_data: {
           customer_name: customerName || 'Valued Customer',
           description: description || '',
@@ -97,10 +135,10 @@ class EmailService {
       };
 
       await sendGridMail.send(emailContent);
-      console.log(`Appraisal update email scheduled for ${customerEmail}`);
+      console.log(`✅ Appraisal update email scheduled for ${customerEmail}`);
       return true;
     } catch (error) {
-      console.error('Error sending appraisal update email:', error instanceof Error ? error.message : String(error));
+      console.error('❌ Error sending appraisal update email:', error instanceof Error ? error.message : String(error));
       return false;
     }
   }

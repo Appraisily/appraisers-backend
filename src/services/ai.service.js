@@ -1,161 +1,180 @@
 const fetch = require('node-fetch');
-const FormData = require('form-data');
-const { config } = require('../config');
 const { getSecret } = require('./secretManager');
+const { config } = require('../config');
+const OpenAI = require('openai');
 
 class AIService {
   constructor() {
     this.isAvailable = false;
-    this.endpoint = 'https://michelle-gmail-856401495068.us-central1.run.app/api/process-message';
+    this.openai = null;
     this.apiKey = null;
   }
 
   async initialize() {
     try {
       // Get API key from Secret Manager
-      this.apiKey = await getSecret('DIRECT_API_KEY');
+      this.apiKey = await getSecret('OPENAI_API_KEY');
 
       if (!this.apiKey) {
-        throw new Error('Failed to retrieve DIRECT_API_KEY from Secret Manager');
+        throw new Error('Failed to retrieve OPENAI_API_KEY from Secret Manager');
       }
 
+      this.openai = new OpenAI({
+        apiKey: this.apiKey
+      });
+
       this.isAvailable = true;
-      console.log('✓ AI service initialized');
+      console.log('✓ OpenAI service initialized');
       return true;
     } catch (error) {
-      console.error('❌ AI Service initialization failed:', error.message);
+      console.error('❌ OpenAI Service initialization failed:', error.message);
       this.isAvailable = false;
       this.apiKey = null;
       return false; 
     }
   }
 
-  async processImages(images, prompt) {
+  async processImageWithOpenAI(imageUrl) {
     try {
-      if (!this.isAvailable || !this.apiKey) {
+      if (!this.isAvailable || !this.openai) {
         await this.initialize();
       }
 
-      if (!this.apiKey) {
-        throw new Error('Failed to initialize AI service');
+      if (!this.openai) {
+        throw new Error('Failed to initialize OpenAI service');
       }
 
-      const formData = new FormData();
-      formData.append('text', prompt);
-
-      // Add images to form data
-      for (const [key, url] of Object.entries(images)) {
-        if (url) {
-          try {
-            const imageResponse = await fetch(url);
-            if (!imageResponse.ok) {
-              throw new Error(`Failed to fetch image: ${imageResponse.status}`);
-            }
-            const buffer = await imageResponse.buffer();
-            formData.append('images', buffer, `${key}.jpg`);
-          } catch (error) {
-            console.error(`Error processing ${key} image:`, error);
-          }
-        }
+      // Fetch the image
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image: ${imageResponse.status}`);
       }
-
-      console.log('Making request to Michelle with API key:', this.apiKey.substring(0, 4) + '...');
+      const imageBuffer = await imageResponse.buffer();
       
-      const response = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: {
-          'X-API-Key': this.apiKey,
-          'Accept': 'application/json'
-        },
-        body: formData
+      // Convert the image buffer to base64
+      const base64Image = imageBuffer.toString('base64');
+      
+      // Prepare the prompt for GPT-4 Vision
+      const prompt = `Please provide a comprehensive and detailed description of this artwork or antique. 
+Focus on:
+- Overall visual appearance (subject, scene, objects)
+- Artistic style, techniques, and genre
+- Medium, materials, textures, and finishes
+- Color palette and composition
+- Notable features, symbols, motifs, and details
+- Signatures, inscriptions, marks, or labels
+- Age and condition indicators
+- Historical and cultural context
+
+Be detailed and speak as an expert in art and antiques. Format your response as a single paragraph of less than 200 words.`;
+
+      console.log('Making request to OpenAI GPT-4 Vision API');
+      
+      const response = await this.openai.chat.completions.create({
+        model: "gpt-4-vision-preview",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert art and antiques appraiser. Analyze the image and provide a detailed, accurate description without disclaiming expertise or mentioning limitations."
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64Image}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 500
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Michelle API error response:', errorText);
-        throw new Error(`AI service error: ${response.status} - ${errorText}`);
+      if (!response.choices || response.choices.length === 0) {
+        throw new Error('Invalid response format from OpenAI');
       }
 
-      const data = await response.json();
-      if (!data.response?.text) {
-        throw new Error('Invalid response format from AI service');
-      }
-
-      return data.response.text;
+      return response.choices[0].message.content;
     } catch (error) {
-      console.error('Error in processImages:', error);
+      console.error('Error in processImageWithOpenAI:', error);
       throw error;
     }
   }
 
   async generateDescription(mainImageUrl, signatureImageUrl = '', ageImageUrl = '') {
-    const prompt = `Please provide a comprehensive and detailed description of the artwork or antique shown in the image. Focus on the following aspects:
-
-Overall Visual Appearance: Describe the subject matter, scene, or objects depicted.
-Artistic Style and Techniques: Identify the style, genre, and any specific techniques used by the artist or craftsman.
-Medium and Materials: Specify the materials, mediums, and any notable textures or finishes.
-Color Palette and Composition: Analyze the use of colors, lighting, perspective, and compositional elements.
-Notable Features and Characteristics: Point out any unique features, symbols, motifs, or intricate details.
-Signatures and Markings: Note any visible signatures, inscriptions, marks, or labels, including their placement and appearance.
-Age and Condition: Observe any signs of aging, wear, restoration, or provenance details that may indicate the item's history.
-Historical and Cultural Context: Provide insights into the possible historical period, cultural background, or artistic movement associated with the piece.
-
-Please make the description as detailed and thorough as possible, suitable for an expert appraisal or analysis of the artwork or antique.
-Format: Write a paragraph of less than 200 words, no titles or subtitles or sections, just the text`;
-
-    const images = {
-      main: mainImageUrl,
-      signature: signatureImageUrl,
-      age: ageImageUrl
-    };
-
-    return this.processImages(images, prompt);
-  }
-
-  async mergeDescriptions(appraiserDescription, iaDescription) {
-    if (!appraiserDescription || !iaDescription) {
-      throw new Error('Both descriptions are required for merging');
+    if (!mainImageUrl) {
+      throw new Error('Main image URL is required');
     }
 
     try {
-      if (!this.isAvailable || !this.apiKey) {
-        await this.initialize();
+      // First process the main image
+      const mainDescription = await this.processImageWithOpenAI(mainImageUrl);
+      
+      // If we have additional images, process them and combine the descriptions
+      if (signatureImageUrl || ageImageUrl) {
+        let additionalInfo = '';
+        
+        if (signatureImageUrl) {
+          try {
+            const signatureDescription = await this.processImageWithOpenAI(signatureImageUrl);
+            additionalInfo += ` Signature details: ${signatureDescription}`;
+          } catch (error) {
+            console.error('Error processing signature image:', error);
+          }
+        }
+        
+        if (ageImageUrl) {
+          try {
+            const ageDescription = await this.processImageWithOpenAI(ageImageUrl);
+            additionalInfo += ` Age indicators: ${ageDescription}`;
+          } catch (error) {
+            console.error('Error processing age image:', error);
+          }
+        }
+        
+        // If we got additional info, combine it with the main description
+        if (additionalInfo) {
+          // Use OpenAI to merge the descriptions
+          return this.mergeDescriptions(mainDescription, additionalInfo);
+        }
       }
+      
+      return mainDescription;
+    } catch (error) {
+      console.error('Error generating description:', error);
+      throw error;
+    }
+  }
 
-      if (!this.apiKey) {
-        throw new Error('Failed to initialize AI service');
-      }
+  async mergeDescriptions(mainDescription, additionalInfo) {
+    if (!this.isAvailable || !this.openai) {
+      await this.initialize();
+    }
 
-      const formData = new FormData();
-      formData.append('text', `Please merge these two artwork descriptions into a single, cohesive paragraph that prioritizes the appraiser's description while incorporating relevant details from the AI description. Keep it under 350 characters.
-
-Appraiser's Description: ${appraiserDescription}
-
-AI Description: ${iaDescription}`);
-
-      const response = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: {
-          'X-API-Key': this.apiKey,
-          'Accept': 'application/json'
-        },
-        body: formData
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert art and antiques appraiser. Create a cohesive description by combining the main description with additional details."
+          },
+          {
+            role: "user",
+            content: `Merge these descriptions into one cohesive paragraph of less than 200 words:\n\nMain description: ${mainDescription}\n\nAdditional details: ${additionalInfo}`
+          }
+        ],
+        max_tokens: 500
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to merge descriptions: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      if (!data.response?.text) {
-        throw new Error('Invalid response format from AI service');
-      }
-
-      return data.response.text;
+      return response.choices[0].message.content;
     } catch (error) {
       console.error('Error merging descriptions:', error);
-      throw error;
+      // Return just the main description if merging fails
+      return mainDescription;
     }
   }
 }
