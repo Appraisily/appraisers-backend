@@ -2,6 +2,15 @@ const fetch = require('node-fetch');
 const { getSecret } = require('./secretManager');
 const OpenAI = require('openai');
 
+/**
+ * OpenAI Model Notes:
+ * - Using "o3" model which replaces the deprecated "gpt-4-vision-preview"
+ * - In this model, AI acts as an "assistant" (not "system")
+ * - Do not set max_tokens or temperature parameters with this model
+ * - Send as a regular chat completion request
+ * - For image processing, still use the image_url format as before
+ */
+
 class AIService {
   constructor() {
     this.isAvailable = false;
@@ -70,10 +79,10 @@ Be detailed and speak as an expert in art and antiques. Format your response as 
       console.log('Making request to OpenAI GPT-4 Vision API');
       
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4-vision-preview",
+        model: "o3",
         messages: [
           {
-            role: "system",
+            role: "assistant",
             content: "You are an expert art and antiques appraiser. Analyze the image and provide a detailed, accurate description without disclaiming expertise or mentioning limitations."
           },
           {
@@ -88,8 +97,7 @@ Be detailed and speak as an expert in art and antiques. Format your response as 
               }
             ]
           }
-        ],
-        max_tokens: 500
+        ]
       });
 
       if (!response.choices || response.choices.length === 0) {
@@ -155,18 +163,17 @@ Be detailed and speak as an expert in art and antiques. Format your response as 
 
     try {
       const response = await this.openai.chat.completions.create({
-        model: "gpt-4",
+        model: "o3",
         messages: [
           {
-            role: "system",
+            role: "assistant",
             content: "You are an expert art and antiques appraiser. Create a cohesive description by combining the main description with additional details."
           },
           {
             role: "user",
             content: `Merge these descriptions into one cohesive paragraph of less than 200 words:\n\nMain description: ${mainDescription}\n\nAdditional details: ${additionalInfo}`
           }
-        ],
-        max_tokens: 500
+        ]
       });
 
       return response.choices[0].message.content;
