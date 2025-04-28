@@ -35,11 +35,11 @@ async function login(req, res) {
       });
     }
 
-    // Generate access token (24h)
+    // Generate access token (30 days)
     const token = jwt.sign(
       { email },
       config.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '30d' }
     );
 
     // Generate refresh token (30 days)
@@ -111,7 +111,7 @@ async function refresh(req, res) {
     const newToken = jwt.sign(
       { email },
       config.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '30d' }
     );
 
     // Rotate refresh token

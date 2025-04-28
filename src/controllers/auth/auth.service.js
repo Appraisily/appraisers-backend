@@ -19,7 +19,7 @@ class AuthService {
     return jwt.sign(
       { email },
       config.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '30d' }
     );
   }
 
@@ -33,7 +33,7 @@ class AuthService {
     return jwt.sign(
       { email: decoded.email },
       config.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '30d' }
     );
   }
 
@@ -41,7 +41,7 @@ class AuthService {
     return jwt.sign(
       { role: 'worker' },
       config.JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: '30d' }
     );
   }
 }
