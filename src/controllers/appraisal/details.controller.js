@@ -85,9 +85,40 @@ class AppraisalDetailsController {
         appraisersDescription: row[10] || ''
       };
 
-      const postId = new URL(appraisal.wordpressUrl).searchParams.get('post');
-      if (!postId) {
-        throw new Error('Invalid WordPress URL');
+      // Check if wordpressUrl is empty or invalid
+      if (!appraisal.wordpressUrl || appraisal.wordpressUrl.trim() === '') {
+        console.log(`Appraisal ${id} has no WordPress URL. Returning basic appraisal data.`);
+        // Return appraisal data without WordPress post data
+        return res.json({
+          ...appraisal,
+          acfFields: {},
+          images: {
+            main: null,
+            age: null,
+            signature: null
+          }
+        });
+      }
+
+      // Only try to parse the URL if it exists
+      let postId;
+      try {
+        postId = new URL(appraisal.wordpressUrl).searchParams.get('post');
+        if (!postId) {
+          throw new Error('Invalid WordPress URL format - missing post parameter');
+        }
+      } catch (urlError) {
+        console.error(`Invalid WordPress URL for appraisal ${id}: ${appraisal.wordpressUrl}`, urlError);
+        // Return appraisal data without WordPress post data
+        return res.json({
+          ...appraisal,
+          acfFields: {},
+          images: {
+            main: null,
+            age: null,
+            signature: null
+          }
+        });
       }
 
       const wpData = await wordpressService.getPost(postId);

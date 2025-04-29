@@ -125,7 +125,7 @@ class EmailService {
         dynamic_template_data: {
           customer_name: customerName || 'Valued Customer',
           description: description || '',
-          preliminary_description: iaDescription || '',
+          initial_description: iaDescription || '',
           customer_email: customerEmail,
           current_year: currentYear,
           dashboard_link: `https://www.appraisily.com/dashboard/?email=${encodeURIComponent(customerEmail)}`,
