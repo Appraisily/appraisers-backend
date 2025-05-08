@@ -546,6 +546,62 @@ class SheetsService {
       return false;
     }
   }
+
+  /**
+   * Get the numeric sheet ID for a given sheet name.
+   * @param {string} spreadsheetId - ID of the spreadsheet.
+   * @param {string} sheetName - The name (title) of the sheet.
+   * @returns {Promise<number|null>} - The numeric sheet ID, or null if not found.
+   */
+  async getSheetIdByName(spreadsheetId, sheetName) {
+    await this.initialize();
+    if (!this.sheets) {
+      throw new Error('Sheets API not initialized');
+    }
+    try {
+      const response = await this.sheets.spreadsheets.get({
+        spreadsheetId,
+      });
+      const sheet = response.data.sheets.find(
+        (s) => s.properties.title === sheetName
+      );
+      if (sheet) {
+        return sheet.properties.sheetId;
+      }
+      console.warn(`Sheet with name "${sheetName}" not found in spreadsheet ${spreadsheetId}.`);
+      return null;
+    } catch (error) {
+      console.error(`Error getting sheet ID for name "${sheetName}":`, error);
+      throw new Error(`Failed to get sheet ID by name: ${error.message}`);
+    }
+  }
+
+  /**
+   * Perform a batch update operation on a spreadsheet.
+   * @param {string} spreadsheetId - ID of the spreadsheet.
+   * @param {Object[]} requests - An array of request objects for the batchUpdate API.
+   * @returns {Promise<Object>} - The response from the batchUpdate API.
+   */
+  async batchUpdate(spreadsheetId, requests) {
+    await this.initialize();
+    if (!this.sheets) {
+      throw new Error('Sheets API not initialized');
+    }
+    try {
+      const response = await this.sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        resource: {
+          requests,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error performing batch update:', error.response ? error.response.data : error.message);
+      // Log the requests that caused the error for easier debugging
+      // console.error('Batch update requests:', JSON.stringify(requests, null, 2));
+      throw new Error(`Failed to perform batch update: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new SheetsService();

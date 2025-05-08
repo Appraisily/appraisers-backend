@@ -269,4 +269,17 @@ registerRoute(router, 'post', '/analyze-image-and-merge', {
   }
 }, authenticate, ImageAnalysisController.analyzeImageAndMergeDescriptions);
 
+// Route to clean pending appraisals list
+registerRoute(router, 'post', '/clean-pending-list', {
+  description: 'Clean the pending appraisals list by removing items marked as \'Moved to Completed\'',
+  parameters: {},
+  response: {
+    success: true,
+    message: 'Pending appraisals list cleaned successfully.',
+    data: {
+      removedCount: 0 // Example: Number of items removed
+    }
+  }
+}, authenticate, AppraisalController.cleanPendingAppraisals);
+
 module.exports = router;

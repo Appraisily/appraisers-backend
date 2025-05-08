@@ -10,6 +10,7 @@ const ImageAnalysisController = require('./imageAnalysis.controller');
 module.exports = {
   getAppraisals: AppraisalListController.getAppraisals,
   getCompletedAppraisals: AppraisalListController.getCompletedAppraisals,
+  cleanPendingAppraisals: AppraisalListController.cleanPendingAppraisals,
   getDetails: AppraisalDetailsController.getDetails,
   getDetailsForEdit: AppraisalDetailsController.getDetailsForEdit,
   setValue: AppraisalValueController.setValue,
