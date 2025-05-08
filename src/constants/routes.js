@@ -12,6 +12,7 @@ const API_ROUTES = {
     BASE: 'appraisals',
     LIST: 'appraisals',
     COMPLETED: 'appraisals/completed',
+    CLEANUP_MOVED: 'appraisals/cleanup-moved-completed',
     DETAILS: (id) => `appraisals/${id}/list`,
     DETAILS_EDIT: (id) => `appraisals/${id}/list-edit`,
     SET_VALUE: (id) => `appraisals/${id}/set-value`,
