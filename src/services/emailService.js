@@ -81,10 +81,18 @@ class EmailService {
           appraisal_value: appraisalData?.value || 'N/A',
           description: appraisalData?.description || 'No description available',
           pdf_link: appraisalData?.pdfLink || '',
+          wp_link: appraisalData?.wpLink || '',
           dashboard_link: `https://www.appraisily.com/dashboard/?email=${encodeURIComponent(customerEmail)}`,
           current_year: currentYear,
         },
       };
+
+      // Log template data for debugging
+      console.log('Email template data:', {
+        customer_name: customerName || 'Valued Customer',
+        pdf_link: appraisalData?.pdfLink || '',
+        wp_link: appraisalData?.wpLink || '',
+      });
 
       await sendGridMail.send(emailContent);
       console.log(`✅ Appraisal completed email sent to ${customerEmail}`);

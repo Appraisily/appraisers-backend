@@ -599,20 +599,33 @@ class AppraisalDetailsController {
         });
       }
       
-      // Get customer data from the sheets
+      // Get customer data and links from the sheets
       const sheet = config.GOOGLE_SHEET_COMPLETED || 'Completed Appraisals';
-      const range = `D${id}:E${id}`; // Columns D and E contain email and name
-      const customerData = await sheetsService.getValues(
+      // Get customer info (columns D-E) and links (columns M and P)
+      const range = `D${id}:P${id}`;
+      const sheetData = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
         `${sheet}!${range}`
       );
       
       let customerEmail = '';
       let customerName = '';
+      let pdfLink = '';
+      let wpLink = '';
       
-      if (customerData && customerData.length > 0 && customerData[0].length >= 2) {
-        customerEmail = customerData[0][0] || '';
-        customerName = customerData[0][1] || '';
+      if (sheetData && sheetData.length > 0 && sheetData[0].length >= 2) {
+        customerEmail = sheetData[0][0] || ''; // Column D
+        customerName = sheetData[0][1] || '';  // Column E
+        
+        // PDF link is in column M (index 9)
+        if (sheetData[0].length >= 10) {
+          pdfLink = sheetData[0][9] || '';
+        }
+        
+        // WP post link is in column P (index 12)
+        if (sheetData[0].length >= 13) {
+          wpLink = sheetData[0][12] || '';
+        }
       }
       
       if (!customerEmail) {
@@ -623,15 +636,24 @@ class AppraisalDetailsController {
         });
       }
       
-      // Prepare the data for the email
+      // Use links from sheets as primary source, fallback to WordPress data
       const appraisalData = {
         value: postDetails.acf?.appraisal_value || postDetails.acf?.value || '',
         description: postDetails.content?.rendered || '',
-        pdfLink: postDetails.acf?.pdf_url || ''
+        pdfLink: pdfLink || postDetails.acf?.pdf_url || '',
+        wpLink: wpLink || ''
       };
+      
+      console.log(`[sendConfirmationEmail] Using PDF link: ${appraisalData.pdfLink}`);
+      console.log(`[sendConfirmationEmail] Using WordPress link: ${appraisalData.wpLink}`);
       
       if (!appraisalData.pdfLink) {
         console.warn(`[sendConfirmationEmail] PDF link not found for appraisal ID: ${id}`);
+        // Still proceed with sending the email, but log a warning
+      }
+      
+      if (!appraisalData.wpLink) {
+        console.warn(`[sendConfirmationEmail] WordPress post link not found for appraisal ID: ${id}`);
         // Still proceed with sending the email, but log a warning
       }
       
