@@ -6,6 +6,7 @@ const BulkController = require('./bulk.controller');
 const DetailsController = require('./details.controller');
 const ValueController = require('./value.controller');
 const ImageAnalysisController = require('./imageAnalysis.controller');
+const ReprocessController = require('./reprocess.controller');
 
 module.exports = {
   getAppraisals: AppraisalListController.getAppraisals,
@@ -20,9 +21,11 @@ module.exports = {
   getSessionId: WordPressController.getSessionId,
   saveLinks: WordPressController.saveLinks,
   updateLinks: WordPressController.updateLinks,
+  reprocessWithGeminiData: ReprocessController.reprocessWithGeminiData,
   BulkController,
   DetailsController,
   ValueController,
   WordPressController,
   ImageAnalysisController,
+  ReprocessController,
 };

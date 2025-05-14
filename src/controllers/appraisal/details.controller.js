@@ -674,7 +674,7 @@ class AppraisalDetailsController {
       }
       
       // Update the email status in Google Sheets (column Q)
-      const emailStatus = `Email sent on ${new Date().toISOString()}`;
+      const emailStatus = `Confirmation email sent for appraisal #${id} on ${new Date().toISOString()}`;
       await sheetsService.updateValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
         `${sheet}!Q${id}`,
