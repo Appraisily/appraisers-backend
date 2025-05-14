@@ -567,6 +567,119 @@ class AppraisalDetailsController {
       }
     }
   }
+
+  /**
+   * Send confirmation email to customer with appraisal details and PDF link
+   */
+  static async sendConfirmationEmail(req, res) {
+    const { id } = req.params;
+    
+    try {
+      console.log(`[sendConfirmationEmail] Sending confirmation email for appraisal ID: ${id}`);
+      
+      // First, find the WordPress post ID associated with this appraisal
+      const postId = await sheetsService.getWordPressPostIdFromAppraisalId(id);
+      
+      if (!postId) {
+        console.error(`[sendConfirmationEmail] WordPress post ID not found for appraisal ID: ${id}`);
+        return res.status(404).json({
+          success: false,
+          message: 'Appraisal not found.'
+        });
+      }
+      
+      // Get the completed appraisal details including the PDF URL
+      const postDetails = await wordpressService.getPostWithMetadata(postId);
+      
+      if (!postDetails) {
+        console.error(`[sendConfirmationEmail] WordPress post details not found for post ID: ${postId}`);
+        return res.status(404).json({
+          success: false,
+          message: 'Appraisal details not found.'
+        });
+      }
+      
+      // Get customer data from the sheets
+      const sheet = config.GOOGLE_SHEET_COMPLETED || 'Completed Appraisals';
+      const range = `D${id}:E${id}`; // Columns D and E contain email and name
+      const customerData = await sheetsService.getValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${sheet}!${range}`
+      );
+      
+      let customerEmail = '';
+      let customerName = '';
+      
+      if (customerData && customerData.length > 0 && customerData[0].length >= 2) {
+        customerEmail = customerData[0][0] || '';
+        customerName = customerData[0][1] || '';
+      }
+      
+      if (!customerEmail) {
+        console.error(`[sendConfirmationEmail] Customer email not found for appraisal ID: ${id}`);
+        return res.status(400).json({
+          success: false,
+          message: 'Customer email not found.'
+        });
+      }
+      
+      // Prepare the data for the email
+      const appraisalData = {
+        value: postDetails.acf?.appraisal_value || postDetails.acf?.value || '',
+        description: postDetails.content?.rendered || '',
+        pdfLink: postDetails.acf?.pdf_url || ''
+      };
+      
+      if (!appraisalData.pdfLink) {
+        console.warn(`[sendConfirmationEmail] PDF link not found for appraisal ID: ${id}`);
+        // Still proceed with sending the email, but log a warning
+      }
+      
+      // Send the email
+      const emailService = require('../../services/emailService');
+      const emailSent = await emailService.sendAppraisalCompletedEmail(
+        customerEmail,
+        customerName,
+        appraisalData
+      );
+      
+      if (!emailSent) {
+        console.error(`[sendConfirmationEmail] Failed to send email for appraisal ID: ${id}`);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to send confirmation email.'
+        });
+      }
+      
+      // Update the email status in Google Sheets (column Q)
+      const emailStatus = `Email sent on ${new Date().toISOString()}`;
+      await sheetsService.updateValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        `${sheet}!Q${id}`,
+        [[emailStatus]]
+      );
+      
+      console.log(`[sendConfirmationEmail] Email sent successfully to ${customerEmail} for appraisal ID: ${id}`);
+      
+      return res.json({
+        success: true,
+        message: 'Confirmation email sent successfully',
+        details: {
+          id,
+          postId,
+          emailSent: true,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error(`[sendConfirmationEmail] Error:`, error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error sending confirmation email',
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = AppraisalDetailsController;

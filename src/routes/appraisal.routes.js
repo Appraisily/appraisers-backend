@@ -254,6 +254,26 @@ registerRoute(router, 'post', '/:id/reprocess-completed', {
   }
 }, authenticate, DetailsController.reprocessCompleteAppraisal);
 
+// New route for sending confirmation emails
+registerRoute(router, 'post', '/:id/send-confirmation-email', {
+  description: 'Sends a confirmation email to the customer with appraisal details',
+  parameters: {
+    id: {
+      description: 'Appraisal ID',
+      required: true
+    }
+  },
+  response: {
+    success: true,
+    message: 'Confirmation email sent successfully',
+    details: {
+      id: 'appraisal123',
+      emailSent: true,
+      timestamp: '2023-01-02T00:00:00Z'
+    }
+  }
+}, authenticate, DetailsController.sendConfirmationEmail);
+
 // AI image analysis and description merging
 registerRoute(router, 'post', '/analyze-image-and-merge', {
   description: 'Analyze image with GPT-4o and merge descriptions',
