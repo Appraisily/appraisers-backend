@@ -78,7 +78,7 @@ class AppraisalListController {
       const movedRows = [];
       values.forEach((row, index) => {
         if (row[5] === 'Moved to Completed') {
-          movedRows.push(index + 2);
+          movedRows.push(index + 2); // +2 because index is 0-based and rows start at 2 (after header)
         }
       });
 
@@ -92,17 +92,54 @@ class AppraisalListController {
 
       console.log(`Found ${movedRows.length} "Moved to Completed" entries to clean up:`, movedRows);
       
-      for (const rowId of movedRows) {
-        await sheetsService.updateValues(
-          config.PENDING_APPRAISALS_SPREADSHEET_ID,
-          `${config.GOOGLE_SHEET_NAME || 'Pending Appraisals'}!F${rowId}`,
-          [['REMOVED']]
-        );
+      // Sort rows in descending order to avoid index shifting when deleting multiple rows
+      movedRows.sort((a, b) => b - a);
+      
+      // Get sheet ID for the pending appraisals sheet
+      await sheetsService.initialize();
+      if (!sheetsService.sheets) {
+        throw new Error('Sheets API not initialized');
       }
+      
+      // Get all sheets in the spreadsheet to find the ID of our sheet
+      const sheetsResponse = await sheetsService.sheets.spreadsheets.get({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+      });
+      
+      const pendingSheetName = config.GOOGLE_SHEET_NAME || 'Pending Appraisals';
+      const sheet = sheetsResponse.data.sheets.find(
+        s => s.properties.title === pendingSheetName
+      );
+      
+      if (!sheet) {
+        throw new Error(`Sheet "${pendingSheetName}" not found`);
+      }
+      
+      const sheetId = sheet.properties.sheetId;
+      
+      // Create delete dimension requests for each row
+      const requests = movedRows.map(rowIndex => ({
+        deleteDimension: {
+          range: {
+            sheetId: sheetId,
+            dimension: 'ROWS',
+            startIndex: rowIndex - 1, // Convert to 0-based index
+            endIndex: rowIndex // The end index is exclusive
+          }
+        }
+      }));
+      
+      // Execute batch update to delete all rows at once
+      await sheetsService.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        requestBody: {
+          requests: requests
+        }
+      });
 
       res.json({ 
         success: true, 
-        message: `Successfully cleaned up ${movedRows.length} "Moved to Completed" entries.`,
+        message: `Successfully deleted ${movedRows.length} "Moved to Completed" entries.`,
         cleanedCount: movedRows.length
       });
     } catch (error) {
