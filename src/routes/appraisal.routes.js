@@ -6,6 +6,7 @@ const AppraisalController = require('../controllers/appraisal');
 const BulkController = require('../controllers/appraisal/bulk.controller');
 const DetailsController = require('../controllers/appraisal/details.controller');
 const { ImageAnalysisController } = require('../controllers/appraisal');
+const NewAppraisalController = require('../controllers/appraisal/newAppraisal.controller');
 const { registerRoute } = require('../services/routeDecorator');
 
 // List and View routes
@@ -315,5 +316,29 @@ registerRoute(router, 'post', '/reprocess-with-gemini', {
     message: 'Appraisal reprocessing started successfully'
   }
 }, authenticate, AppraisalController.reprocessWithGeminiData);
+
+// New route for creating appraisals directly through the appraisers frontend
+registerRoute(router, 'post', '/new', {
+  description: 'Create a new appraisal directly from the appraisers frontend',
+  parameters: {},
+  requestBody: {
+    description: 'String - Item description',
+    customerName: 'String - Customer name',
+    customerEmail: 'String - Customer email',
+    sessionId: 'String - Unique session identifier',
+    appraisalType: 'String - Type of appraisal (Regular, Quick, Certificate)',
+    mainImage: 'File - Main image of the item',
+    signatureImage: 'File (optional) - Image of signature',
+    ageImage: 'File (optional) - Image showing age information'
+  },
+  response: {
+    success: true,
+    message: 'Appraisal created successfully',
+    data: {
+      id: 'String - Appraisal ID (row number in Google Sheets)',
+      sessionId: 'String - Session ID for tracking'
+    }
+  }
+}, authenticate, NewAppraisalController.createNewAppraisal);
 
 module.exports = router;

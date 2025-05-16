@@ -546,6 +546,75 @@ class SheetsService {
       return false;
     }
   }
+
+  /**
+   * Add a new pending appraisal to the Google Sheets
+   * @param {Object} appraisalData - Data for the new appraisal
+   * @returns {Promise<string|number>} - The ID (row number) of the new appraisal
+   */
+  async addPendingAppraisal(appraisalData) {
+    await this.initialize();
+    
+    try {
+      console.log('🔄 Adding new pending appraisal to Google Sheets:', JSON.stringify(appraisalData).substring(0, 100) + '...');
+      
+      if (!this.sheets) {
+        throw new Error('Sheets API not initialized');
+      }
+      
+      // Get the pending sheet name
+      const sheetName = config.GOOGLE_SHEET_NAME || 'Pending';
+      
+      // First, find the next available row - get the whole first column
+      console.log(`🔍 Looking for next available row in sheet "${sheetName}"`);
+      const range = this.formatRange(sheetName, 'A:A');
+      
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
+        range,
+        valueRenderOption: 'UNFORMATTED_VALUE'
+      });
+      
+      const values = response.data.values || [];
+      const nextRow = values.length + 1; // Add 1 since rows are 1-indexed
+      
+      console.log(`📋 Next available row: ${nextRow}`);
+      
+      // Prepare the row data
+      const rowData = [
+        appraisalData.date || new Date().toLocaleDateString('en-US'),
+        appraisalData.appraisalType || 'Regular',
+        appraisalData.identifier || '',
+        appraisalData.customerEmail || '',
+        appraisalData.customerName || '',
+        appraisalData.status || 'Pending',
+        appraisalData.wordpressUrl || '',
+        appraisalData.iaDescription || '',
+        appraisalData.customerDescription || '',
+        appraisalData.value || '',
+        appraisalData.appraisersDescription || ''
+      ];
+      
+      // Calculate the range to update
+      const updateRange = this.formatRange(sheetName, `A${nextRow}:K${nextRow}`);
+      
+      // Update the sheet
+      await this.sheets.spreadsheets.values.update({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID || '',
+        range: updateRange,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [rowData]
+        }
+      });
+      
+      console.log(`✅ Successfully added new appraisal to row ${nextRow}`);
+      return nextRow;
+    } catch (error) {
+      console.error('❌ Error adding pending appraisal:', error);
+      throw new Error(`Failed to add pending appraisal: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new SheetsService();

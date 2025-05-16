@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
+const fileUpload = require('express-fileupload');
 const { corsOptions } = require('./config/corsConfig');
 const routes = require('./routes');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -20,6 +21,16 @@ app.use(cors(corsOptions));
 // Standard middleware
 app.use(express.json());
 app.use(cookieParser());
+
+// File upload middleware
+app.use(fileUpload({
+  createParentPath: true,
+  limits: { 
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  abortOnLimit: true,
+  useTempFiles: false,
+}));
 
 // Health check endpoints
 app.get('/_ah/health', (req, res) => res.status(200).send('OK'));
