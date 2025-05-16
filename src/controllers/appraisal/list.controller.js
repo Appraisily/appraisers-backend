@@ -94,9 +94,9 @@ class AppraisalListController {
       
       for (const rowId of movedRows) {
         await sheetsService.updateValues(
-          `F${rowId}`,
-          [['REMOVED']],
-          false
+          config.PENDING_APPRAISALS_SPREADSHEET_ID,
+          `${config.GOOGLE_SHEET_NAME || 'Pending Appraisals'}!F${rowId}`,
+          [['REMOVED']]
         );
       }
 

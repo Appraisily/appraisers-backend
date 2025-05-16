@@ -4,7 +4,7 @@ const FormData = require('form-data');
 const fs = require('fs').promises;
 const os = require('os');
 const { v4: uuidv4 } = require('uuid');
-const { getServices } = require('../../services');
+const { sheetsService } = require('../../services');
 const { config } = require('../../config');
 
 /**
@@ -17,8 +17,6 @@ const newAppraisalController = {
    * @param {Object} res - Express response object
    */
   createNewAppraisal: async (req, res) => {
-    const { sheetsService } = getServices();
-    
     try {
       console.log('📝 Creating new appraisal from direct submission');
       
