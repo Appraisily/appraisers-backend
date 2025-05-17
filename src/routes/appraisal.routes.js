@@ -341,4 +341,19 @@ registerRoute(router, 'post', '/new', {
   }
 }, authenticate, NewAppraisalController.createNewAppraisal);
 
+// New route for removing an appraisal
+registerRoute(router, 'post', '/:id/remove', {
+  description: 'Remove an appraisal by moving it to the Removed Appraisals sheet',
+  parameters: {
+    id: {
+      description: 'Appraisal ID',
+      required: true
+    }
+  },
+  response: {
+    success: true,
+    message: 'Appraisal successfully removed',
+  }
+}, authenticate, AppraisalController.removeAppraisal);
+
 module.exports = router;
