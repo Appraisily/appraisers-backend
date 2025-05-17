@@ -64,10 +64,11 @@ class AppraisalListController {
     try {
       const values = await sheetsService.getValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
-        `${config.GOOGLE_SHEET_NAME || 'Pending Appraisals'}!A2:F`
+        `${config.GOOGLE_SHEET_NAME || 'Pending Appraisals'}!A2:N`
       );
       
       if (!values || values.length === 0) {
+        console.log('No pending appraisals found to clean up.');
         return res.json({ 
           success: true, 
           message: 'No pending appraisals found to clean up.', 
@@ -75,53 +76,126 @@ class AppraisalListController {
         });
       }
 
-      const movedRows = [];
-      values.forEach((row, index) => {
-        if (row[5] === 'Moved to Completed') {
-          movedRows.push(index + 2); // +2 because index is 0-based and rows start at 2 (after header)
-        }
-      });
-
-      if (movedRows.length === 0) {
-        return res.json({ 
-          success: true, 
-          message: 'No "Moved to Completed" entries found.', 
-          cleanedCount: 0 
-        });
-      }
-
-      console.log(`Found ${movedRows.length} "Moved to Completed" entries to clean up:`, movedRows);
+      console.log(`Found ${values.length} total entries in the pending appraisals sheet.`);
       
-      // Sort rows in descending order to avoid index shifting when deleting multiple rows
-      movedRows.sort((a, b) => b - a);
-      
-      // Get sheet ID for the pending appraisals sheet
+      // Debug: Log all statuses to understand what we're working with
+      console.log('Current status values in the sheet:');
+      const statusValues = values.map(row => row[5] || 'empty');
+      console.log(statusValues);
+
+      // Initialize sheets API
       await sheetsService.initialize();
       if (!sheetsService.sheets) {
         throw new Error('Sheets API not initialized');
       }
       
-      // Get all sheets in the spreadsheet to find the ID of our sheet
+      // Get all sheets in the spreadsheet
       const sheetsResponse = await sheetsService.sheets.spreadsheets.get({
         spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
       });
       
       const pendingSheetName = config.GOOGLE_SHEET_NAME || 'Pending Appraisals';
-      const sheet = sheetsResponse.data.sheets.find(
+      const completedSheetName = config.COMPLETED_SHEET_NAME || 'Completed Appraisals';
+      
+      const pendingSheet = sheetsResponse.data.sheets.find(
         s => s.properties.title === pendingSheetName
       );
       
-      if (!sheet) {
+      if (!pendingSheet) {
         throw new Error(`Sheet "${pendingSheetName}" not found`);
       }
       
-      const sheetId = sheet.properties.sheetId;
+      const pendingSheetId = pendingSheet.properties.sheetId;
+      
+      // Check if the Completed sheet exists
+      const completedSheetExists = sheetsResponse.data.sheets.some(
+        s => s.properties.title === completedSheetName
+      );
+      
+      if (!completedSheetExists) {
+        console.warn(`Warning: Completed sheet "${completedSheetName}" not found. Items with "COMPLETED" status will only be deleted, not moved.`);
+      }
+
+      // Get the next available row in the Completed Appraisals sheet (if needed)
+      let nextCompletedRow = 0;
+      if (completedSheetExists) {
+        const completedValues = await sheetsService.getValues(
+          config.PENDING_APPRAISALS_SPREADSHEET_ID,
+          `${completedSheetName}!A:A`,
+          'UNFORMATTED_VALUE'
+        );
+        nextCompletedRow = (completedValues || []).length + 1; // Add 1 since rows are 1-indexed
+        console.log(`Next available row in Completed sheet: ${nextCompletedRow}`);
+      }
+
+      const movedRows = [];
+      const completedRows = [];
+      
+      values.forEach((row, index) => {
+        // Case insensitive check for statuses
+        const status = String(row[5] || '').toLowerCase();
+        
+        // Debug log to see how the status is being parsed
+        if (row[5]) {
+          console.log(`Row ${index + 2}: Status = "${row[5]}", Lowercase = "${status}"`);
+        }
+        
+        if (status === 'moved to completed' || status.includes('removed')) {
+          console.log(`✅ Row ${index + 2} with status "${row[5]}" will be removed`);
+          movedRows.push(index + 2); // +2 because index is 0-based and rows start at 2 (after header)
+        }
+        // Check for "COMPLETED" status to move to completed sheet
+        else if (status.includes('completed') && !status.includes('moved to')) {
+          console.log(`✅ Row ${index + 2} with status "${row[5]}" will be moved to Completed sheet`);
+          completedRows.push({
+            rowIndex: index + 2,
+            data: row
+          });
+          movedRows.push(index + 2); // Also add to rows to be removed
+        }
+      });
+
+      // Handle rows to be moved to Completed sheet
+      if (completedRows.length > 0 && completedSheetExists) {
+        console.log(`Moving ${completedRows.length} rows to Completed sheet...`);
+        
+        // Process each completed row
+        for (const item of completedRows) {
+          try {
+            // Add the row to the Completed sheet
+            await sheetsService.updateValues(
+              config.PENDING_APPRAISALS_SPREADSHEET_ID,
+              `${completedSheetName}!A${nextCompletedRow}:N${nextCompletedRow}`,
+              [item.data]
+            );
+            console.log(`Row ${item.rowIndex} successfully moved to Completed sheet row ${nextCompletedRow}`);
+            nextCompletedRow++; // Increment for next row
+          } catch (moveError) {
+            console.error(`Error moving row ${item.rowIndex} to Completed sheet:`, moveError);
+            // Continue with the next item, don't stop the process
+          }
+        }
+      }
+
+      if (movedRows.length === 0) {
+        console.log('No entries matched the cleanup criteria.');
+        return res.json({ 
+          success: true, 
+          message: 'No "Moved to Completed", "COMPLETED", or "REMOVED" entries found.', 
+          cleanedCount: 0 
+        });
+      }
+
+      console.log(`Found ${movedRows.length} entries to clean up:`, movedRows);
+      
+      // Sort rows in descending order to avoid index shifting when deleting multiple rows
+      movedRows.sort((a, b) => b - a);
       
       // Create delete dimension requests for each row
       const requests = movedRows.map(rowIndex => ({
         deleteDimension: {
           range: {
-            sheetId: sheetId,
+            sheetId: pendingSheetId,
             dimension: 'ROWS',
             startIndex: rowIndex - 1, // Convert to 0-based index
             endIndex: rowIndex // The end index is exclusive
@@ -139,14 +213,14 @@ class AppraisalListController {
 
       res.json({ 
         success: true, 
-        message: `Successfully deleted ${movedRows.length} "Moved to Completed" entries.`,
+        message: `Successfully processed ${movedRows.length} entries (${completedRows.length} moved to Completed sheet).`,
         cleanedCount: movedRows.length
       });
     } catch (error) {
-      console.error('Error cleaning up moved to completed entries:', error);
+      console.error('Error cleaning up entries:', error);
       res.status(500).json({ 
         success: false, 
-        message: 'Error cleaning up moved to completed entries.' 
+        message: 'Error cleaning up entries.' 
       });
     }
   }
