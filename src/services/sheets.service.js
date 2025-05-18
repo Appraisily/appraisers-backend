@@ -548,6 +548,77 @@ class SheetsService {
   }
 
   /**
+   * Move an appraisal from the pending sheet to the completed sheet
+   * @param {string|number} rowId - The appraisal ID (row number)
+   * @returns {Promise<boolean>} - Success status
+   */
+  async moveToCompleted(rowId) {
+    try {
+      console.log(`🔄 Moving appraisal ${rowId} from pending to completed sheet...`);
+      
+      // Initialize if needed
+      await this.initialize();
+      
+      if (!this.sheets) {
+        throw new Error('Sheets API not initialized');
+      }
+      
+      // Get all values from A to N for the pending row
+      const pendingSheetName = config.GOOGLE_SHEET_NAME || 'Pending Appraisals';
+      const completedSheetName = config.COMPLETED_SHEET_NAME || 'Completed Appraisals';
+      const range = `A${rowId}:N${rowId}`;
+      
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        range: `'${pendingSheetName}'!${range}`
+      });
+
+      if (!response.data.values || !response.data.values[0]) {
+        throw new Error(`No data found for row ${rowId}`);
+      }
+      
+      // Get the row data
+      const rowData = response.data.values[0];
+      
+      // First, get the last row number of the Completed sheet
+      const completedResponse = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        range: `'${completedSheetName}'!A:A`
+      });
+
+      // Calculate the next empty row (length + 1 since array is 0-based)
+      const nextRow = (completedResponse.data.values?.length || 0) + 1;
+      
+      console.log(`📝 Adding to completed sheet at row ${nextRow}`);
+
+      // Update the specific row in Completed Appraisals
+      await this.sheets.spreadsheets.values.update({
+        spreadsheetId: config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        range: `'${completedSheetName}'!A${nextRow}:N${nextRow}`,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [rowData]
+        }
+      });
+
+      // Instead of deleting, update the status in the Pending Appraisals sheet
+      const statusUpdateRange = `F${rowId}`;
+      const formattedRange = this.formatRange(pendingSheetName, statusUpdateRange);
+      await this.updateValues(
+        config.PENDING_APPRAISALS_SPREADSHEET_ID,
+        formattedRange,
+        [['Moved to Completed']]
+      );
+
+      console.log(`✅ Completed move of appraisal ${rowId}. Status set to 'Moved to Completed' in pending sheet.`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error moving appraisal ${rowId} to Completed:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Add a new pending appraisal to the Google Sheets
    * @param {Object} appraisalData - Data for the new appraisal
    * @returns {Promise<string|number>} - The ID (row number) of the new appraisal

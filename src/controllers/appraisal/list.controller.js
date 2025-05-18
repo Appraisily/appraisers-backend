@@ -323,6 +323,48 @@ class AppraisalListController {
       });
     }
   }
+
+  /**
+   * Move a pending appraisal to the completed sheet
+   * @param {object} req - Express request object
+   * @param {object} res - Express response object
+   */
+  static async movePendingToCompleted(req, res) {
+    const { id } = req.params;
+
+    try {
+      console.log(`🔄 Moving pending appraisal ${id} to Completed Appraisals sheet...`);
+      
+      // Check if the appraisal exists in the pending sheet
+      const appraisalData = await sheetsService.getAppraisalRow(id);
+      
+      if (!appraisalData) {
+        console.error(`❌ Appraisal ${id} not found in the pending appraisals sheet`);
+        return res.status(404).json({
+          success: false,
+          message: 'Appraisal not found in the pending appraisals sheet'
+        });
+      }
+
+      // Call the moveToCompleted function from sheets service
+      // This will copy the row to the completed sheet and update status in pending sheet
+      await sheetsService.moveToCompleted(id);
+      
+      console.log(`✅ Successfully moved appraisal ${id} to Completed Appraisals sheet`);
+      
+      return res.json({
+        success: true,
+        message: 'Appraisal successfully moved to completed sheet'
+      });
+    } catch (error) {
+      console.error('Error moving appraisal to completed:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error moving appraisal to completed sheet',
+        error: error.message
+      });
+    }
+  }
 }
 
 module.exports = AppraisalListController;

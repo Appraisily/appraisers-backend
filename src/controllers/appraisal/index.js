@@ -13,6 +13,7 @@ module.exports = {
   getCompletedAppraisals: AppraisalListController.getCompletedAppraisals,
   cleanupMovedToCompleted: AppraisalListController.cleanupMovedToCompleted,
   removeAppraisal: AppraisalListController.removeAppraisal,
+  movePendingToCompleted: AppraisalListController.movePendingToCompleted,
   getDetails: AppraisalDetailsController.getDetails,
   getDetailsForEdit: AppraisalDetailsController.getDetailsForEdit,
   setValue: AppraisalValueController.setValue,

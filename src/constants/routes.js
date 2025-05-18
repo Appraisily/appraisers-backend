@@ -17,6 +17,7 @@ const API_ROUTES = {
     DETAILS_EDIT: (id) => `appraisals/${id}/list-edit`,
     SET_VALUE: (id) => `appraisals/${id}/set-value`,
     COMPLETE_PROCESS: (id) => `appraisals/${id}/complete-process`,
+    MOVE_TO_COMPLETED: (id) => `appraisals/${id}/move-to-completed`,
     PROCESS_WORKER: 'appraisals/process-worker'
   },
   UPDATE_PENDING: {

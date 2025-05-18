@@ -356,4 +356,19 @@ registerRoute(router, 'post', '/:id/remove', {
   }
 }, authenticate, AppraisalController.removeAppraisal);
 
+// New route for moving a pending appraisal to completed
+registerRoute(router, 'post', '/:id/move-to-completed', {
+  description: 'Move a pending appraisal to the Completed Appraisals sheet',
+  parameters: {
+    id: {
+      description: 'Appraisal ID',
+      required: true
+    }
+  },
+  response: {
+    success: true,
+    message: 'Appraisal successfully moved to completed'
+  }
+}, authenticate, AppraisalController.movePendingToCompleted);
+
 module.exports = router;
