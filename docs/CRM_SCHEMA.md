@@ -26,7 +26,7 @@ When an appraisal is completed and ready for a customer, the following JSON stru
 
 ## Required Fields
 
-- `crmProcess`: Must be set to "bulkAppraisalFinalized" exactly to route to the correct processor
+- `crmProcess`: Must be set to one of the valid process types (see below)
 - `customer`: Object containing customer information
   - `customer.email`: The customer's email address
   - `customer.name`: The customer's name (optional, defaults to "Customer")
@@ -48,8 +48,11 @@ The CRM system supports the following process types:
 - `stripePayment`
 - `bulkAppraisalEmailUpdate`
 - `bulkAppraisalFinalized` (use this for appraisal completion notifications)
+- `appraisalReadyNotification` (use this for appraisal ready notifications)
 
 ## Example Usage
+
+### Bulk Appraisal Finalized (Primary customer notification)
 
 ```javascript
 const messageData = {
@@ -66,5 +69,27 @@ const messageData = {
   },
   pdf_link: pdfLink,
   wp_link: wpLink
+};
+```
+
+### Appraisal Ready Notification 
+
+```javascript
+const messageData = {
+  crmProcess: "appraisalReadyNotification",
+  customer: {
+    email: customerEmail,
+    name: customerName || "Customer"
+  },
+  metadata: {
+    origin: "appraisers-task-queue",
+    sessionId: sessionId,
+    environment: process.env.NODE_ENV || "production",
+    timestamp: Date.now()
+  },
+  pdf_link: pdfLink,
+  wp_link: wpLink,
+  appraisal_value: appraisalValue,
+  description: description
 };
 ``` 
