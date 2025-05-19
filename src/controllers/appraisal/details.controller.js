@@ -573,11 +573,52 @@ class AppraisalDetailsController {
    */
   static async sendConfirmationEmail(req, res) {
     const { id } = req.params;
+    const { sessionId } = req.body || {};
     
     try {
       console.log(`[sendConfirmationEmail] Sending confirmation email for appraisal ID: ${id}`);
       
+      /* ------------------------------------------------------------
+       * Validate that the row <id> really belongs to the given session.
+       * We first check the pending sheet (column C). If it does not match
+       * we look at the same row in the completed sheet. If still no match
+       * we abort – this prevents sending the email to the wrong customer.
+       * ------------------------------------------------------------ */
+      
+      const pendingSheetName   = config.GOOGLE_SHEET_NAME    || 'Pending Appraisals';
+      const completedSheetName = config.COMPLETED_SHEET_NAME || 'Completed Appraisals';
+      
+      const sheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+      
+      // Helper function to read column C (session identifier) for the given row in a sheet
+      const readSessionId = async (sheetName) => {
+        const values = await sheetsService.getValues(sheetId, `'${sheetName}'!C${id}`);
+        return (values && values[0] && values[0][0]) ? values[0][0] : '';
+      };
+      
+      let sheetInUse = pendingSheetName;
+      let sheetSessionId = await readSessionId(sheetInUse);
+      
+      // If not matching, try completed sheet
+      if (sessionId && sheetSessionId !== sessionId) {
+        sheetInUse = completedSheetName;
+        sheetSessionId = await readSessionId(sheetInUse);
+      }
+      
+      // After trying both sheets, if still mismatch → abort
+      if (sessionId && sheetSessionId !== sessionId) {
+        console.warn(`[sendConfirmationEmail] Session-ID mismatch (expected ${sessionId}, found ${sheetSessionId}). Aborting email send.`);
+        return res.status(400).json({
+          success: false,
+          message: 'Session ID mismatch – confirmation email not sent.'
+        });
+      }
+      
+      // Use the sheet we finally determined (pending or completed) for the rest of the method
+      const sheet = sheetInUse;
+      
       // First, find the WordPress post ID associated with this appraisal
+      console.log(`🔄 Getting WordPress post ID for appraisal ID: ${id}`);
       const postId = await sheetsService.getWordPressPostIdFromAppraisalId(id);
       
       if (!postId) {
@@ -588,19 +629,7 @@ class AppraisalDetailsController {
         });
       }
       
-      // Get the completed appraisal details including the PDF URL
-      const postDetails = await wordpressService.getPostWithMetadata(postId);
-      
-      if (!postDetails) {
-        console.error(`[sendConfirmationEmail] WordPress post details not found for post ID: ${postId}`);
-        return res.status(404).json({
-          success: false,
-          message: 'Appraisal details not found.'
-        });
-      }
-      
       // Get customer data and links from the sheets
-      const sheet = config.GOOGLE_SHEET_COMPLETED || 'Completed Appraisals';
       // Get customer info (columns D-E) and links (columns M and P)
       const range = `D${id}:P${id}`;
       const sheetData = await sheetsService.getValues(
@@ -612,10 +641,16 @@ class AppraisalDetailsController {
       let customerName = '';
       let pdfLink = '';
       let wpLink = '';
+      let value = '';
       
       if (sheetData && sheetData.length > 0 && sheetData[0].length >= 2) {
         customerEmail = sheetData[0][0] || ''; // Column D
         customerName = sheetData[0][1] || '';  // Column E
+        
+        // Value is in column J (index 6)
+        if (sheetData[0].length >= 7) {
+          value = sheetData[0][6] || '';
+        }
         
         // PDF link is in column M (index 9)
         if (sheetData[0].length >= 10) {
@@ -636,11 +671,11 @@ class AppraisalDetailsController {
         });
       }
       
-      // Use links from sheets as primary source, fallback to WordPress data
+      // Construct appraisal data from sheet values
       const appraisalData = {
-        value: postDetails.acf?.appraisal_value || postDetails.acf?.value || '',
-        description: postDetails.content?.rendered || '',
-        pdfLink: pdfLink || postDetails.acf?.pdf_url || '',
+        value: value || 'N/A',
+        description: 'See attached PDF for complete appraisal details.',
+        pdfLink: pdfLink || '',
         wpLink: wpLink || ''
       };
       
@@ -657,39 +692,39 @@ class AppraisalDetailsController {
         // Still proceed with sending the email, but log a warning
       }
       
-      // Send the email
-      const emailService = require('../../services/emailService');
-      const emailSent = await emailService.sendAppraisalCompletedEmail(
+      // Send the notification through CRM service instead of direct email
+      const crmService = require('../../services/crmService');
+      const notificationSent = await crmService.sendAppraisalCompletedNotification(
         customerEmail,
         customerName,
         appraisalData
       );
       
-      if (!emailSent) {
-        console.error(`[sendConfirmationEmail] Failed to send email for appraisal ID: ${id}`);
+      if (!notificationSent) {
+        console.error(`[sendConfirmationEmail] Failed to send notification for appraisal ID: ${id}`);
         return res.status(500).json({
           success: false,
-          message: 'Failed to send confirmation email.'
+          message: 'Failed to send confirmation notification via CRM service.'
         });
       }
       
       // Update the email status in Google Sheets (column Q)
-      const emailStatus = `Confirmation email sent for appraisal #${id} on ${new Date().toISOString()}`;
+      const emailStatus = `CRM notification sent for appraisal #${id} on ${new Date().toISOString()}`;
       await sheetsService.updateValues(
         config.PENDING_APPRAISALS_SPREADSHEET_ID,
         `${sheet}!Q${id}`,
         [[emailStatus]]
       );
       
-      console.log(`[sendConfirmationEmail] Email sent successfully to ${customerEmail} for appraisal ID: ${id}`);
+      console.log(`[sendConfirmationEmail] CRM notification sent successfully for ${customerEmail} (appraisal ID: ${id})`);
       
       return res.json({
         success: true,
-        message: 'Confirmation email sent successfully',
+        message: 'Confirmation notification sent successfully via CRM',
         details: {
           id,
           postId,
-          emailSent: true,
+          notificationSent: true,
           timestamp: new Date().toISOString()
         }
       });
@@ -697,7 +732,7 @@ class AppraisalDetailsController {
       console.error(`[sendConfirmationEmail] Error:`, error);
       return res.status(500).json({
         success: false,
-        message: 'Error sending confirmation email',
+        message: 'Error sending confirmation notification',
         error: error.message
       });
     }
