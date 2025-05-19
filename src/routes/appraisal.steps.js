@@ -49,7 +49,35 @@ router.get('/steps', authenticate, async (req, res) => {
  */
 router.post('/:id/process-from-step', authenticate, async (req, res) => {
   const { id } = req.params;
-  const { startStep, options = {} } = req.body;
+  const { startStep, sessionId, options = {} } = req.body;
+
+  // Session ID safeguard
+  if (sessionId) {
+    try {
+      const { sheetsService } = require('../services');
+
+      const pendingSheetName = config.GOOGLE_SHEET_NAME || 'Pending Appraisals';
+      const completedSheetName = config.COMPLETED_SHEET_NAME || 'Completed Appraisals';
+      const sheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+
+      const readSessionId = async (sheetName) => {
+        const values = await sheetsService.getValues(sheetId, `'${sheetName}'!C${id}`);
+        return (values && values[0] && values[0][0]) ? values[0][0] : '';
+      };
+
+      let sheetSessionId = await readSessionId(pendingSheetName);
+      if (sheetSessionId !== sessionId) {
+        sheetSessionId = await readSessionId(completedSheetName);
+      }
+
+      if (sheetSessionId !== sessionId) {
+        return res.status(400).json({ success:false, message:'Session ID mismatch – process aborted.' });
+      }
+    } catch(err) {
+      console.error('Session ID validation error:', err);
+      return res.status(500).json({ success:false, message:'Error validating session ID'});
+    }
+  }
 
   if (!startStep) {
     return res.status(400).json({

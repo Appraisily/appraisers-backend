@@ -228,7 +228,7 @@ class AppraisalDetailsController {
    */
   static async reprocessAppraisalStep(req, res) {
     const { id } = req.params;
-    const { stepName } = req.body;
+    const { stepName, sessionId } = req.body;
     
     console.log(`🔄 [reprocessAppraisalStep] Reprocessing step "${stepName}" for appraisal ID: ${id}`);
     
@@ -241,6 +241,32 @@ class AppraisalDetailsController {
     }
     
     try {
+      // Validate session ID similar to sendConfirmationEmail
+      if (sessionId) {
+        const pendingSheetName   = config.GOOGLE_SHEET_NAME    || 'Pending Appraisals';
+        const completedSheetName = config.COMPLETED_SHEET_NAME || 'Completed Appraisals';
+        const sheetId = config.PENDING_APPRAISALS_SPREADSHEET_ID;
+
+        const readSessionId = async (sheetName) => {
+          const values = await sheetsService.getValues(sheetId, `'${sheetName}'!C${id}`);
+          return (values && values[0] && values[0][0]) ? values[0][0] : '';
+        };
+
+        let sheetSessionId = await readSessionId(pendingSheetName);
+        let usingCompleted = false;
+        if (sheetSessionId !== sessionId) {
+          sheetSessionId = await readSessionId(completedSheetName);
+          usingCompleted = true;
+        }
+
+        if (sheetSessionId !== sessionId) {
+          console.warn(`[reprocessAppraisalStep] Session ID mismatch (expected ${sessionId}, got ${sheetSessionId}). Aborting.`);
+          return res.status(400).json({ success: false, message: 'Session ID mismatch – reprocess aborted.' });
+        }
+        // Save sheet selection for status updates etc.
+        req._usingCompletedSheet = usingCompleted;
+      }
+
       // Log the request intent in sheets
       await safeServiceCall(
         sheetsService, 
