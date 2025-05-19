@@ -3,6 +3,8 @@ const { getSecret } = require('./secretManager');
 
 /**
  * Service for sending notifications to CRM via Google Cloud Pub/Sub
+ * 
+ * Message schema documented in docs/CRM_SCHEMA.md
  */
 class CrmService {
   constructor() {
@@ -71,20 +73,22 @@ class CrmService {
       
       const topic = pubsub.topic(this.topicName);
 
-      // Prepare message data structure according to CRM requirements
+      // Prepare message data structure according to the updated CRM schema
       const messageData = {
-        processType: 'appraisalReadyNotification',
+        crmProcess: "appraisalReadyNotification",
         customer: {
           email: customerEmail,
-          name: customerName || 'Valued Customer'
+          name: customerName || "Customer"
         },
-        sessionId: sessionId,
+        metadata: {
+          origin: "appraisers-backend",
+          sessionId: sessionId,
+          environment: process.env.NODE_ENV || "production",
+          timestamp: Date.now()
+        },
         pdf_link: appraisalData?.pdfLink || '',
         wp_link: appraisalData?.wpLink || '',
-        timestamp: new Date().toISOString(),
-        origin: 'appraisers-backend',
-        subscriptionName: this.subscriptionName,
-        // Include additional data for potential CRM needs
+        // Include additional data as optional fields
         appraisal_value: appraisalData?.value || 'N/A',
         description: appraisalData?.description || 'No description available'
       };
