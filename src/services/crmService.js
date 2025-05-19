@@ -75,7 +75,7 @@ class CrmService {
 
       // Prepare message data structure according to the updated CRM schema
       const messageData = {
-        crmProcess: "appraisalReadyNotification",
+        crmProcess: "bulkAppraisalFinalized",
         customer: {
           email: customerEmail,
           name: customerName || "Customer"

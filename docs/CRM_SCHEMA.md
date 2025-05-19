@@ -8,16 +8,16 @@ When an appraisal is completed and ready for a customer, the following JSON stru
 
 ```json
 {
-  "crmProcess": "appraisalReadyNotification",  // Required - MUST be exactly this value
-  "customer": {                                // Required object
-    "email": "customer@example.com",           // Required
-    "name": "John Doe"                         // Optional, defaults to 'Customer'
+  "crmProcess": "bulkAppraisalFinalized",     // Required - MUST be exactly this value
+  "customer": {                               // Required object
+    "email": "customer@example.com",          // Required
+    "name": "John Doe"                        // Optional, defaults to 'Customer'
   },
-  "metadata": {                                // Required object
-    "origin": "appraisal-service",             // Required - Identifies the sending system
-    "sessionId": "sess_67890",                 // Required - The appraisal session ID
-    "environment": "production",               // Required - "production", "development", etc.
-    "timestamp": 1686839700000                 // Required - Milliseconds since epoch (numeric)
+  "metadata": {                               // Required object
+    "origin": "appraisal-service",            // Required - Identifies the sending system
+    "sessionId": "sess_67890",                // Required - The appraisal session ID
+    "environment": "production",              // Required - "production", "development", etc.
+    "timestamp": 1686839700000                // Required - Milliseconds since epoch (numeric)
   },
   "pdf_link": "https://example.com/appraisals/report.pdf",  // Required for this processor
   "wp_link": "https://example.com/appraisals/vintage-watch"  // Required for this processor
@@ -26,7 +26,7 @@ When an appraisal is completed and ready for a customer, the following JSON stru
 
 ## Required Fields
 
-- `crmProcess`: Must be set to "appraisalReadyNotification" exactly to route to the correct processor
+- `crmProcess`: Must be set to "bulkAppraisalFinalized" exactly to route to the correct processor
 - `customer`: Object containing customer information
   - `customer.email`: The customer's email address
   - `customer.name`: The customer's name (optional, defaults to "Customer")
@@ -38,11 +38,22 @@ When an appraisal is completed and ready for a customer, the following JSON stru
 - `pdf_link`: URL to the PDF version of the appraisal report
 - `wp_link`: URL to the WordPress page with the appraisal content
 
+## Valid CRM Process Types
+
+The CRM system supports the following process types:
+- `screenerNotification`
+- `chatSummary`
+- `gmailInteraction`
+- `appraisalRequest`
+- `stripePayment`
+- `bulkAppraisalEmailUpdate`
+- `bulkAppraisalFinalized` (use this for appraisal completion notifications)
+
 ## Example Usage
 
 ```javascript
 const messageData = {
-  crmProcess: "appraisalReadyNotification",
+  crmProcess: "bulkAppraisalFinalized",
   customer: {
     email: customerEmail,
     name: customerName || "Customer"
