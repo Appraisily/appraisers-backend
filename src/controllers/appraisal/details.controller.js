@@ -720,10 +720,11 @@ class AppraisalDetailsController {
       
       // Send the notification through CRM service instead of direct email
       const crmService = require('../../services/crmService');
-      const notificationSent = await crmService.sendAppraisalCompletedNotification(
+      const notificationSent = await crmService.sendAppraisalReadyNotification(
         customerEmail,
         customerName,
-        appraisalData
+        appraisalData,
+        sessionId
       );
       
       if (!notificationSent) {

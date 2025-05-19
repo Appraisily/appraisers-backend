@@ -235,9 +235,10 @@ class CrmService {
    * @param {string} customerEmail - Customer's email address
    * @param {string} customerName - Customer's name
    * @param {object} appraisalData - Appraisal data including value, description, and links
+   * @param {string} [sessionId] - Optional session ID, will be generated if not provided
    * @returns {Promise<boolean>} Success status
    */
-  async sendAppraisalReadyNotification(customerEmail, customerName, appraisalData) {
+  async sendAppraisalReadyNotification(customerEmail, customerName, appraisalData, sessionId = null) {
     const customerData = {
       email: customerEmail,
       name: customerName
@@ -251,7 +252,7 @@ class CrmService {
       description: appraisalData?.description || 'No description available'
     };
     
-    return this.sendNotification("appraisalReadyNotification", customerData, notificationData);
+    return this.sendNotification("appraisalReadyNotification", customerData, notificationData, sessionId);
   }
 
   /**
