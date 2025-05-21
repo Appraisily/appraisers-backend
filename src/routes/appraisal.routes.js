@@ -7,6 +7,7 @@ const BulkController = require('../controllers/appraisal/bulk.controller');
 const DetailsController = require('../controllers/appraisal/details.controller');
 const { ImageAnalysisController } = require('../controllers/appraisal');
 const NewAppraisalController = require('../controllers/appraisal/newAppraisal.controller');
+const ReprocessController = require('../controllers/appraisal/reprocess.controller');
 const { registerRoute } = require('../services/routeDecorator');
 
 // List and View routes
@@ -316,6 +317,27 @@ registerRoute(router, 'post', '/reprocess-with-gemini', {
     message: 'Appraisal reprocessing started successfully'
   }
 }, authenticate, AppraisalController.reprocessWithGeminiData);
+
+// New route for reprocessing by WordPress post ID
+registerRoute(router, 'post', '/reprocess-by-post/:postId', {
+  description: 'Reprocess an entire appraisal based on WordPress post ID',
+  parameters: {
+    postId: {
+      description: 'WordPress post ID',
+      required: true
+    }
+  },
+  response: {
+    success: true,
+    message: 'Appraisal submitted for complete reprocessing',
+    details: {
+      postId: '456',
+      service: 'appraisals-backend',
+      status: 'processing',
+      timestamp: '2023-01-02T00:00:00Z'
+    }
+  }
+}, authenticate, ReprocessController.reprocessByPostId);
 
 // New route for creating appraisals directly through the appraisers frontend
 registerRoute(router, 'post', '/new', {
