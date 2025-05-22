@@ -488,7 +488,7 @@ class AppraisalDetailsController {
       }
       
       // Use the complete-appraisal-report endpoint in appraisals-backend
-      const appraisalsEndpoint = `/api/report/complete-appraisal-report`;
+      const appraisalsEndpoint = `/complete-appraisal-report`;
       const url = `${config.APPRAISALS_BACKEND_URL}${appraisalsEndpoint}`;
       
       console.log(`🔄 [reprocessCompleteAppraisal] Calling appraisals-backend at ${url} for postId: ${postId}`);
