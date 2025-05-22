@@ -79,7 +79,7 @@ class AppraisalReprocessController {
       const appraisalsEndpoint = `/complete-appraisal-report`;
       const url = `${config.APPRAISALS_BACKEND_URL}${appraisalsEndpoint}`;
       
-      logger.info(`🔄 [reprocessByPostId] Calling appraisals-backend at ${url} for postId: ${postId}`);
+      logger.info(`🔄 [reprocessByPostId] Will call appraisals-backend at ${url} for postId: ${postId}`);
       
       // Prepare the request data for backend processing
       const requestData = {
@@ -87,42 +87,48 @@ class AppraisalReprocessController {
         justificationOnly: false // We want to process the entire appraisal
       };
       
-      // Make the direct call to the appraisals-backend service
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger.error(`🔄 [reprocessByPostId] Error from appraisals-backend: ${errorText}`);
-        throw new Error(`Error from appraisals-backend: ${response.status} ${response.statusText}`);
-      }
-      
-      // Return immediate success response to client
-      const responseForClient = {
+      // --------------------------------------------------------------
+      // 1) Send immediate response to the client so they don't wait
+      // --------------------------------------------------------------
+      res.json({
         success: true,
-        message: `Appraisal submitted for complete reprocessing`,
+        message: 'Appraisal reprocessing request submitted. Processing will continue in the background.',
         details: {
           postId,
           service: 'appraisals-backend',
           status: 'processing',
           timestamp: new Date().toISOString()
         }
-      };
-      
-      // Send the response to the client
-      res.json(responseForClient);
+      });
+
+      // --------------------------------------------------------------
+      // 2) Perform the actual request to appraisals-backend in background
+      // --------------------------------------------------------------
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      })
+        .then(async backendRes => {
+          if (!backendRes.ok) {
+            const text = await backendRes.text();
+            logger.error(`🔄 [reprocessByPostId] Backend error (${backendRes.status}): ${text}`);
+          } else {
+            logger.info(`✅ [reprocessByPostId] Backend accepted request for post ${postId}`);
+          }
+        })
+        .catch(err => {
+          logger.error(`❌ [reprocessByPostId] Error calling appraisals-backend:`, err.message);
+        });
       
     } catch (error) {
-      logger.error(`🔄 [reprocessByPostId] Error reprocessing post ID ${postId}:`, error);
-      
-      res.status(500).json({
+      // If we reach here, response has NOT been sent yet
+      logger.error(`🔄 [reprocessByPostId] Immediate failure for post ID ${postId}:`, error);
+      return res.status(500).json({
         success: false,
-        message: `Failed to reprocess appraisal: ${error.message}`
+        message: `Failed to submit appraisal for reprocessing: ${error.message}`
       });
     }
   }
